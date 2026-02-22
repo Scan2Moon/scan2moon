@@ -1,10 +1,10 @@
-export function renderFinalScore() {
+export async function renderFinalScore() {
   const r = window.scanResult;
   if (!r) return;
 
   const meta = window.scanTokenMeta || {};
   const name = meta.name || "Unknown Token";
-  const logo = meta.logo || "https://placehold.co/56x56";
+  const logoUrl = meta.logo || "https://placehold.co/56x56";
 
   const explanation = generateRiskExplanation(r);
 
@@ -30,7 +30,7 @@ Verified by Scan2Moon 🚀
     <div class="score-card" id="scoreCard">
       <div class="score-content">
         <div class="score-header">
-          <img class="score-logo" src="${logo}" />
+          <img class="score-logo" id="finalScoreLogo" crossorigin="anonymous" />
           <div class="score-meta">
             <div class="score-token">${name}</div>
             <div class="score-badge">${r.riskLevel}</div>
@@ -62,16 +62,47 @@ Verified by Scan2Moon 🚀
     </div>
   `;
 
+  // 🔥 Convert logo to Base64 to prevent CORS issues
+  const logoImg = document.getElementById("finalScoreLogo");
+  try {
+    const base64Logo = await getBase64Image(logoUrl);
+    logoImg.src = base64Logo;
+  } catch {
+    logoImg.src = "https://placehold.co/56x56";
+  }
+
+  // Wait until logo fully loads before enabling buttons
+  await waitForImageLoad(logoImg);
+
   bindFinalScoreButtons(shareText, name);
 }
 
-/* ================= BUTTONS FIXED ================= */
+/* ================= IMAGE HELPERS ================= */
+
+async function getBase64Image(url) {
+  const response = await fetch(url, { mode: "cors" });
+  const blob = await response.blob();
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result);
+    reader.readAsDataURL(blob);
+  });
+}
+
+function waitForImageLoad(img) {
+  return new Promise((resolve) => {
+    if (img.complete) resolve();
+    else img.onload = resolve;
+  });
+}
+
+/* ================= BUTTONS ================= */
 
 function bindFinalScoreButtons(shareText, name) {
   const copyBtn = document.getElementById("copyScore");
   const saveBtn = document.getElementById("saveScore");
   const postBtn = document.getElementById("postScore");
-
   const card = document.getElementById("scoreCard");
 
   if (!card) return;
@@ -89,9 +120,10 @@ function bindFinalScoreButtons(shareText, name) {
   if (saveBtn) {
     saveBtn.onclick = async () => {
       const canvas = await html2canvas(card, {
-        backgroundColor: "#020806",   // ✅ FIXED
+        backgroundColor: "#020806",
         scale: 2,
-        useCORS: true                 // ✅ ensures background loads properly
+        useCORS: true,
+        allowTaint: false
       });
 
       const link = document.createElement("a");
@@ -105,9 +137,10 @@ function bindFinalScoreButtons(shareText, name) {
   if (postBtn) {
     postBtn.onclick = async () => {
       const canvas = await html2canvas(card, {
-        backgroundColor: "#020806",   // ✅ FIXED
+        backgroundColor: "#020806",
         scale: 2,
-        useCORS: true                 // ✅ ensures background loads properly
+        useCORS: true,
+        allowTaint: false
       });
 
       const imageData = canvas.toDataURL("image/png");
