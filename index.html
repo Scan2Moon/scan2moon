@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+
+  <title>Scan2Moon</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+
+  <h1 class="app-title">Scan2Moon</h1>
+  <p class="app-subtitle">On-chain Solana Risk Scanner</p>
+
+  <div class="scan-bar">
+    <input id="mintInput" placeholder="Paste token mint address" />
+    <button id="scanBtn">Scan</button>
+  </div>
+
+  <!-- FINAL SCORE -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">FINAL SCORE</div>
+      <div class="score-actions">
+        <button id="copyScore">Copy</button>
+        <button id="saveScore">Save</button>
+        <button id="postScore">Post</button>
+      </div>
+    </div>
+    <div class="panel-body" id="finalScore">Waiting for scan...</div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">MAIN ANALYSIS</div>
+      <div class="panel-body" id="mainAnalysis">Waiting for scan...</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">LIVE MARKET CAP</div>
+      <div class="panel-body" id="marketCap">Waiting for scan...</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="panel">
+      <div class="panel-title">SCAN SIGNALS</div>
+      <div class="panel-body" id="scanSignals">Waiting for scan...</div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">TOP HOLDERS</div>
+      <div class="panel-body">
+        <div id="holdersTable" class="holders-table">Waiting for scan...</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Scan2Moon Community</div>
+    <div class="panel-body" id="communityPanel"></div>
+  </div>
+
+  <footer class="footer">
+  <div class="footer-left">
+    Informational tool only. Always DYOR.
+  </div>
+  <div class="footer-right">
+    <span class="version">Version V0.1 (TEST)</span>
+    <span class="separator">•</span>
+    <span class="powered">Powered by Scan2Moon</span>
+  </div>
+</footer>
+
+
+</div>
+
+<script type="module" src="script.js"></script>
+</body>
+</html>
