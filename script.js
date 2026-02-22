@@ -5,7 +5,7 @@ import { renderHolders } from "./holders.js";
 import { renderFinalScore } from "./finalScore.js";
 import { callRpc } from "./rpc.js";
 import "./community.js";
-import bs58 from "bs58";
+import bs58 from "https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm";
 
 /* ============================= */
 /* SAFE TEXT SETTER */
