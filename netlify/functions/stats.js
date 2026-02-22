@@ -1,5 +1,3 @@
-const { getStore } = require("@netlify/blobs");
-
 /* ===== CONFIG ===== */
 const ALLOWED_TYPES = ["visit", "scan", "share", "moon"];
 const RATE_LIMIT_WINDOW = 10000; // 10 seconds
@@ -7,6 +5,15 @@ const MAX_ACTIONS_PER_WINDOW = 20;
 
 /* ===== SIMPLE IN-MEMORY RATE LIMIT (per function instance) ===== */
 const rateLimitMap = new Map();
+
+/* ===== IN-MEMORY GLOBAL STATS ===== */
+/* NOTE: resets when function restarts */
+let globalStats = {
+  visits: 0,
+  scans: 0,
+  shares: 0,
+  moon: 0,
+};
 
 function isRateLimited(ip) {
   const now = Date.now();
@@ -51,7 +58,7 @@ exports.handler = async function (event) {
   try {
     const method = event.httpMethod;
 
-    // Handle CORS preflight
+    // CORS preflight
     if (method === "OPTIONS") {
       return jsonResponse(200, {});
     }
@@ -69,16 +76,6 @@ exports.handler = async function (event) {
       return jsonResponse(429, { error: "Too many requests" });
     }
 
-    const store = getStore("scan2moonStats");
-
-    let globalStats =
-      (await store.getJSON("global")) || {
-        visits: 0,
-        scans: 0,
-        shares: 0,
-        moon: 0,
-      };
-
     if (method === "POST") {
       let body;
 
@@ -93,10 +90,8 @@ exports.handler = async function (event) {
       }
 
       // Increment safely
-      globalStats[`${body.type}s`] =
-        Number(globalStats[`${body.type}s`] || 0) + 1;
-
-      await store.setJSON("global", globalStats);
+      const key = `${body.type}s`;
+      globalStats[key] = Number(globalStats[key] || 0) + 1;
 
       return jsonResponse(200, globalStats);
     }
