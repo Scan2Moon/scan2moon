@@ -62,16 +62,21 @@ Verified by Scan2Moon 🚀
     </div>
   `;
 
-  // 🔥 Convert logo to Base64 to prevent CORS issues
   const logoImg = document.getElementById("finalScoreLogo");
+
+  // 🔥 Always show logo in UI first (prevents blank rendering)
+  logoImg.src = logoUrl;
+
+  // Try to convert to Base64 silently (for export safety)
   try {
-    const base64Logo = await getBase64Image(logoUrl);
-    logoImg.src = base64Logo;
-  } catch {
-    logoImg.src = "https://placehold.co/56x56";
+    const base64Logo = await getBase64ImageSafe(logoUrl);
+    if (base64Logo) {
+      logoImg.src = base64Logo;
+    }
+  } catch (e) {
+    console.warn("Logo CORS blocked — using direct URL.");
   }
 
-  // Wait until logo fully loads before enabling buttons
   await waitForImageLoad(logoImg);
 
   bindFinalScoreButtons(shareText, name);
@@ -79,21 +84,35 @@ Verified by Scan2Moon 🚀
 
 /* ================= IMAGE HELPERS ================= */
 
-async function getBase64Image(url) {
-  const response = await fetch(url, { mode: "cors" });
-  const blob = await response.blob();
+async function getBase64ImageSafe(url) {
+  try {
+    const response = await fetch(url, {
+      mode: "cors",
+      cache: "no-cache"
+    });
 
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
-  });
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.readAsDataURL(blob);
+    });
+
+  } catch {
+    return null; // Fail silently
+  }
 }
 
 function waitForImageLoad(img) {
   return new Promise((resolve) => {
     if (img.complete) resolve();
-    else img.onload = resolve;
+    else {
+      img.onload = resolve;
+      img.onerror = resolve; // prevent hanging
+    }
   });
 }
 
