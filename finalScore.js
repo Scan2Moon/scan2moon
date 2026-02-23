@@ -4,7 +4,10 @@ export async function renderFinalScore() {
 
   const meta = window.scanTokenMeta || {};
   const name = meta.name || "Unknown Token";
-  const logoUrl = meta.logo || "https://placehold.co/56x56";
+
+  // 🔥 Always route logo through your Netlify proxy
+  const rawLogo = meta.logo || "https://placehold.co/56x56";
+  const logoUrl = `/api/logoProxy?url=${encodeURIComponent(rawLogo)}`;
 
   const explanation = generateRiskExplanation(r);
 
@@ -30,7 +33,7 @@ Verified by Scan2Moon 🚀
     <div class="score-card" id="scoreCard">
       <div class="score-content">
         <div class="score-header">
-          <img class="score-logo" id="finalScoreLogo" crossorigin="anonymous" />
+          <img class="score-logo" id="finalScoreLogo" />
           <div class="score-meta">
             <div class="score-token">${name}</div>
             <div class="score-badge">${r.riskLevel}</div>
@@ -64,47 +67,15 @@ Verified by Scan2Moon 🚀
 
   const logoImg = document.getElementById("finalScoreLogo");
 
-  // 🔥 Always show logo in UI first (prevents blank rendering)
+  // ✅ Load from proxy (CORS safe, export safe)
   logoImg.src = logoUrl;
-
-  // Try to convert to Base64 silently (for export safety)
-  try {
-    const base64Logo = await getBase64ImageSafe(logoUrl);
-    if (base64Logo) {
-      logoImg.src = base64Logo;
-    }
-  } catch (e) {
-    console.warn("Logo CORS blocked — using direct URL.");
-  }
 
   await waitForImageLoad(logoImg);
 
   bindFinalScoreButtons(shareText, name);
 }
 
-/* ================= IMAGE HELPERS ================= */
-
-async function getBase64ImageSafe(url) {
-  try {
-    const response = await fetch(url, {
-      mode: "cors",
-      cache: "no-cache"
-    });
-
-    if (!response.ok) return null;
-
-    const blob = await response.blob();
-
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result);
-      reader.readAsDataURL(blob);
-    });
-
-  } catch {
-    return null; // Fail silently
-  }
-}
+/* ================= IMAGE LOAD HELPER ================= */
 
 function waitForImageLoad(img) {
   return new Promise((resolve) => {
