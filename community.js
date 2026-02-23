@@ -21,7 +21,7 @@ async function safeFetch(url, options = {}, timeout = 8000) {
 
     const contentType = response.headers.get("content-type");
     if (!contentType || !contentType.includes("application/json")) {
-      throw new Error("Invalid JSON response (likely 404 HTML page)");
+      throw new Error("Invalid JSON response");
     }
 
     return await response.json();
@@ -32,7 +32,7 @@ async function safeFetch(url, options = {}, timeout = 8000) {
   }
 }
 
-/* ===== RENDER PANEL STRUCTURE ===== */
+/* ===== RENDER PANEL ===== */
 
 function renderCommunityPanel() {
   const panel = document.getElementById("communityPanel");
@@ -57,19 +57,19 @@ function renderCommunityPanel() {
       <div class="community-col">
         <div class="community-item stat">
           Site Visits
-          <strong id="statVisits">0</strong>
+          <strong id="statVisits">—</strong>
         </div>
         <div class="community-item stat">
           Wallets Scanned
-          <strong id="statScans">0</strong>
+          <strong id="statScans">—</strong>
         </div>
         <div class="community-item stat">
           Stats Shared to X
-          <strong id="statShares">0</strong>
+          <strong id="statShares">—</strong>
         </div>
         <div class="community-item stat">
           Moon Coins Detected
-          <strong id="statMoon">0</strong>
+          <strong id="statMoon">—</strong>
         </div>
       </div>
 
@@ -84,15 +84,10 @@ function renderCommunityPanel() {
   `;
 }
 
-/* ===== DEBOUNCE ===== */
+/* ===== STATE ===== */
 
-function debounce(fn, delay) {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), delay);
-  };
-}
+let isFetching = false;
+let lastStats = null;
 
 /* ===== UPDATE UI ===== */
 
@@ -103,6 +98,8 @@ function updateStatsUI(data = {}) {
     shares: Number(data.shares || 0),
     moon: Number(data.moon || 0)
   };
+
+  lastStats = safe;
 
   const visitsEl = document.getElementById("statVisits");
   const scansEl = document.getElementById("statScans");
@@ -117,14 +114,22 @@ function updateStatsUI(data = {}) {
 
 /* ===== FETCH STATS ===== */
 
-const debouncedFetchStats = debounce(async () => {
+async function fetchStats() {
+  if (isFetching) return;
+  isFetching = true;
+
   try {
     const data = await safeFetch(statsEndpoint);
     updateStatsUI(data);
   } catch (err) {
     console.warn("Stats fetch failed:", err.message);
+
+    // fallback: keep last known values
+    if (lastStats) updateStatsUI(lastStats);
   }
-}, 10000);
+
+  isFetching = false;
+}
 
 /* ===== INCREMENT STAT ===== */
 
@@ -136,7 +141,8 @@ async function incrementGlobalStat(type) {
       body: JSON.stringify({ type })
     });
 
-    debouncedFetchStats();
+    // immediately refresh after increment
+    await fetchStats();
 
   } catch (err) {
     console.warn("Stat increment failed:", err.message);
@@ -151,16 +157,21 @@ function formatNumber(num) {
 
 /* ===== INIT ===== */
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   renderCommunityPanel();
-  debouncedFetchStats();
+
+  // Immediate load
+  await fetchStats();
+
+  // Auto refresh every 60s (stable)
+  setInterval(fetchStats, 60000);
 
   if (!sessionStorage.getItem("visited")) {
-    incrementGlobalStat("visit");
+    await incrementGlobalStat("visit");
     sessionStorage.setItem("visited", "true");
   }
 });
 
-/* ===== EXPORT TO GLOBAL ===== */
+/* ===== EXPORT ===== */
 
 window.incrementGlobalStat = incrementGlobalStat;
