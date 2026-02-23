@@ -7,7 +7,7 @@ export async function renderFinalScore() {
 
   // 🔥 Always route logo through your Netlify proxy
   const rawLogo = meta.logo || "https://placehold.co/56x56";
-  const logoUrl = `/api/logoProxy?url=${encodeURIComponent(rawLogo)}`;
+  const logoUrl = `/.netlify/functions/logoProxy?url=${encodeURIComponent(rawLogo)}`;
 
   const explanation = generateRiskExplanation(r);
 
