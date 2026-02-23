@@ -29,6 +29,14 @@ Verified by Scan2Moon 🚀
   const container = document.getElementById("finalScore");
   if (!container) return;
 
+  // 🔥 Determine explain box color state
+  const explainClass =
+    r.totalScore >= 70
+      ? "explain-good"
+      : r.totalScore >= 40
+      ? "explain-warn"
+      : "explain-bad";
+
   container.innerHTML = `
     <div class="score-card" id="scoreCard">
       <div class="score-content">
@@ -55,7 +63,7 @@ Verified by Scan2Moon 🚀
           Calculated from on-chain and market behavior
         </div>
 
-        <div class="signal-explainer">
+        <div class="signal-explainer ${explainClass}">
           <strong>Explain Risk</strong><br />
           ${explanation}
         </div>
@@ -82,7 +90,7 @@ function waitForImageLoad(img) {
     if (img.complete) resolve();
     else {
       img.onload = resolve;
-      img.onerror = resolve; // prevent hanging
+      img.onerror = resolve;
     }
   });
 }
@@ -97,7 +105,6 @@ function bindFinalScoreButtons(shareText, name) {
 
   if (!card) return;
 
-  /* COPY */
   if (copyBtn) {
     copyBtn.onclick = async () => {
       await navigator.clipboard.writeText(shareText);
@@ -106,7 +113,6 @@ function bindFinalScoreButtons(shareText, name) {
     };
   }
 
-  /* SAVE IMAGE */
   if (saveBtn) {
     saveBtn.onclick = async () => {
       const canvas = await html2canvas(card, {
@@ -123,7 +129,6 @@ function bindFinalScoreButtons(shareText, name) {
     };
   }
 
-  /* POST TO X */
   if (postBtn) {
     postBtn.onclick = async () => {
       const canvas = await html2canvas(card, {

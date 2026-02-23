@@ -701,3 +701,34 @@ a {
 .score-card {
   background-blend-mode: normal;
 }
+
+/* ================= EXPLAIN RISK STATES ================= */
+
+.signal-explainer {
+  margin-top: 18px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+/* 🟢 GOOD (70+) */
+.explain-good {
+  background: linear-gradient(90deg, rgba(0,255,170,0.15), rgba(0,255,170,0.05));
+  border-left: 4px solid #00ffaa;
+  color: #7fffd4;
+}
+
+/* 🟡 WARN (40–69) */
+.explain-warn {
+  background: linear-gradient(90deg, rgba(255,200,0,0.15), rgba(255,200,0,0.05));
+  border-left: 4px solid #ffc800;
+  color: #ffd966;
+}
+
+/* 🔴 BAD (<40) */
+.explain-bad {
+  background: linear-gradient(90deg, rgba(255,0,0,0.15), rgba(255,0,0,0.05));
+  border-left: 4px solid #ff3b3b;
+  color: #ff8a8a;
+}
