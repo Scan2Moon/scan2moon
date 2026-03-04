@@ -15,8 +15,7 @@ async function safeFetch(url, options = {}, timeout = 8000) {
     clearTimeout(id);
 
     if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text.substring(0, 120)}`);
+      throw new Error(`HTTP ${response.status}`);
     }
 
     const contentType = response.headers.get("content-type");
@@ -33,7 +32,6 @@ async function safeFetch(url, options = {}, timeout = 8000) {
 }
 
 /* ===== RENDER PANEL ===== */
-
 function renderCommunityPanel() {
   const panel = document.getElementById("communityPanel");
   if (!panel) return;
@@ -48,7 +46,7 @@ function renderCommunityPanel() {
         </div>
         <div class="community-item">
           <span>Discord</span>
-          <a href="https://discord.gg/9XGETdE5" target="_blank">Join Server</a>
+          <a href="https://discord.gg/kMhXfpJR" target="_blank">Join Server</a>
         </div>
         <div class="community-item coming">More coming soon</div>
         <div class="community-item coming">More coming soon</div>
@@ -84,55 +82,30 @@ function renderCommunityPanel() {
   `;
 }
 
-/* ===== STATE ===== */
-
-let isFetching = false;
-let lastStats = null;
-
 /* ===== UPDATE UI ===== */
-
 function updateStatsUI(data = {}) {
-  const safe = {
-    visits: Number(data.visits || 0),
-    scans: Number(data.scans || 0),
-    shares: Number(data.shares || 0),
-    moon: Number(data.moon || 0)
-  };
-
-  lastStats = safe;
-
   const visitsEl = document.getElementById("statVisits");
   const scansEl = document.getElementById("statScans");
   const sharesEl = document.getElementById("statShares");
   const moonEl = document.getElementById("statMoon");
 
-  if (visitsEl) visitsEl.innerText = formatNumber(safe.visits);
-  if (scansEl) scansEl.innerText = formatNumber(safe.scans);
-  if (sharesEl) sharesEl.innerText = formatNumber(safe.shares);
-  if (moonEl) moonEl.innerText = formatNumber(safe.moon);
+  if (visitsEl) visitsEl.innerText = formatNumber(data.visits || 0);
+  if (scansEl) scansEl.innerText = formatNumber(data.scans || 0);
+  if (sharesEl) sharesEl.innerText = formatNumber(data.shares || 0);
+  if (moonEl) moonEl.innerText = formatNumber(data.moon || 0);
 }
 
 /* ===== FETCH STATS ===== */
-
 async function fetchStats() {
-  if (isFetching) return;
-  isFetching = true;
-
   try {
     const data = await safeFetch(statsEndpoint);
     updateStatsUI(data);
   } catch (err) {
     console.warn("Stats fetch failed:", err.message);
-
-    // fallback: keep last known values
-    if (lastStats) updateStatsUI(lastStats);
   }
-
-  isFetching = false;
 }
 
 /* ===== INCREMENT STAT ===== */
-
 async function incrementGlobalStat(type) {
   try {
     await safeFetch(statsEndpoint, {
@@ -140,30 +113,21 @@ async function incrementGlobalStat(type) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type })
     });
-
-    // immediately refresh after increment
     await fetchStats();
-
   } catch (err) {
     console.warn("Stat increment failed:", err.message);
   }
 }
 
 /* ===== HELPERS ===== */
-
 function formatNumber(num) {
   return Number(num || 0).toLocaleString();
 }
 
 /* ===== INIT ===== */
-
 document.addEventListener("DOMContentLoaded", async () => {
   renderCommunityPanel();
-
-  // Immediate load
   await fetchStats();
-
-  // Auto refresh every 60s (stable)
   setInterval(fetchStats, 60000);
 
   if (!sessionStorage.getItem("visited")) {
@@ -171,7 +135,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     sessionStorage.setItem("visited", "true");
   }
 });
-
-/* ===== EXPORT ===== */
 
 window.incrementGlobalStat = incrementGlobalStat;

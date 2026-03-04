@@ -1,8 +1,10 @@
+// UPDATED FILE: script.js
 import { renderMainAnalysis } from "./mainAnalysis.js";
 import { renderSignals } from "./scanSignals.js";
 import { renderMarketCap, stopMarketCap } from "./marketCap.js";
 import { renderHolders } from "./holders.js";
 import { renderFinalScore } from "./finalScore.js";
+import { renderTokenStats } from "./tokenStats.js";
 import { callRpc } from "./rpc.js";
 import "./community.js";
 import bs58 from "https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm";
@@ -21,10 +23,7 @@ function setText(id, text) {
 function isValidSolanaAddress(address) {
   try {
     if (!address) return false;
-
-    // Solana mint length is typically 32–44 chars
     if (address.length < 32 || address.length > 44) return false;
-
     bs58.decode(address);
     return true;
   } catch {
@@ -39,13 +38,11 @@ document.getElementById("scanBtn").onclick = async () => {
   const mintInput = document.getElementById("mintInput");
   const mint = mintInput.value.trim();
 
-  /* BASIC CHECK */
   if (!mint) {
     alert("Paste token mint address");
     return;
   }
 
-  /* BASE58 VALIDATION */
   if (!isValidSolanaAddress(mint)) {
     alert("Invalid Solana mint address.\nPlease check for typos (no 0, O, I, l allowed).");
     return;
@@ -57,6 +54,7 @@ document.getElementById("scanBtn").onclick = async () => {
   setText("scanSignals", "Analyzing market...");
   setText("finalScore", "Calculating score...");
   setText("marketCap", "Loading market cap...");
+  setText("tokenStats", "Loading token stats...");
 
   stopMarketCap();
 
@@ -65,9 +63,14 @@ document.getElementById("scanBtn").onclick = async () => {
     await renderMainAnalysis(mint);
     await renderHolders(mint);
     await renderSignals(mint);
-    renderFinalScore();
 
-    /* 🌍 GLOBAL STATS */
+    /* ✅ TOKEN STATS FIRST (sets net pressure) */
+    await renderTokenStats(mint);
+
+    /* ✅ FINAL SCORE AFTER ALL DATA READY */
+    await renderFinalScore();
+
+    /* GLOBAL STATS */
     if (window.incrementGlobalStat) {
       window.incrementGlobalStat("scan");
     }
@@ -84,11 +87,12 @@ document.getElementById("scanBtn").onclick = async () => {
     setText("holdersTable", "Unavailable");
     setText("scanSignals", "Unavailable");
     setText("finalScore", "0");
+    setText("tokenStats", "Unavailable");
     alert("Scan failed.\nInvalid mint or backend error.\nCheck console for details.");
     return;
   }
 
-  /* MARKET CAP SEPARATE SAFE BLOCK */
+  /* MARKET CAP SAFE BLOCK */
   try {
     renderMarketCap(mint);
   } catch (e) {

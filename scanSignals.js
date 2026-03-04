@@ -15,7 +15,6 @@ async function fetchDexData(mint) {
 }
 
 /* ================= CORE MARKET INTEGRITY ================= */
-
 async function fetchMarketIntegrity(mint) {
   const pair = await fetchDexData(mint);
   if (!pair) return 40;
@@ -39,8 +38,7 @@ async function fetchMarketIntegrity(mint) {
   return 85;
 }
 
-/* ================= LIQUIDITY LOGIC ================= */
-
+/* ================= LIQUIDITY ================= */
 async function fetchLpStrength(mint) {
   const pair = await fetchDexData(mint);
   if (!pair) return 30;
@@ -66,7 +64,6 @@ async function fetchLpStability(mint) {
 }
 
 /* ================= VOLUME ================= */
-
 async function fetchVolumeConsistency(mint) {
   const pair = await fetchDexData(mint);
   if (!pair) return 40;
@@ -82,13 +79,11 @@ async function fetchVolumeConsistency(mint) {
   return 85;
 }
 
-/* ================= HOLDER RISK (FIXED - NO SOLSCAN) ================= */
-
+/* ================= HOLDER RISK ================= */
 async function fetchHolderConcentration(mint) {
   const pair = await fetchDexData(mint);
   if (!pair) return 40;
 
-  // Use liquidity + tx imbalance as proxy risk
   const liquidity = pair.liquidity?.usd ?? 0;
   const buys = pair.txns?.h1?.buys ?? 0;
   const sells = pair.txns?.h1?.sells ?? 0;
@@ -104,7 +99,6 @@ async function fetchHolderConcentration(mint) {
 }
 
 /* ================= DEV BEHAVIOR ================= */
-
 async function fetchDevBehavior(mint) {
   const pair = await fetchDexData(mint);
   if (!pair) return 50;
@@ -119,8 +113,7 @@ async function fetchDevBehavior(mint) {
   return 85;
 }
 
-/* ================= BULLISH RECOVERY SIGNALS ================= */
-
+/* ================= BULLISH SIGNALS ================= */
 async function fetchDipAbsorption(mint) {
   const pair = await fetchDexData(mint);
   if (!pair) return 40;
@@ -166,8 +159,6 @@ async function fetchHigherLowStructure(mint) {
   return 45;
 }
 
-/* ================= SCORE DEGRADATION ================= */
-
 function degradationMultiplier(mi) {
   if (mi >= 80) return 1;
   if (mi >= 55) return 0.8;
@@ -177,7 +168,6 @@ function degradationMultiplier(mi) {
 }
 
 /* ================= RENDER ================= */
-
 export async function renderSignals(mint) {
   const pair = await fetchDexData(mint);
   const pc24h = pair?.priceChange?.h24 ?? 0;
@@ -190,7 +180,6 @@ export async function renderSignals(mint) {
   const volumeConsistency = await fetchVolumeConsistency(mint);
   const holderRisk = await fetchHolderConcentration(mint);
   const devBehavior = await fetchDevBehavior(mint);
-
   const dipAbsorption = await fetchDipAbsorption(mint);
   const reversalVolume = await fetchReversalVolume(mint);
   const higherLow = await fetchHigherLowStructure(mint);
@@ -227,7 +216,27 @@ export async function renderSignals(mint) {
       ? "MODERATE RISK"
       : "HIGH RUG RISK";
 
-  window.scanResult = { totalScore, riskLevel };
+  /* ========= FORMAT EXTRA DATA FOR FINAL SCORE ========= */
+
+  function formatUsd(v) {
+    if (!v) return "N/A";
+    if (v >= 1_000_000_000) return "$" + (v / 1_000_000_000).toFixed(2) + "B";
+    if (v >= 1_000_000) return "$" + (v / 1_000_000).toFixed(2) + "M";
+    if (v >= 1_000) return "$" + (v / 1_000).toFixed(2) + "K";
+    return "$" + v.toFixed(0);
+  }
+
+  const liquidityFormatted = formatUsd(pair?.liquidity?.usd ?? 0);
+  const marketCapFormatted = formatUsd(pair?.fdv ?? 0);
+
+  window.scanResult = {
+    totalScore,
+    riskLevel,
+    liquidity: liquidityFormatted,
+    marketCap: marketCapFormatted,
+    top10: window.scanTop10 || "N/A",
+    devPercent: window.scanDevPercent || "N/A"
+  };
 
   document.getElementById("scanSignals").innerHTML = `
     <div class="signals-table">

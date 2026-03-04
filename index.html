@@ -1,3 +1,4 @@
+<!-- UPDATED FILE: index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,8 +14,11 @@
 
 <div class="app">
 
-  <h1 class="app-title">Scan2Moon</h1>
-  <p class="app-subtitle">On-chain Solana Risk Scanner</p>
+  <header class="hero-header">
+  <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">
+    Follow us on X
+  </a>
+</header>
 
   <div class="scan-bar">
     <input id="mintInput" placeholder="Paste token mint address" />
@@ -32,6 +36,12 @@
       </div>
     </div>
     <div class="panel-body" id="finalScore">Waiting for scan...</div>
+  </div>
+
+  <!-- NEW PANEL: TOKEN MARKET STATS -->
+  <div class="panel">
+    <div class="panel-title">Token Market Stats</div>
+    <div class="panel-body" id="tokenStats">Waiting for scan...</div>
   </div>
 
   <div class="grid-2">

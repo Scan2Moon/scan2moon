@@ -80,6 +80,34 @@ export async function renderMainAnalysis(mint) {
     ? Number(supplyInfo.value.uiAmountString)
     : 0;
 
+  // === DEV HOLDINGS CALCULATION (accurate mint-authority wallet) ===
+  let devPercent = "N/A";
+  if (creator && creator !== "Renounced") {
+    try {
+      const devAccountsRes = await callRpc("getTokenAccountsByOwner", [
+        creator,
+        { mint: mintKey.toString() },
+        { commitment: "confirmed" }
+      ]);
+
+      if (devAccountsRes.value && devAccountsRes.value.length > 0) {
+        const tokenAcc = devAccountsRes.value[0].account.data.parsed.info;
+        const devAmount = Number(tokenAcc.tokenAmount.uiAmount || 0);
+        const devPct = totalSupply > 0 ? (devAmount / totalSupply) * 100 : 0;
+        devPercent = devPct.toFixed(1) + "%";
+      } else {
+        devPercent = "0.0%";
+      }
+    } catch (err) {
+      console.warn("Dev holdings fetch failed:", err);
+      devPercent = "N/A";
+    }
+  } else {
+    devPercent = "Renounced";
+  }
+
+  window.scanDevPercent = devPercent;
+
   let name = "Unknown Token";
   let symbol = "N/A";
   let logo = "https://placehold.co/80x80";
