@@ -1,109 +1,47 @@
-/* ===== CONFIG ===== */
-const ALLOWED_TYPES = ["visit", "scan", "share", "moon"];
-const RATE_LIMIT_WINDOW = 10000; // 10 seconds
-const MAX_ACTIONS_PER_WINDOW = 20;
-
-/* ===== SIMPLE IN-MEMORY RATE LIMIT (per function instance) ===== */
-const rateLimitMap = new Map();
-
-/* ===== IN-MEMORY GLOBAL STATS ===== */
-/* NOTE: resets when function restarts */
-let globalStats = {
+let stats = {
   visits: 0,
   scans: 0,
   shares: 0,
   moon: 0,
 };
 
-function isRateLimited(ip) {
-  const now = Date.now();
-
-  if (!rateLimitMap.has(ip)) {
-    rateLimitMap.set(ip, { count: 1, start: now });
-    return false;
+export default async (req) => {
+  // CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type",
+      },
+    });
   }
 
-  const entry = rateLimitMap.get(ip);
-
-  if (now - entry.start > RATE_LIMIT_WINDOW) {
-    rateLimitMap.set(ip, { count: 1, start: now });
-    return false;
-  }
-
-  entry.count++;
-
-  if (entry.count > MAX_ACTIONS_PER_WINDOW) {
-    return true;
-  }
-
-  return false;
-}
-
-/* ===== RESPONSE HELPER ===== */
-function jsonResponse(statusCode, body) {
-  return {
-    statusCode,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "*",
-      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type"
-    },
-    body: JSON.stringify(body),
-  };
-}
-
-/* ===== HANDLER ===== */
-exports.handler = async function (event) {
   try {
-    const method = event.httpMethod;
-
-    // CORS preflight
-    if (method === "OPTIONS") {
-      return jsonResponse(200, {});
-    }
-
-    if (!["GET", "POST"].includes(method)) {
-      return jsonResponse(405, { error: "Method not allowed" });
-    }
-
-    const ip =
-      event.headers["x-forwarded-for"] ||
-      event.headers["client-ip"] ||
-      "unknown";
-
-    if (isRateLimited(ip)) {
-      return jsonResponse(429, { error: "Too many requests" });
-    }
-
-    if (method === "POST") {
-      let body;
-
+    if (req.method === "POST") {
+      let body = {};
       try {
-        body = JSON.parse(event.body || "{}");
-      } catch {
-        return jsonResponse(400, { error: "Invalid JSON body" });
-      }
+        body = await req.json();
+      } catch (e) {}
 
-      if (!ALLOWED_TYPES.includes(body.type)) {
-        return jsonResponse(400, { error: "Invalid stat type" });
-      }
+      const type = body.type;
 
-      // Increment safely
-      const key = `${body.type}s`;
-      globalStats[key] = Number(globalStats[key] || 0) + 1;
-
-      return jsonResponse(200, globalStats);
+      if (type === "visit") stats.visits = (stats.visits || 0) + 1;
+      else if (type === "scan") stats.scans = (stats.scans || 0) + 1;
+      else if (type === "share") stats.shares = (stats.shares || 0) + 1;
+      else if (type === "moon") stats.moon = (stats.moon || 0) + 1;
     }
 
-    // GET
-    return jsonResponse(200, globalStats);
+    return new Response(JSON.stringify(stats), {
+      headers: { "Content-Type": "application/json" },
+    });
 
   } catch (error) {
-    console.error("Stats error:", error);
-
-    return jsonResponse(500, {
-      error: "Internal server error",
+    console.error("Stats function error:", error);
+    return new Response(JSON.stringify(stats), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     });
   }
 };
