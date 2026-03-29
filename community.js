@@ -240,7 +240,7 @@ function formatNumber(num) {
 /* ============================================================
    INIT
    ============================================================ */
-document.addEventListener("DOMContentLoaded", async () => {
+async function initCommunity() {
   renderCommunityPanel();
   await fetchStats();
   setInterval(fetchStats, 60000);
@@ -249,6 +249,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     await incrementGlobalStat("visit");
     sessionStorage.setItem("visited", "true");
   }
-});
+}
+
+// ES module imports run after DOMContentLoaded may have already fired.
+// Check readyState to handle both cases.
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initCommunity);
+} else {
+  initCommunity();
+}
 
 window.incrementGlobalStat = incrementGlobalStat;
