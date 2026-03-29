@@ -222,18 +222,58 @@ document.addEventListener("DOMContentLoaded", () => {
 /* ============================================================
    WALLET
    ============================================================ */
+function isMobile() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function isBase58Address(addr) {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr.trim());
+}
+
+function setupMobileConnect() {
+  const hint = document.getElementById("mobilePhantomHint");
+  if (!hint) return;
+  hint.style.display = "block";
+
+  // Deep-link: open current URL inside Phantom's in-app browser
+  const deepLinkEl = document.getElementById("phantomDeepLink");
+  if (deepLinkEl) {
+    const pageUrl = encodeURIComponent(window.location.href);
+    deepLinkEl.href = `https://phantom.app/ul/browse/${pageUrl}?ref=${encodeURIComponent(window.location.origin)}`;
+  }
+
+  // Manual wallet address entry
+  const manualBtn = document.getElementById("manualWalletBtn");
+  const manualInput = document.getElementById("manualWalletInput");
+  if (manualBtn && manualInput) {
+    const tryManual = async () => {
+      const addr = manualInput.value.trim();
+      if (!isBase58Address(addr)) { showToast("⚠️ Enter a valid Solana wallet address."); return; }
+      wallet = addr;
+      localStorage.setItem("sa_wallet", wallet);
+      await initSimulator();
+    };
+    manualBtn.addEventListener("click", tryManual);
+    manualInput.addEventListener("keydown", e => { if (e.key === "Enter") tryManual(); });
+  }
+}
+
 async function connectWallet() {
   const btn = document.getElementById("connectWalletBtn");
   document.getElementById("connectBtnText").textContent = "⏳ Connecting…";
   btn.disabled = true;
   try {
     const ph = window.solana;
-    if (!ph || !ph.isPhantom) { alert("Phantom wallet not found!\n\nInstall from phantom.app and refresh."); return; }
+    if (!ph || !ph.isPhantom) {
+      // No extension — show mobile/manual fallback
+      setupMobileConnect();
+      return;
+    }
     const resp = await ph.connect();
     wallet = resp.publicKey.toString();
     localStorage.setItem("sa_wallet", wallet);
     await initSimulator();
-  } catch { alert("Wallet connection cancelled or failed."); }
+  } catch { showToast("⚠️ Wallet connection cancelled or failed."); }
   finally { document.getElementById("connectBtnText").textContent = "🔗 Connect Phantom Wallet"; btn.disabled = false; }
 }
 

@@ -118,6 +118,74 @@
   opacity: 0.4;
 }
 
+/* ── Mobile / manual wallet connect ── */
+.sa-mobile-phantom-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #ab9ff2, #7c5cbf);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+}
+.sa-mobile-phantom-btn:hover { opacity: 0.9; }
+
+.sa-connect-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 10px;
+  color: rgba(255,255,255,0.3);
+  font-size: 12px;
+}
+.sa-connect-divider::before,
+.sa-connect-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(255,255,255,0.12);
+}
+
+.sa-manual-wallet-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+}
+.sa-manual-wallet-input {
+  flex: 1;
+  background: rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+  padding: 10px 14px;
+  outline: none;
+  font-family: monospace;
+  min-width: 0;
+}
+.sa-manual-wallet-input:focus {
+  border-color: rgba(171,159,242,0.5);
+}
+.sa-manual-wallet-submit {
+  background: rgba(171,159,242,0.2);
+  border: 1px solid rgba(171,159,242,0.3);
+  border-radius: 10px;
+  color: #ab9ff2;
+  font-size: 18px;
+  padding: 10px 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sa-manual-wallet-submit:hover { background: rgba(171,159,242,0.35); }
+
 /* ═══════════════════════════════════════
    HERO BAR
 ═══════════════════════════════════════ */

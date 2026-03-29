@@ -51,6 +51,19 @@
       <button class="sa-wallet-connect-btn" id="connectWalletBtn">
         <span id="connectBtnText">🔗 Connect Phantom Wallet</span>
       </button>
+
+      <!-- Mobile: open site inside Phantom's in-app browser -->
+      <div id="mobilePhantomHint" style="display:none;margin-top:14px;">
+        <a id="phantomDeepLink" href="#" class="sa-mobile-phantom-btn">
+          📱 Open in Phantom App
+        </a>
+        <div class="sa-connect-divider"><span>or paste your address</span></div>
+        <div class="sa-manual-wallet-row">
+          <input id="manualWalletInput" class="sa-manual-wallet-input" type="text" placeholder="Solana wallet address…" autocomplete="off" spellcheck="false" />
+          <button id="manualWalletBtn" class="sa-manual-wallet-submit">→</button>
+        </div>
+      </div>
+
       <div class="sa-connect-note">Requires Phantom wallet • No email • No password • Your keys = your account</div>
     </div>
   </div>
