@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Entry Radar — Scan2Moon</title>
+  <meta name="description" content="Find early Solana token opportunities before they pump. Real-time radar scanning new pairs with live risk scores and whale activity." />
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="Scan2Moon" />
+  <meta property="og:url"          content="https://scan2moon.com/entry-radar.html" />
+  <meta property="og:title"        content="Entry Radar — Scan2Moon" />
+  <meta property="og:description"  content="Find early Solana token opportunities before they pump. Real-time radar scanning new pairs with live risk scores and whale activity." />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@Scan2Moon" />
+  <meta name="twitter:title"       content="Entry Radar — Scan2Moon" />
+  <meta name="twitter:description" content="Find early Solana token opportunities before they pump. Real-time radar scanning new pairs with live risk scores and whale activity." />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.png" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="entry-radar.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- RADAR HEADER -->
+  <div class="radar-hero">
+    <div class="radar-hero-left">
+      <div class="radar-pulse-dot"></div>
+      <div>
+        <div class="radar-title">📡 ENTRY RADAR</div>
+        <div class="radar-subtitle">Live early-stage token detection • Safety-filtered • Auto-refresh</div>
+      </div>
+    </div>
+    <div class="radar-controls">
+      <div class="radar-stat-pill" id="radarTokenCount">— tokens</div>
+      <div class="radar-stat-pill" id="radarLastUpdate">Updating...</div>
+      <button class="radar-refresh-btn" id="radarRefreshBtn" onclick="forceRefresh()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- LEGEND ROW -->
+  <div class="radar-legend">
+    <span class="legend-item"><span class="leg-dot leg-green"></span> OPEN – Safe to enter</span>
+    <span class="legend-item"><span class="leg-dot leg-yellow"></span> CAUTION – Enter carefully</span>
+    <span class="legend-item leg-sep">|</span>
+    <span class="legend-item">🔥 High buy pressure</span>
+    <span class="legend-item">⚡ Fast growth</span>
+    <span class="legend-item">🟢 Stable accumulation</span>
+  </div>
+
+  <!-- TOKEN LIST PANEL -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">🚀 NEWEST SAFE TOKENS</div>
+      <div class="radar-filter-info">High Risk tokens filtered out • Showing top 15</div>
+    </div>
+    <div class="panel-body" id="radarTokenList">
+      <div class="radar-loading">
+        <div class="radar-spinner"></div>
+        <div>Scanning for early tokens...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- WHALE BUYS PANEL — NEW -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">🐋 RECENT WHALE BUYS</div>
+      <div class="radar-filter-info">Live buys &gt; $1,000 across radar tokens • Click wallet to run Whale DNA</div>
+    </div>
+    <div class="panel-body" id="whaleBuysPanel">
+      <div class="radar-loading">
+        <div class="radar-spinner"></div>
+        <div>Fetching whale activity...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOKEN DETAIL MODAL -->
+  <div id="tokenDetailModal" class="modal-overlay" style="display:none;" onclick="closeModal(event)">
+    <div class="modal-container" id="modalContainer">
+
+      <div class="modal-header">
+        <div class="modal-token-info" id="modalTokenInfo">
+          <!-- filled by JS -->
+        </div>
+        <button class="modal-close-btn" onclick="closeModalDirect()">✕</button>
+      </div>
+
+      <!-- ENTRY WINDOW BIG INDICATOR -->
+      <div id="modalEntryWindow" class="entry-window-banner">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- MARKET SNAPSHOT PANEL -->
+      <div class="modal-grid-top">
+        <div class="modal-panel">
+          <div class="modal-panel-title">📊 Market Snapshot</div>
+          <div class="modal-chart-wrap">
+            <!-- canvas kept for compatibility but hidden by buildLiveChart() -->
+            <canvas id="liveChart" style="display:none;"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- MIDDLE 3 COLS: Momentum | Risk | Growth -->
+      <div class="modal-grid-3">
+        <div class="modal-panel">
+          <div class="modal-panel-title">🔥 Momentum Signals</div>
+          <div id="modalMomentum">Loading...</div>
+        </div>
+        <div class="modal-panel">
+          <div class="modal-panel-title">🛡️ Risk Filter</div>
+          <div id="modalRiskFilter">Loading...</div>
+        </div>
+        <div class="modal-panel">
+          <div class="modal-panel-title">📊 Early Growth Tracker</div>
+          <div id="modalGrowth">Loading...</div>
+        </div>
+      </div>
+
+      <!-- NEW 3 COLS: Dev History | Wallet Cluster | Top Holders -->
+      <div class="modal-grid-3">
+        <div class="modal-panel">
+          <div class="modal-panel-title">🕵️ Dev History</div>
+          <div id="modalDevHistory">Loading...</div>
+        </div>
+        <div class="modal-panel">
+          <div class="modal-panel-title">🔗 Wallet Cluster Detected</div>
+          <div id="modalWalletCluster">Loading...</div>
+        </div>
+        <div class="modal-panel">
+          <div class="modal-panel-title">🏆 Top 10 Holders</div>
+          <div id="modalTopHolders">Loading...</div>
+        </div>
+      </div>
+
+      <!-- BOTTOM 2 COLS: Whale | Safe Entry -->
+      <div class="modal-grid-2">
+        <div class="modal-panel">
+          <div class="modal-panel-title">🐋 Whale & Smart Wallet Activity</div>
+          <div id="modalWhale">Loading...</div>
+        </div>
+        <div class="modal-panel">
+          <div class="modal-panel-title">🎯 Max Safe Entry Calculator</div>
+          <div id="modalSafeEntry">Loading...</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- COMMUNITY PANEL -->
+  <div class="panel">
+    <div class="panel-title">Scan2Moon Community</div>
+    <div class="panel-body" id="communityPanel"></div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-right">
+      <span class="version">Version V2.0</span>
+      <span class="separator">•</span>
+      <span class="powered">Powered by Scan2Moon</span>
+    </div>
+  </footer>
+
+</div>
+
+<script type="module" src="entry-radar.js"></script>
+</body>
+</html>

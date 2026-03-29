@@ -1,0 +1,274 @@
+/* ===================================================
+   SCAN2MOON V2.0 – HOME PAGE STYLES (home.css)
+   =================================================== */
+
+/* ===== PANEL HEADER FLEX ===== */
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 14px 0;
+}
+
+.home-sub {
+  font-size: 12px;
+  opacity: 0.5;
+  font-style: italic;
+  padding-right: 14px;
+}
+
+/* ===== NO SCANS STATE ===== */
+.no-scans-msg {
+  text-align: center;
+  padding: 50px 20px;
+  opacity: 0.7;
+}
+
+.no-scans-icon {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+.no-scans-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #7fffe1;
+  margin-bottom: 8px;
+}
+
+.no-scans-sub {
+  font-size: 14px;
+  opacity: 0.75;
+}
+
+.no-scans-sub a {
+  color: #2cffc9;
+  font-weight: 600;
+}
+
+/* ===== SCANS GRID ===== */
+.scans-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 16px;
+  padding: 4px 0;
+}
+
+/* ===== MINI SCORE CARD ===== */
+.mini-score-card {
+  background: linear-gradient(135deg, #061c17, #030e0b);
+  border: 1px solid rgba(44,255,201,0.18);
+  border-radius: 14px;
+  padding: 18px 16px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.mini-score-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: radial-gradient(circle at top right, rgba(44,255,201,0.06), transparent 60%);
+  pointer-events: none;
+}
+
+.mini-score-card:hover {
+  border-color: rgba(44,255,201,0.5);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(44,255,201,0.15);
+}
+
+/* TOP ROW */
+.mini-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.mini-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(44,255,201,0.08);
+  border: 1px solid rgba(44,255,201,0.25);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.mini-token-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.mini-token-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #cffff4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini-token-symbol {
+  font-size: 12px;
+  opacity: 0.55;
+  margin-top: 2px;
+}
+
+.mini-scan-time {
+  font-size: 10px;
+  opacity: 0.45;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* SCORE */
+.mini-score-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mini-score-number {
+  font-size: 38px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.mini-score-number.score-good { color: #2cffc9; text-shadow: 0 0 12px rgba(44,255,201,0.5); }
+.mini-score-number.score-warn { color: #ffd166; text-shadow: 0 0 12px rgba(255,209,102,0.5); }
+.mini-score-number.score-bad  { color: #ff4d6d; text-shadow: 0 0 12px rgba(255,77,109,0.5); }
+
+.mini-score-max {
+  font-size: 14px;
+  opacity: 0.5;
+  margin-bottom: 6px;
+  margin-left: 3px;
+}
+
+.mini-risk-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+}
+
+.mini-risk-badge.badge-good {
+  background: rgba(44,255,201,0.12);
+  color: #2cffc9;
+  border: 1px solid rgba(44,255,201,0.35);
+}
+
+.mini-risk-badge.badge-warn {
+  background: rgba(255,209,102,0.12);
+  color: #ffd166;
+  border: 1px solid rgba(255,209,102,0.35);
+}
+
+.mini-risk-badge.badge-bad {
+  background: rgba(255,77,109,0.12);
+  color: #ff4d6d;
+  border: 1px solid rgba(255,77,109,0.35);
+}
+
+/* METRICS */
+.mini-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(44,255,201,0.08);
+}
+
+.mini-metric {
+  font-size: 11px;
+}
+
+.mini-metric-label {
+  opacity: 0.5;
+  margin-bottom: 2px;
+}
+
+.mini-metric-value {
+  font-weight: 600;
+  color: #7fffe1;
+  font-size: 12px;
+}
+
+/* CARD ACTIONS ROW */
+.mini-card-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(44,255,201,0.07);
+}
+
+/* RESCAN HINT */
+.mini-rescan-hint {
+  font-size: 10px;
+  opacity: 0;
+  color: #2cffc9;
+  transition: opacity 0.2s ease;
+}
+
+.mini-score-card:hover .mini-rescan-hint {
+  opacity: 0.6;
+}
+
+/* TRADE ON SAFE APE BUTTON — home cards */
+.mini-trade-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  cursor: pointer;
+  border: 1px solid rgba(255,180,50,0.4);
+  background: rgba(255,180,50,0.1);
+  color: #ffb432;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+.mini-trade-btn:hover {
+  background: rgba(255,180,50,0.22);
+  border-color: rgba(255,180,50,0.7);
+  box-shadow: 0 0 10px rgba(255,180,50,0.3);
+  transform: translateY(-1px);
+}
+
+/* CLEAR HISTORY BUTTON */
+.clear-history-btn {
+  display: block;
+  margin: 20px auto 4px;
+  padding: 7px 20px;
+  background: transparent;
+  border: 1px solid rgba(255,77,109,0.35);
+  color: rgba(255,77,109,0.7);
+  border-radius: 8px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.clear-history-btn:hover {
+  background: rgba(255,77,109,0.08);
+  border-color: rgba(255,77,109,0.6);
+  color: #ff4d6d;
+}
+
+/* ===== NAV INCLUDED ===== */
+/* (nav styles are in style.css via append) */

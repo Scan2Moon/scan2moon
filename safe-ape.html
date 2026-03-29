@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Safe Ape Simulator — Scan2Moon</title>
+  <meta name="description" content="Practice memecoin trading with 10 SOL virtual balance. No risk, real market data — earn badges and climb the leaderboard." />
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="Scan2Moon" />
+  <meta property="og:url"          content="https://scan2moon.com/safe-ape.html" />
+  <meta property="og:title"        content="Safe Ape Simulator — Scan2Moon" />
+  <meta property="og:description"  content="Practice memecoin trading with 10 SOL virtual balance. No risk, real market data — earn badges and climb the leaderboard." />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@Scan2Moon" />
+  <meta name="twitter:title"       content="Safe Ape Simulator — Scan2Moon" />
+  <meta name="twitter:description" content="Practice memecoin trading with 10 SOL virtual balance. No risk, real market data — earn badges and climb the leaderboard." />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.png" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="safe-ape.css" />
+  <!-- TradingView Lightweight Charts — same library used by DexScreener -->
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- WALLET CONNECT GATE -->
+  <div id="connectGate">
+    <div class="sa-connect-hero">
+      <div class="sa-connect-emoji">🦍</div>
+      <div class="sa-connect-title">SAFE APE SIMULATOR</div>
+      <div class="sa-connect-sub">Paper trading with real risk intelligence.<br/>Train good habits — not just fast clicks.</div>
+      <div class="sa-connect-features">
+        <div class="sa-connect-feat"><span>💰</span> 10 SOL starting balance</div>
+        <div class="sa-connect-feat"><span>🛡️</span> Live Scan2Moon risk scores before every trade</div>
+        <div class="sa-connect-feat"><span>📊</span> Real-time candlestick chart</div>
+        <div class="sa-connect-feat"><span>⚡</span> Realistic slippage simulation</div>
+        <div class="sa-connect-feat"><span>🎯</span> Post-trade debrief & exportable recap</div>
+        <div class="sa-connect-feat"><span>🔥</span> Daily SOL rewards for login streak</div>
+      </div>
+      <button class="sa-wallet-connect-btn" id="connectWalletBtn">
+        <span id="connectBtnText">🔗 Connect Phantom Wallet</span>
+      </button>
+      <div class="sa-connect-note">Requires Phantom wallet • No email • No password • Your keys = your account</div>
+    </div>
+  </div>
+
+  <!-- MAIN SIMULATOR -->
+  <div id="simulatorApp" style="display:none;">
+
+    <!-- HERO BAR -->
+    <div class="sa-hero">
+      <div class="sa-hero-left">
+        <div class="sa-pulse-dot"></div>
+        <div>
+          <div class="sa-title">🦍 SAFE APE SIMULATOR</div>
+          <div class="sa-subtitle">Paper trading with real Scan2Moon risk intelligence</div>
+        </div>
+      </div>
+      <div class="sa-hero-right">
+        <div class="sa-balance-pill">
+          <span class="sa-balance-label">SOL Balance</span>
+          <span class="sa-balance-val" id="heroBalance">10.00 SOL</span>
+        </div>
+        <div class="sa-streak-pill" id="heroStreak">🔥 Streak: 0</div>
+        <a href="safe-ape-profile.html" class="sa-profile-btn">👤 Profile</a>
+        <button class="sa-disconnect-btn" id="disconnectBtn">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- DAILY REWARD BANNER -->
+    <div class="sa-daily-banner" id="dailyBanner" style="display:none;">
+      <span>🎁 Daily reward available!</span>
+      <button class="sa-daily-claim-btn" id="dailyClaimBtn">Claim +0.50 SOL</button>
+    </div>
+
+    <!-- SEARCH BAR -->
+    <div class="sa-search-bar">
+      <input id="saTokenInput" type="text" placeholder="Paste token mint address to start trading…" autocomplete="off" spellcheck="false" />
+      <button id="saSearchBtn">🔍 Analyse Token</button>
+    </div>
+
+    <!-- TOKEN TERMINAL -->
+    <div id="saTerminal" style="display:none;">
+
+      <!-- TOKEN HEADER -->
+      <div class="sa-token-header" id="saTokenHeader"></div>
+
+      <!-- RISK GATE -->
+      <div class="sa-risk-gate" id="saRiskGate" style="display:none;">
+        <div class="sa-risk-gate-icon">🚨</div>
+        <div class="sa-risk-gate-title">HIGH RISK TOKEN DETECTED</div>
+        <div class="sa-risk-gate-msg" id="saRiskGateMsg"></div>
+        <div class="sa-risk-gate-btns">
+          <button class="sa-risk-gate-back" onclick="clearTerminal()">← Go Back</button>
+          <button class="sa-risk-gate-proceed" id="saRiskProceedBtn">I understand the risk — proceed anyway</button>
+        </div>
+      </div>
+
+      <!-- TRADING CONTENT -->
+      <div id="saTradingContent" style="display:none;">
+
+        <!-- 3 COLUMN LAYOUT -->
+        <div class="sa-terminal-grid">
+
+          <!-- LEFT: Candlestick Chart -->
+          <div class="sa-col-chart">
+            <div class="panel sa-chart-panel">
+              <!-- Chart header: price row + timeframe buttons in one bar -->
+              <div class="sa-chart-header">
+                <div class="sa-price-row" id="saPriceRow"></div>
+                <div class="sa-chart-timeframes">
+                  <button class="sa-tf-btn" data-tf="1m">1M</button>
+                  <button class="sa-tf-btn active" data-tf="5m">5M</button>
+                  <button class="sa-tf-btn" data-tf="15m">15M</button>
+                  <button class="sa-tf-btn" data-tf="1h">1H</button>
+                  <button class="sa-tf-btn" data-tf="4h">4H</button>
+                  <button class="sa-tf-btn" data-tf="1d">1D</button>
+                  <button class="sa-tf-btn" data-tf="max" title="All-time history (daily candles)">MAX</button>
+                </div>
+              </div>
+              <!-- Lightweight Charts fills the rest of the panel -->
+              <div class="sa-candle-wrap">
+                <div id="saLiveChart"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- MIDDLE: Risk + Signals -->
+          <div class="sa-col-risk">
+            <div class="panel">
+              <div class="panel-title">🛡️ SCAN2MOON RISK SCORE</div>
+              <div class="panel-body" id="saRiskPanel"></div>
+            </div>
+            <div class="panel">
+              <div class="panel-title">📊 MARKET SIGNALS</div>
+              <div class="panel-body" id="saSignalsPanel"></div>
+            </div>
+          </div>
+
+          <!-- RIGHT: Trade Box -->
+          <div class="sa-col-trade">
+            <div class="panel">
+              <div class="panel-title">⚡ TRADE</div>
+              <div class="panel-body">
+                <div class="sa-trade-tabs">
+                  <button class="sa-trade-tab active" id="tabBuy" onclick="setTradeTab('buy')">BUY</button>
+                  <button class="sa-trade-tab" id="tabSell" onclick="setTradeTab('sell')">SELL</button>
+                </div>
+
+                <!-- BUY PANEL -->
+                <div id="saBuyPanel">
+                  <div class="sa-trade-balance">Available: <span id="tradeBalance">10.00 SOL</span></div>
+                  <div class="sa-input-group">
+                    <label>Amount (SOL)</label>
+                    <input type="number" id="buyAmount" placeholder="0.0000" min="0.0001" step="0.0001" />
+                  </div>
+                  <div class="sa-quick-btns">
+                    <button onclick="setQuickBuy(25)">25%</button>
+                    <button onclick="setQuickBuy(50)">50%</button>
+                    <button onclick="setQuickBuy(75)">75%</button>
+                    <button onclick="setQuickBuy(100)">MAX</button>
+                  </div>
+                  <div class="sa-trade-info" id="buyInfo"></div>
+                  <button class="sa-buy-btn" id="saBuyBtn" onclick="executeBuy()">🦍 APE IN (BUY)</button>
+                </div>
+
+                <!-- SELL PANEL -->
+                <div id="saSellPanel" style="display:none;">
+                  <div class="sa-holding-info" id="saHoldingInfo">
+                    <div class="sa-no-holding">You don't hold this token yet.</div>
+                  </div>
+                  <div class="sa-input-group">
+                    <label>Token Amount to Sell</label>
+                    <input type="number" id="sellAmount" placeholder="0.00" min="0" />
+                  </div>
+                  <div class="sa-quick-btns">
+                    <button onclick="setQuickSell(25)">25%</button>
+                    <button onclick="setQuickSell(50)">50%</button>
+                    <button onclick="setQuickSell(75)">75%</button>
+                    <button onclick="setQuickSell(100)">MAX</button>
+                  </div>
+                  <div class="sa-trade-info" id="sellInfo"></div>
+                  <button class="sa-sell-btn" id="saSellBtn" onclick="executeSell()">🔴 EXIT POSITION (SELL)</button>
+                </div>
+
+                <!-- SLIPPAGE -->
+                <div class="sa-slippage-row">
+                  <span>Slippage:</span>
+                  <select id="slippageSelect">
+                    <option value="0.005">0.5%</option>
+                    <option value="0.01" selected>1%</option>
+                    <option value="0.02">2%</option>
+                    <option value="0.05">5%</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- TOP HOLDERS -->
+            <div class="panel">
+              <div class="panel-title">🏆 TOP HOLDERS</div>
+              <div class="panel-body" id="saHoldersPanel"></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- PORTFOLIO MINI PANEL -->
+    <div class="panel" id="saPortfolioPanel">
+      <div class="panel-header">
+        <div class="panel-title">💼 YOUR HOLDINGS</div>
+        <a href="safe-ape-profile.html" style="font-size:12px;color:#2cffc9;padding-right:14px;text-decoration:none;">View Full Profile →</a>
+      </div>
+      <div class="panel-body" id="saPortfolioBody">
+        <div class="sa-empty-portfolio">
+          <div style="font-size:36px;margin-bottom:10px;">🦍</div>
+          <div style="color:#7fffe1;font-weight:600;margin-bottom:6px;">No positions yet</div>
+          <div style="opacity:0.5;font-size:13px;">Search a token above and make your first simulated trade!</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RECENT TRADES PANEL -->
+    <div class="panel" id="saTradesPanel">
+      <div class="panel-title">📋 RECENT TRADES</div>
+      <div class="panel-body" id="saTradesBody">
+        <div style="text-align:center;opacity:0.5;padding:30px;">No trades yet — start trading above!</div>
+      </div>
+    </div>
+
+    <!-- COMMUNITY -->
+    <div class="panel">
+      <div class="panel-title">Scan2Moon Community</div>
+      <div class="panel-body" id="communityPanel"></div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-left">Simulated trading only. Not financial advice. Always DYOR.</div>
+      <div class="footer-right">
+        <span class="version">Version V2.0</span>
+        <span class="separator">•</span>
+        <span class="powered">Powered by Scan2Moon</span>
+      </div>
+    </footer>
+
+  </div><!-- end simulatorApp -->
+
+  <!-- POST-TRADE DEBRIEF MODAL -->
+  <div id="debriefModal" class="sa-modal-overlay" style="display:none;">
+    <div class="sa-modal-container" id="debriefCard">
+      <div class="sa-modal-header">
+        <div class="sa-modal-title">🎯 TRADE DEBRIEF</div>
+        <button class="sa-modal-close" onclick="closeDebrief()">✕</button>
+      </div>
+      <div id="debriefContent"></div>
+      <div class="sa-debrief-actions">
+        <button class="sa-export-btn" onclick="exportDebrief()">📸 Export Recap Image</button>
+        <button class="sa-debrief-close-btn" onclick="closeDebrief()">Continue Trading</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script type="module" src="safe-ape.js"></script>
+</body>
+</html>

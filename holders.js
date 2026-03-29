@@ -53,13 +53,28 @@ export async function renderHolders(mint) {
       `;
     });
 
+    // === CALCULATE TOP 10 HOLDERS % FOR FINAL SCORE CARD ===
+    let top10Percent = 0;
+    const top10Accounts = accountsResponse.value.slice(0, 10);
+    
+    top10Accounts.forEach(acc => {
+      const rawAmount = Number(acc.amount);
+      const amount = rawAmount / 10 ** decimals;
+      const percent = totalSupply > 0 ? (amount / totalSupply) * 100 : 0;
+      top10Percent += percent;
+    });
+
+    window.scanTop10 = top10Percent.toFixed(1) + "%";
+
     if (accountsResponse.value.length === 0) {
+      window.scanTop10 = "0.0%";
       container.innerHTML = "<div>No large holders found.</div>";
     }
 
   } catch (e) {
     console.error("Failed to load holders:", e);
     container.innerHTML = "Failed to load holders. Check console for details.";
+    window.scanTop10 = "N/A";
   }
 }
 

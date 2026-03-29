@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>APE Profile — Scan2Moon</title>
+  <meta name="description" content="Your Scan2Moon trading profile. View your stats, badges, trade history and Sol2Moon rewards earned in the Safe Ape Simulator." />
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="Scan2Moon" />
+  <meta property="og:url"          content="https://scan2moon.com/safe-ape-profile.html" />
+  <meta property="og:title"        content="APE Profile — Scan2Moon" />
+  <meta property="og:description"  content="Your Scan2Moon trading profile. View your stats, badges, trade history and Sol2Moon rewards earned in the Safe Ape Simulator." />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@Scan2Moon" />
+  <meta name="twitter:title"       content="APE Profile — Scan2Moon" />
+  <meta name="twitter:description" content="Your Scan2Moon trading profile. View your stats, badges, trade history and Sol2Moon rewards earned in the Safe Ape Simulator." />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.png" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="safe-ape.css" />
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- NOT CONNECTED STATE -->
+  <div id="profileGate">
+    <div class="sa-connect-hero">
+      <div class="sa-connect-emoji">👤</div>
+      <div class="sa-connect-title">YOUR APE PROFILE</div>
+      <div class="sa-connect-sub">Connect your Phantom wallet to view your trading profile and stats.</div>
+      <button class="sa-wallet-connect-btn" id="profileConnectBtn">
+        <span id="profileConnectText">🔗 Connect Phantom Wallet</span>
+      </button>
+      <div class="sa-connect-note">Same wallet as the simulator — your data loads automatically</div>
+    </div>
+  </div>
+
+  <!-- PROFILE APP -->
+  <div id="profileApp" style="display:none;">
+
+    <!-- HERO -->
+    <div class="sa-hero">
+      <div class="sa-hero-left">
+        <div class="sa-pulse-dot"></div>
+        <div>
+          <div class="sa-title">👤 APE PROFILE</div>
+          <div class="sa-subtitle">Your trading stats • Performance • History</div>
+        </div>
+      </div>
+      <div class="sa-hero-right">
+        <a href="safe-ape.html" class="sa-profile-btn">🦍 Back to Trading</a>
+        <button class="sa-disconnect-btn" id="profileDisconnectBtn">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- PROFILE CARD -->
+    <div class="panel" id="profileCardPanel">
+      <div class="panel-title">🪪 TRADER IDENTITY</div>
+      <div class="panel-body" id="profileCardBody"></div>
+    </div>
+
+    <!-- STATS GRID -->
+    <div class="panel">
+      <div class="panel-title">📊 PERFORMANCE STATS</div>
+      <div class="panel-body" id="profileStatsBody"></div>
+    </div>
+
+    <!-- ACHIEVEMENT BADGES -->
+    <div class="panel" id="profileBadgesPanel">
+      <div class="panel-header">
+        <div class="panel-title">🎖️ ACHIEVEMENT BADGES</div>
+        <div style="padding-right:14px;font-size:11px;opacity:0.45;">Earn each badge once · +0.1 SOL per badge</div>
+      </div>
+      <div class="panel-body" id="profileBadgesBody">
+        <div style="text-align:center;padding:30px;opacity:0.5;">Loading badges…</div>
+      </div>
+    </div>
+
+    <!-- HOLDINGS -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">💼 CURRENT HOLDINGS</div>
+        <a href="safe-ape.html" style="font-size:12px;color:#ffb432;padding-right:14px;text-decoration:none;">Trade →</a>
+      </div>
+      <div class="panel-body" id="profileHoldingsBody"></div>
+    </div>
+
+    <!-- FULL TRADE HISTORY -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-title">📋 FULL TRADE HISTORY</div>
+        <div style="padding-right:14px;font-size:11px;opacity:0.45;" id="tradeCountLabel"></div>
+      </div>
+      <div class="panel-body" id="profileTradesBody"></div>
+    </div>
+
+    <!-- DANGER ZONE -->
+    <div class="panel" style="border-color:rgba(255,77,109,0.3);">
+      <div class="panel-title" style="background:linear-gradient(90deg,#ff4d6d,#cc0022);color:#fff;">⚠️ DANGER ZONE</div>
+      <div class="panel-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+          <div>
+            <div style="font-weight:600;margin-bottom:4px;">Reset Account</div>
+            <div style="font-size:12px;opacity:0.55;">Wipes all trades and holdings. Returns balance to 10 SOL. Cannot be undone.</div>
+          </div>
+          <button id="resetAccountBtn" style="padding:10px 20px;background:rgba(255,77,109,0.12);border:1px solid rgba(255,77,109,0.4);border-radius:8px;color:#ff4d6d;font-weight:700;cursor:pointer;font-size:13px;transition:all 0.2s;">
+            🗑️ Reset Account
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMMUNITY -->
+    <div class="panel">
+      <div class="panel-title">Scan2Moon Community</div>
+      <div class="panel-body" id="communityPanel"></div>
+    </div>
+
+    <footer class="footer">
+      <div class="footer-left">Simulated trading only. Not financial advice. Always DYOR.</div>
+      <div class="footer-right">
+        <span class="version">Version V2.0</span>
+        <span class="separator">•</span>
+        <span class="powered">Powered by Scan2Moon</span>
+      </div>
+    </footer>
+
+  </div>
+
+</div>
+<script type="module" src="safe-ape-profile.js"></script>
+</body>
+</html>

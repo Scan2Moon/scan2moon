@@ -691,13 +691,1168 @@ a {
   opacity: 0.8;
 }
 
-@media (max-width: 600px) {
-  .footer {
-    flex-direction: column;
-    gap: 10px;
-    text-align: center;
-  }
-}
+
 .score-card {
   background-blend-mode: normal;
+}
+
+/* ================= EXPLAIN RISK STATES ================= */
+
+.signal-explainer {
+  margin-top: 18px;
+  padding: 14px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+/* 🟢 GOOD (70+) */
+.explain-good {
+  background: linear-gradient(90deg, rgba(0,255,170,0.15), rgba(0,255,170,0.05));
+  border-left: 4px solid #00ffaa;
+  color: #7fffd4;
+}
+
+/* 🟡 WARN (40–69) */
+.explain-warn {
+  background: linear-gradient(90deg, rgba(255,200,0,0.15), rgba(255,200,0,0.05));
+  border-left: 4px solid #ffc800;
+  color: #ffd966;
+}
+
+/* 🔴 BAD (<40) */
+.explain-bad {
+  background: linear-gradient(90deg, rgba(255,0,0,0.15), rgba(255,0,0,0.05));
+  border-left: 4px solid #ff3b3b;
+  color: #ff8a8a;
+}
+/* ===============================
+   HERO HEADER
+================================= */
+
+.hero-header {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  background: url("headerweb.png") center center / cover no-repeat;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  overflow: hidden;
+}
+
+/* X FOLLOW BUTTON */
+.x-follow-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  color: #0a0f0d;
+  background: linear-gradient(135deg, #00f5c4, #00c896);
+  border-radius: 8px;
+  transition: 0.3s ease;
+  box-shadow: 0 0 10px rgba(0, 245, 196, 0.6);
+}
+
+.x-follow-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 20px rgba(0, 245, 196, 0.9);
+}
+/* ===============================
+   PRO SCORE CARD
+================================= */
+
+.score-card-pro {
+  background: linear-gradient(135deg, #06201c, #031312);
+  border-radius: 18px;
+  padding: 28px;
+  color: #bafce6;
+  font-family: "Segoe UI", sans-serif;
+  width: 100%;
+  max-width: 760px;
+  margin: auto;
+  box-shadow: 0 0 40px rgba(0, 255, 180, 0.15);
+}
+
+/* TOP */
+.score-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.token-block {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.score-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: #000;
+}
+
+.token-name {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.token-symbol {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.scan-time {
+  font-size: 12px;
+  text-align: right;
+  opacity: 0.7;
+}
+
+/* MAIN SCORE */
+.score-main-pro {
+  margin-top: 30px;
+  text-align: center;
+}
+
+.score-value-pro {
+  font-size: 72px;
+  font-weight: 700;
+}
+
+.score-max-pro {
+  font-size: 28px;
+  opacity: 0.6;
+}
+
+.score-moon { color: #ffd700; text-shadow: 0 0 20px rgba(255,215,0,0.7), 0 0 40px rgba(255,215,0,0.3); }
+.score-good { color: #00ffc3; text-shadow: 0 0 15px rgba(0,255,195,0.5); }
+.score-warn { color: #ffd166; }
+.score-bad  { color: #ff4d6d; }
+
+.risk-badge-pro {
+  margin-top: 10px;
+  text-align: center;
+  font-weight: 600;
+  letter-spacing: 1px;
+  opacity: 0.8;
+}
+.risk-badge-moon {
+  color: #ffd700;
+  text-shadow: 0 0 12px rgba(255,215,0,0.6);
+  opacity: 1;
+  font-size: 1.1em;
+  letter-spacing: 2px;
+}
+
+/* SUBTEXT */
+.score-sub-pro {
+  text-align: center;
+  margin-top: 10px;
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+/* EXPLAIN */
+.signal-explainer-pro {
+  margin-top: 22px;
+  padding: 18px;
+  border-radius: 12px;
+  font-size: 14px;
+}
+
+.explain-good { background: rgba(0,255,195,0.08); }
+.explain-warn { background: rgba(255,209,102,0.08); }
+.explain-bad  { background: rgba(255,77,109,0.08); }
+
+/* METRICS */
+.metrics-row {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  margin-top: 26px;
+  gap: 12px;
+}
+
+.metric {
+  background: rgba(0,255,195,0.05);
+  padding: 14px;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.metric-label {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.metric-value {
+  margin-top: 6px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+/* FOOTER */
+.score-footer-pro {
+  margin-top: 26px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.6;
+  letter-spacing: 1px;
+}
+/* =========================================================
+   SCAN2MOON – TOKEN MARKET STATS PANEL (UPGRADED DESIGN)
+   ========================================================= */
+
+.token-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+/* ================= STAT CARDS ================= */
+
+.stat-item {
+  background: rgba(44,255,201,0.05);
+  border: 1px solid rgba(44,255,201,0.12);
+  padding: 16px;
+  border-radius: 12px;
+  font-size: 14px;
+  transition: 0.25s ease;
+  backdrop-filter: blur(6px);
+}
+
+.stat-item:hover {
+  border-color: rgba(44,255,201,0.4);
+  box-shadow: 0 0 18px rgba(44,255,201,0.15);
+  transform: translateY(-3px);
+}
+
+.stat-item span {
+  display: block;
+  opacity: 0.6;
+  margin-bottom: 6px;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.stat-item strong {
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.4px;
+}
+
+.stat-item.full-width {
+  grid-column: span 2;
+}
+
+/* ================= PRICE MOMENTUM CARDS ================= */
+
+.price-changes-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.change-card {
+  background: rgba(44,255,201,0.06);
+  border: 1px solid rgba(44,255,201,0.15);
+  border-radius: 10px;
+  padding: 12px 8px;
+  text-align: center;
+  transition: 0.25s ease;
+}
+
+.change-card:hover {
+  border-color: rgba(44,255,201,0.45);
+  box-shadow: 0 0 14px rgba(44,255,201,0.25);
+  transform: translateY(-2px);
+}
+
+.change-time {
+  font-size: 11px;
+  opacity: 0.6;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.change-value {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+/* Change colors with glow */
+
+.change-green {
+  color: #00ff9d;
+  text-shadow: 0 0 8px rgba(0,255,157,0.6);
+}
+
+.change-red {
+  color: #ff4d6d;
+  text-shadow: 0 0 8px rgba(255,77,109,0.5);
+}
+
+.change-neutral {
+  color: #ffd166;
+}
+
+/* ================= BUYER / SELLER POWER ================= */
+
+.buyer-seller-bar {
+  display: flex;
+  height: 22px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-top: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(44,255,201,0.15);
+  box-shadow: 0 0 10px rgba(44,255,201,0.2);
+}
+
+.buyers {
+  background: linear-gradient(90deg, #00ff9d, #2cffc9);
+  transition: width 0.4s ease;
+}
+
+.sellers {
+  background: linear-gradient(90deg, #ff4d6d, #ff7f7f);
+  transition: width 0.4s ease;
+}
+
+.bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 900px) {
+  .price-changes-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .token-stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stat-item.full-width {
+    grid-column: span 1;
+  }
+
+  .price-changes-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* Net Pressure Colors */
+.positive-pressure {
+  color: #2cffc9;
+  font-weight: 600;
+}
+
+.negative-pressure {
+  color: #ff4d4f;
+  font-weight: 600;
+}
+
+.neutral-pressure {
+  color: #ccc;
+  font-weight: 600;
+}
+
+/* Pressure Badge */
+.pressure-badge {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-block;
+}
+
+.badge-bullish {
+  background: rgba(44, 255, 201, 0.15);
+  color: #2cffc9;
+  border: 1px solid #2cffc9;
+}
+
+.badge-bearish {
+  background: rgba(255, 77, 79, 0.15);
+  color: #ff4d4f;
+  border: 1px solid #ff4d4f;
+}
+
+.badge-neutral {
+  background: rgba(200, 200, 200, 0.1);
+  color: #aaa;
+  border: 1px solid #666;
+}
+/* ===================================================
+   SCAN2MOON V2.0 – SHARED NAVIGATION STYLES
+   =================================================== */
+
+.s2m-nav {
+  margin-bottom: 22px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(6,32,26,0.95), rgba(2,12,9,0.98));
+  border: 1px solid rgba(44,255,201,0.25);
+  box-shadow:
+    0 0 30px rgba(44,255,201,0.08),
+    inset 0 1px 0 rgba(44,255,201,0.12);
+  backdrop-filter: blur(10px);
+}
+
+.nav-inner {
+  display: flex;
+  align-items: center;
+  padding: 10px 20px;
+  gap: 20px;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.nav-favicon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  filter: drop-shadow(0 0 6px rgba(44,255,201,0.6));
+}
+
+.nav-brand {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2cffc9;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(44,255,201,0.5);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  justify-content: center;
+}
+
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-decoration: none;
+  color: rgba(207,255,244,0.6);
+  transition: all 0.2s ease;
+  border: 1px solid transparent;
+}
+
+.nav-link:hover {
+  color: #2cffc9;
+  background: rgba(44,255,201,0.08);
+  border-color: rgba(44,255,201,0.2);
+  text-shadow: 0 0 8px rgba(44,255,201,0.4);
+}
+
+.nav-link.active {
+  color: #02231b;
+  background: linear-gradient(135deg, #2cffc9, #1dbfa1);
+  border-color: #2cffc9;
+  box-shadow:
+    0 0 16px rgba(44,255,201,0.5),
+    inset 0 0 8px rgba(255,255,255,0.2);
+}
+
+.nav-link.active:hover {
+  color: #02231b;
+  text-shadow: none;
+}
+
+.nav-icon { font-size: 14px; }
+
+.nav-badge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #2cffc9;
+  border: 1px solid rgba(44,255,201,0.4);
+  background: rgba(44,255,201,0.08);
+  text-shadow: 0 0 6px rgba(44,255,201,0.5);
+}
+
+@media (max-width: 600px) {
+  .nav-inner {
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    gap: 10px;
+  }
+  .nav-links {
+    justify-content: center;
+    width: 100%;
+  }
+  .nav-link {
+    padding: 7px 12px;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .nav-brand { font-size: 14px; }
+}
+/* ── Dropdown wrapper ── */
+.nav-dropdown {
+  position: relative;
+}
+ 
+/* ── Dropdown trigger button ── */
+.nav-drop-btn {
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+ 
+.nav-chevron {
+  font-size: 10px;
+  opacity: 0.6;
+  margin-left: 1px;
+  transition: transform 0.2s ease;
+}
+ 
+.nav-dropdown.open .nav-chevron {
+  transform: rotate(180deg);
+}
+ 
+/* ── Dropdown menu ── */
+.nav-drop-menu {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%) translateY(-4px);
+  background: linear-gradient(160deg, #071f1a, #030e0b);
+  border: 1px solid rgba(44,255,201,0.25);
+  border-radius: 12px;
+  padding: 6px;
+  min-width: 220px;
+  box-shadow:
+    0 12px 40px rgba(0,0,0,0.6),
+    0 0 30px rgba(44,255,201,0.08);
+  z-index: 999;
+ 
+  /* Hidden by default */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s;
+  pointer-events: none;
+}
+ 
+/* ── Invisible hover bridge between button and menu ── */
+.nav-drop-menu::before {
+  content: "";
+  position: absolute;
+  top: -14px;
+  left: 0;
+  right: 0;
+  height: 14px;
+  background: transparent;
+}
+ 
+/* ── Arrow ── */
+.nav-drop-menu::after {
+  content: "";
+  position: absolute;
+  top: -5px;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 6px solid rgba(44,255,201,0.3);
+}
+ 
+/* Show when open */
+.nav-dropdown.open .nav-drop-menu {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  pointer-events: all;
+}
+ 
+/* ── Dropdown items ── */
+.nav-drop-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: rgba(207,255,244,0.75);
+  transition: all 0.15s ease;
+  border: 1px solid transparent;
+}
+ 
+.nav-drop-item:hover {
+  background: rgba(44,255,201,0.08);
+  border-color: rgba(44,255,201,0.15);
+  color: #cffff4;
+}
+ 
+.nav-drop-item.drop-active {
+  background: rgba(44,255,201,0.1);
+  border-color: rgba(44,255,201,0.25);
+  color: #2cffc9;
+}
+ 
+.drop-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 26px;
+  text-align: center;
+}
+ 
+.drop-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+ 
+.drop-sub {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-top: 1px;
+}
+ 
+/* ── Active parent state ── */
+.nav-dropdown.active .nav-drop-btn {
+  color: #2cffc9;
+  background: rgba(44,255,201,0.08);
+  border-color: rgba(44,255,201,0.2);
+}
+ 
+/* ── Soon badge ── */
+.drop-soon-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255,209,102,0.15);
+  color: #ffd166;
+  border: 1px solid rgba(255,209,102,0.3);
+  letter-spacing: 0.5px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+ 
+.nav-drop-soon { opacity: 0.65; }
+.nav-drop-soon:hover { opacity: 1; }
+ 
+/* ── Mobile ── */
+@media (max-width: 640px) {
+  .nav-drop-menu {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    transform: none !important;
+    min-width: unset;
+    width: calc(100vw - 32px);
+  }
+  .nav-drop-menu::before,
+  .nav-drop-menu::after { display: none; }
+  .nav-dropdown.open .nav-drop-menu {
+    transform: none !important;
+  }
+}
+/* ── Z-INDEX FIX: nav sits above panels ── */
+.s2m-nav { position: relative; z-index: 100; }
+.nav-drop-menu { z-index: 9999 !important; }
+/* Fix mc-value in Entry Radar table */
+.radar-table .mc-value {
+  position: static;
+  color: #7fffe1;
+  font-weight: 600;
+}
+/* =====================================================
+   SCAN2MOON V2.0 – COMMUNITY FOOTER PANEL
+   Add this block at the very bottom of style.css
+   ===================================================== */
+
+/* ── GRID LAYOUT ── */
+.s2m-footer-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr 1fr;
+  gap: 28px;
+  padding: 4px 4px 20px;
+}
+
+/* ── SECTION TITLES ── */
+.s2m-footer-section-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: rgba(207,255,244,0.45);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(44,255,201,0.1);
+}
+
+/* ══════════════════════════════════════
+   COL 1 — BRAND
+══════════════════════════════════════ */
+.s2m-footer-brand {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.s2m-footer-logo-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.s2m-footer-favicon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  filter: drop-shadow(0 0 6px rgba(44,255,201,0.5));
+}
+
+.s2m-footer-name {
+  font-size: 16px;
+  font-weight: 800;
+  color: #2cffc9;
+  letter-spacing: 0.5px;
+  text-shadow: 0 0 10px rgba(44,255,201,0.4);
+}
+
+.s2m-footer-version {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #2cffc9;
+  border: 1px solid rgba(44,255,201,0.35);
+  background: rgba(44,255,201,0.07);
+}
+
+.s2m-footer-tagline {
+  font-size: 12px;
+  line-height: 1.6;
+  opacity: 0.55;
+}
+
+.s2m-footer-chain-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(207,255,244,0.6);
+  border: 1px solid rgba(44,255,201,0.15);
+  background: rgba(44,255,201,0.04);
+  width: fit-content;
+}
+
+.s2m-footer-chain-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2cffc9;
+  box-shadow: 0 0 8px rgba(44,255,201,0.9);
+  animation: footerDotPulse 2s infinite;
+}
+
+@keyframes footerDotPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(1.4); }
+}
+
+.s2m-footer-disclaimer {
+  font-size: 10px;
+  opacity: 0.3;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* ══════════════════════════════════════
+   COL 2 — LIVE STATS
+══════════════════════════════════════ */
+.s2m-footer-stats-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.s2m-footer-stats-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.s2m-footer-stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 12px;
+  border-radius: 9px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid rgba(44,255,201,0.07);
+  transition: all 0.2s ease;
+}
+
+.s2m-footer-stat-row:hover {
+  background: rgba(44,255,201,0.05);
+  border-color: rgba(44,255,201,0.18);
+}
+
+/* Moon row gets special highlight */
+.s2m-footer-stat-moon {
+  background: rgba(44,255,201,0.04) !important;
+  border-color: rgba(44,255,201,0.15) !important;
+}
+
+.s2m-footer-stat-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.s2m-footer-stat-icon {
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.s2m-footer-stat-label {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.s2m-footer-stat-val {
+  font-size: 16px;
+  font-weight: 800;
+  color: #7fffe1;
+  text-shadow: 0 0 8px rgba(127,255,225,0.4);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.3px;
+}
+
+/* Moon stat gets teal glow */
+.s2m-footer-stat-val--moon {
+  color: #2cffc9;
+  text-shadow: 0 0 12px rgba(44,255,201,0.7);
+}
+
+.s2m-footer-stat-note {
+  font-size: 10px;
+  opacity: 0.3;
+  font-style: italic;
+  padding: 4px 4px 0;
+  text-align: right;
+}
+
+/* ══════════════════════════════════════
+   COL 3 — COMMUNITY LINKS
+══════════════════════════════════════ */
+.s2m-footer-links-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.s2m-footer-links-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.s2m-footer-link {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  color: rgba(207,255,244,0.8);
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.s2m-footer-link:hover {
+  transform: translateX(3px);
+}
+
+/* X / Twitter */
+.s2m-footer-link--x {
+  background: rgba(207,255,244,0.04);
+  border-color: rgba(207,255,244,0.1);
+}
+.s2m-footer-link--x:hover {
+  background: rgba(207,255,244,0.09);
+  border-color: rgba(207,255,244,0.25);
+  box-shadow: 0 0 14px rgba(207,255,244,0.07);
+}
+
+/* Telegram */
+.s2m-footer-link--tg {
+  background: rgba(44,168,255,0.05);
+  border-color: rgba(44,168,255,0.12);
+}
+.s2m-footer-link--tg:hover {
+  background: rgba(44,168,255,0.1);
+  border-color: rgba(44,168,255,0.3);
+}
+
+/* Soon state */
+.s2m-footer-link--soon {
+  opacity: 0.55;
+  cursor: default;
+}
+.s2m-footer-link--soon:hover {
+  transform: none;
+}
+
+/* GitHub */
+.s2m-footer-link--gh {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.07);
+}
+.s2m-footer-link--gh:hover {
+  background: rgba(255,255,255,0.07);
+  border-color: rgba(255,255,255,0.18);
+}
+
+.s2m-footer-link-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  width: 24px;
+  text-align: center;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.s2m-footer-link-text { flex: 1; min-width: 0; }
+
+.s2m-footer-link-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.s2m-footer-link-sub {
+  font-size: 10px;
+  opacity: 0.45;
+  margin-top: 1px;
+}
+
+.s2m-footer-link-arrow {
+  font-size: 12px;
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+.s2m-footer-link:hover .s2m-footer-link-arrow { opacity: 0.8; }
+
+.s2m-footer-soon-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: rgba(255,209,102,0.15);
+  color: #ffd166;
+  border: 1px solid rgba(255,209,102,0.3);
+  letter-spacing: 0.5px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+
+/* ══════════════════════════════════════
+   COL 4 — TOOLS
+══════════════════════════════════════ */
+.s2m-footer-tools-col {
+  display: flex;
+  flex-direction: column;
+}
+
+.s2m-footer-tools-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.s2m-footer-tool {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(207,255,244,0.6);
+  text-decoration: none;
+  border: 1px solid transparent;
+  background: rgba(0,0,0,0.2);
+  transition: all 0.18s ease;
+  letter-spacing: 0.2px;
+}
+
+.s2m-footer-tool:hover {
+  color: #2cffc9;
+  background: rgba(44,255,201,0.07);
+  border-color: rgba(44,255,201,0.2);
+  transform: translateX(3px);
+  text-shadow: 0 0 8px rgba(44,255,201,0.3);
+}
+
+/* ══════════════════════════════════════
+   BOTTOM BAR
+══════════════════════════════════════ */
+.s2m-footer-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 4px 0;
+  border-top: 1px solid rgba(44,255,201,0.08);
+  margin-top: 4px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.s2m-footer-bottom-left {
+  font-size: 11px;
+  opacity: 0.3;
+}
+
+.s2m-footer-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  opacity: 0.4;
+}
+
+.s2m-footer-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2cffc9;
+  box-shadow: 0 0 6px rgba(44,255,201,0.8);
+  animation: footerDotPulse 2s infinite;
+  flex-shrink: 0;
+}
+
+/* ══════════════════════════════════════
+   RESPONSIVE
+══════════════════════════════════════ */
+@media (max-width: 860px) {
+  .s2m-footer-grid {
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+}
+
+@media (max-width: 520px) {
+  .s2m-footer-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+  .s2m-footer-bottom {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+}
+/* ===================================================
+   SIMULATE NAV BUTTON — add to bottom of style.css
+   =================================================== */
+
+/* ===================================================
+   SIMULATE NAV BUTTON — paste at bottom of style.css
+   (replace the previous simulate block if you added it)
+   =================================================== */
+
+/* SIMULATE button — compact, sits between nav-links and V2.0 badge */
+.nav-simulate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  color: #ffb432;
+  background: rgba(255,180,50,0.1);
+  border: 1px solid rgba(255,180,50,0.4);
+  text-shadow: 0 0 8px rgba(255,180,50,0.4);
+  animation: simulatePulse 2.5s infinite;
+}
+
+.nav-simulate-btn:hover {
+  background: rgba(255,180,50,0.22);
+  border-color: rgba(255,180,50,0.75);
+  color: #ffd166;
+  box-shadow: 0 0 18px rgba(255,180,50,0.35);
+  text-shadow: 0 0 12px rgba(255,180,50,0.7);
+  transform: translateY(-1px);
+}
+
+.nav-simulate-active {
+  background: linear-gradient(135deg, #ffb432, #ff8c00) !important;
+  color: #1a0a00 !important;
+  border-color: #ffb432 !important;
+  box-shadow: 0 0 18px rgba(255,180,50,0.5) !important;
+  text-shadow: none !important;
+  animation: none !important;
+}
+
+@keyframes simulatePulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(255,180,50,0.2); }
+  50%       { box-shadow: 0 0 14px rgba(255,180,50,0.5); }
+}
+
+@media (max-width: 700px) {
+  .nav-simulate-btn { padding: 7px 10px; font-size: 11px; letter-spacing: 0; }
+}
+/* ── Sol2Moon token icon (global) ── */
+.s2m-token-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  vertical-align: middle;
+  display: inline-block;
+  filter: drop-shadow(0 0 4px rgba(255,180,50,0.45));
+}
+.s2m-token-icon--footer {
+  width: 22px;
+  height: 22px;
 }

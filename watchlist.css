@@ -1,0 +1,324 @@
+/* ===================================================
+   SCAN2MOON V2.0 – WATCHLIST PAGE (watchlist.css)
+   =================================================== */
+
+/* ── Clear all button ── */
+.wl-clear-all-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: transparent;
+  border: 1px solid rgba(255,77,109,0.35);
+  color: rgba(255,77,109,0.75);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.wl-clear-all-btn:hover {
+  background: rgba(255,77,109,0.08);
+  border-color: rgba(255,77,109,0.6);
+  color: #ff4d6d;
+}
+
+/* ── Empty state ── */
+.wl-empty {
+  text-align: center;
+  padding: 60px 20px;
+  opacity: 0.7;
+}
+.wl-empty-icon  { font-size: 48px; margin-bottom: 14px; }
+.wl-empty-title { font-size: 20px; font-weight: 700; color: #7fffe1; margin-bottom: 10px; }
+.wl-empty-sub   { font-size: 14px; opacity: 0.7; line-height: 1.6; }
+.wl-empty-sub a { color: #2cffc9; font-weight: 600; }
+.wl-empty-sub strong { color: #cffff4; }
+
+/* ── Grid ── */
+.wl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 4px 0;
+}
+
+/* ── Card ── */
+.wl-card {
+  background: linear-gradient(135deg, #061c17, #030e0b);
+  border: 1px solid rgba(44,255,201,0.18);
+  border-radius: 14px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.25s ease;
+  position: relative;
+  overflow: hidden;
+}
+.wl-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  background: radial-gradient(circle at top right, rgba(44,255,201,0.05), transparent 60%);
+  pointer-events: none;
+}
+.wl-card:hover {
+  border-color: rgba(44,255,201,0.45);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(44,255,201,0.12);
+}
+
+/* Card top row */
+.wl-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.wl-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(44,255,201,0.25);
+  background: rgba(44,255,201,0.06);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.wl-token-info { flex: 1; min-width: 0; }
+.wl-token-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #cffff4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wl-token-symbol { font-size: 12px; opacity: 0.5; margin-top: 2px; }
+
+/* Remove button */
+.wl-remove-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,77,109,0.2);
+  background: rgba(255,77,109,0.05);
+  color: rgba(255,77,109,0.5);
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+}
+.wl-remove-btn:hover {
+  background: rgba(255,77,109,0.15);
+  border-color: rgba(255,77,109,0.5);
+  color: #ff4d6d;
+  transform: scale(1.1);
+}
+
+/* Score row */
+.wl-score-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(44,255,201,0.08);
+}
+.wl-score-num {
+  font-size: 36px;
+  font-weight: 800;
+  line-height: 1;
+}
+.wl-score-num.wl-score-good { color: #2cffc9; text-shadow: 0 0 12px rgba(44,255,201,0.5); }
+.wl-score-num.wl-score-warn { color: #ffd166; text-shadow: 0 0 12px rgba(255,209,102,0.4); }
+.wl-score-num.wl-score-bad  { color: #ff4d6d; text-shadow: 0 0 12px rgba(255,77,109,0.4); }
+.wl-score-max { font-size: 14px; opacity: 0.45; margin-left: 3px; margin-bottom: 5px; }
+
+/* Risk badge */
+.wl-risk-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  text-transform: uppercase;
+}
+.wl-badge-good { background: rgba(44,255,201,0.1);  color: #2cffc9; border: 1px solid rgba(44,255,201,0.3); }
+.wl-badge-warn { background: rgba(255,209,102,0.1); color: #ffd166; border: 1px solid rgba(255,209,102,0.3); }
+.wl-badge-bad  { background: rgba(255,77,109,0.1);  color: #ff4d6d; border: 1px solid rgba(255,77,109,0.3); }
+
+/* Metrics */
+.wl-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.wl-metric {}
+.wl-metric-label { font-size: 10px; opacity: 0.5; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
+.wl-metric-val   { font-size: 13px; font-weight: 600; color: #7fffe1; }
+
+/* Card footer — saved time only */
+.wl-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(44,255,201,0.08);
+}
+.wl-saved-time { font-size: 10px; opacity: 0.4; }
+
+/* Action buttons — full-width row below footer */
+.wl-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.wl-action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wl-action-btn:hover { transform: translateY(-2px); }
+.wl-action-btn:active { transform: translateY(0); }
+
+/* DEX — outlined teal */
+.wl-dex {
+  background: rgba(44,255,201,0.06);
+  border-color: rgba(44,255,201,0.28);
+  color: #2cffc9;
+}
+.wl-dex:hover {
+  background: rgba(44,255,201,0.13);
+  border-color: rgba(44,255,201,0.55);
+  box-shadow: 0 0 12px rgba(44,255,201,0.18);
+}
+
+/* RE-SCAN — solid teal (primary action) */
+.wl-rescan {
+  background: linear-gradient(135deg, #2cffc9 0%, #18c9a0 100%);
+  border-color: transparent;
+  color: #011a14;
+  font-weight: 800;
+}
+.wl-rescan:hover {
+  box-shadow: 0 4px 18px rgba(44,255,201,0.4);
+}
+
+/* TRADE — solid orange (CTA) */
+.wl-trade-ape {
+  background: linear-gradient(135deg, #ffb432 0%, #f08c00 100%);
+  border-color: transparent;
+  color: #1a0a00;
+  font-weight: 800;
+}
+.wl-trade-ape:hover {
+  box-shadow: 0 4px 18px rgba(255,170,50,0.4);
+}
+
+/* ── Live price row ── */
+.wl-live-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 0;
+  border-top: 1px solid rgba(44,255,201,0.07);
+  border-bottom: 1px solid rgba(44,255,201,0.07);
+}
+.wl-live-dot {
+  font-size: 7px;
+  color: #2cffc9;
+  animation: wl-blink 1.4s ease-in-out infinite;
+}
+@keyframes wl-blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.2; }
+}
+.wl-live-price {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: 0.3px;
+}
+.wl-live-change {
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: auto;
+}
+.wl-ch-pos { color: #2cffc9; }
+.wl-ch-neg { color: #ff5555; }
+
+/* ── Safe Ape Simulator P/L strip ── */
+.wl-sim-pnl {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 9px;
+  padding: 9px 11px 8px;
+  margin-bottom: 2px;
+}
+
+.wl-sim-pnl-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.wl-sim-pnl-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  opacity: 0.5;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.wl-sim-pnl-value {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.wl-pnl-pct  { font-size: 14px; }
+.wl-pnl-sep  { opacity: 0.3; font-size: 11px; }
+.wl-pnl-sol  { font-size: 11px; opacity: 0.75; }
+
+.wl-pnl-pos  { color: #2cffc9; }
+.wl-pnl-neg  { color: #ff5555; }
+
+/* mini progress bar */
+.wl-sim-pnl-bar-wrap {
+  height: 3px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.wl-sim-pnl-bar {
+  height: 100%;
+  border-radius: 99px;
+  min-width: 4px;
+  transition: width 0.6s ease;
+}
+.wl-sim-pnl-bar.wl-pnl-pos { background: linear-gradient(90deg, #1dbfa1, #2cffc9); }
+.wl-sim-pnl-bar.wl-pnl-neg { background: linear-gradient(90deg, #cc2222, #ff5555); }

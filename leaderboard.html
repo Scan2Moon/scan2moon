@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Safe Ape Leaderboard — Scan2Moon</title>
+  <meta name="description" content="Who are the best traders on Solana? See the top risk-adjusted performers in the Scan2Moon Safe Ape Simulator leaderboard." />
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="Scan2Moon" />
+  <meta property="og:url"          content="https://scan2moon.com/leaderboard.html" />
+  <meta property="og:title"        content="Safe Ape Leaderboard — Scan2Moon" />
+  <meta property="og:description"  content="Who are the best traders on Solana? See the top risk-adjusted performers in the Scan2Moon Safe Ape Simulator leaderboard." />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image:width"  content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@Scan2Moon" />
+  <meta name="twitter:title"       content="Safe Ape Leaderboard — Scan2Moon" />
+  <meta name="twitter:description" content="Who are the best traders on Solana? See the top risk-adjusted performers in the Scan2Moon Safe Ape Simulator leaderboard." />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.png" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="safe-ape.css" />
+  <link rel="stylesheet" href="leaderboard.css" />
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- HERO -->
+  <div class="lb-hero">
+    <div class="lb-hero-left">
+      <div class="sa-pulse-dot"></div>
+      <div>
+        <div class="lb-title">🏆 SAFE APE LEADERBOARD</div>
+        <div class="lb-subtitle">Risk-adjusted rankings • Real discipline rewarded • Not just lucky degens</div>
+      </div>
+    </div>
+    <div class="lb-hero-right">
+      <div class="lb-stat-pill" id="lbTotalTraders">— traders</div>
+      <div class="lb-stat-pill" id="lbLastUpdate">Updating…</div>
+      <button class="lb-refresh-btn" id="lbRefreshBtn">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- MVP STRIP -->
+  <div class="lb-mvp-strip" id="lbMvpStrip">
+    <div class="lb-mvp-card" id="mvpDay">
+      <div class="lb-mvp-label">👑 MVP TODAY</div>
+      <div class="lb-mvp-name" id="mvpDayName">—</div>
+      <div class="lb-mvp-val" id="mvpDayVal">—</div>
+    </div>
+    <div class="lb-mvp-card" id="mvpWeek">
+      <div class="lb-mvp-label">🔥 MVP THIS WEEK</div>
+      <div class="lb-mvp-name" id="mvpWeekName">—</div>
+      <div class="lb-mvp-val" id="mvpWeekVal">—</div>
+    </div>
+    <div class="lb-mvp-card" id="mvpMonth">
+      <div class="lb-mvp-label">🦍 MVP THIS MONTH</div>
+      <div class="lb-mvp-name" id="mvpMonthName">—</div>
+      <div class="lb-mvp-val" id="mvpMonthVal">—</div>
+    </div>
+    <div class="lb-mvp-card" id="mvpAllTime">
+      <div class="lb-mvp-label">🐐 ALL TIME MVP</div>
+      <div class="lb-mvp-name" id="mvpAllTimeName">—</div>
+      <div class="lb-mvp-val" id="mvpAllTimeVal">—</div>
+    </div>
+  </div>
+
+  <!-- YOUR RANK BANNER (shown when connected + in top 25) -->
+  <div class="lb-your-rank-banner" id="yourRankBanner" style="display:none;">
+    <div class="lb-your-rank-left">
+      <span class="lb-your-rank-emoji">🦍</span>
+      <div>
+        <div class="lb-your-rank-label">YOUR RANK</div>
+        <div class="lb-your-rank-name" id="yourRankName">—</div>
+      </div>
+    </div>
+    <div class="lb-your-rank-right">
+      <div class="lb-your-rank-pos" id="yourRankPos">#—</div>
+      <button class="lb-share-rank-btn" id="shareRankBtn">🐦 Share on X</button>
+      <button class="lb-submit-btn" id="submitScoreBtn">⬆️ Submit Score</button>
+    </div>
+  </div>
+
+  <!-- CONNECT BANNER (shown when not connected) -->
+  <div class="lb-connect-banner" id="lbConnectBanner">
+    <span>🔗 Connect Phantom wallet to see your rank and submit your score</span>
+    <button class="lb-connect-small-btn" id="lbConnectBtn">Connect Wallet</button>
+  </div>
+
+  <!-- PERIOD TABS -->
+  <div class="lb-period-tabs">
+    <button class="lb-period-tab active" data-period="alltime">🏆 All Time</button>
+    <button class="lb-period-tab" data-period="monthly">📅 Monthly</button>
+    <button class="lb-period-tab" data-period="weekly">📆 Weekly</button>
+    <button class="lb-period-tab" data-period="daily">⚡ Daily</button>
+  </div>
+
+  <!-- MAIN TABLE -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="panel-title">📊 FULL RANKINGS</div>
+      <div style="font-size:11px;opacity:0.45;padding-right:14px;display:flex;align-items:center;gap:4px;">Adj. Return = P/L% × (Avg Risk Score / 100) &nbsp;|&nbsp; Balance & P/L shown in SOL</div>
+    </div>
+    <div class="panel-body" id="lbTableBody">
+      <div class="lb-loading">
+        <div class="lb-spinner"></div>
+        <div>Loading rankings…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BADGES SHOWCASE -->
+  <div class="panel">
+    <div class="panel-title">🎖️ ACHIEVEMENT BADGES</div>
+    <div class="panel-body" id="lbBadgesBody">
+      <div class="lb-badges-grid" id="allBadgesGrid"></div>
+    </div>
+  </div>
+
+  <!-- COMMUNITY -->
+  <div class="panel">
+    <div class="panel-title">Scan2Moon Community</div>
+    <div class="panel-body" id="communityPanel"></div>
+  </div>
+
+  <!-- TRADER PROFILE MODAL -->
+  <div id="traderProfileOverlay" class="tp-overlay" onclick="closeTraderProfile(event)" style="display:none;">
+    <div class="tp-modal" id="traderProfileModal">
+      <button class="tp-close-btn" onclick="closeTraderProfile()">✕</button>
+      <div id="traderProfileContent"></div>
+      <div style="padding:16px 0 4px;text-align:center;">
+        <button id="saveTraderCardBtn" onclick="window.saveTraderCard()" style="
+          display:inline-flex;align-items:center;gap:8px;
+          padding:10px 28px;
+          background:linear-gradient(135deg,#ffb432,#ff8c00);
+          border:none;border-radius:10px;
+          color:#1a0a00;font-size:13px;font-weight:800;
+          cursor:pointer;letter-spacing:0.4px;
+          box-shadow:0 4px 16px rgba(255,180,50,0.35);
+          transition:opacity .2s,transform .2s;">
+          💾 Save Card Image
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="footer-left">Simulated trading only. Not financial advice. Always DYOR.</div>
+    <div class="footer-right">
+      <span class="version">Version V2.0</span>
+      <span class="separator">•</span>
+      <span class="powered">Powered by Scan2Moon</span>
+    </div>
+  </footer>
+
+</div>
+<!-- Frontend leaderboard app — separate from the Netlify function -->
+<script type="module" src="leaderboard-app.js"></script>
+</body>
+</html>

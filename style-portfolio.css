@@ -1,0 +1,592 @@
+/* =====================================================
+   SCAN2MOON V2.0 – PORTFOLIO SCANNER STYLES
+   style-portfolio.css
+   ===================================================== */
+
+/* ===== HERO BAR ===== */
+.port-hero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 18px;
+  padding: 18px 22px;
+  background: linear-gradient(135deg, rgba(6,32,26,0.9), rgba(2,12,9,0.95));
+  border: 1px solid rgba(44,255,201,0.2);
+  border-radius: 12px;
+  box-shadow: 0 0 30px rgba(44,255,201,0.07);
+}
+
+.port-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.port-pulse-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #2cffc9;
+  box-shadow: 0 0 12px rgba(44,255,201,0.8);
+  animation: portPulse 1.8s infinite;
+  flex-shrink: 0;
+}
+
+@keyframes portPulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(44,255,201,0.5); transform: scale(1); }
+  50%       { box-shadow: 0 0 22px rgba(44,255,201,1);  transform: scale(1.25); }
+}
+
+.port-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #2cffc9;
+  text-shadow: 0 0 14px rgba(44,255,201,0.4);
+  letter-spacing: 0.5px;
+}
+
+.port-subtitle {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-top: 4px;
+}
+
+/* ===== SCAN BAR ===== */
+.port-scan-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.port-scan-bar input {
+  flex: 1;
+  padding: 13px 18px;
+  background: rgba(4,26,20,0.9);
+  border: 1px solid rgba(44,255,201,0.4);
+  border-radius: 10px;
+  color: #bfffee;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: monospace;
+}
+
+.port-scan-bar input:focus {
+  border-color: #2cffc9;
+  box-shadow: 0 0 14px rgba(44,255,201,0.25);
+}
+
+.port-scan-bar input::placeholder {
+  opacity: 0.4;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.port-scan-bar button {
+  padding: 13px 28px;
+  background: linear-gradient(135deg, #2cffc9, #1dbfa1);
+  border: none;
+  border-radius: 10px;
+  color: #02231b;
+  font-weight: 800;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 16px rgba(44,255,201,0.4);
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+
+.port-scan-bar button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0 28px rgba(44,255,201,0.7);
+}
+
+.port-scan-bar button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ===== LOADING ===== */
+.port-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 50px 20px;
+  opacity: 0.75;
+}
+
+.port-spinner {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(44,255,201,0.15);
+  border-top-color: #2cffc9;
+  border-radius: 50%;
+  animation: portSpin 0.85s linear infinite;
+}
+
+@keyframes portSpin { to { transform: rotate(360deg); } }
+
+.port-loading-label {
+  font-size: 14px;
+  color: #7fffe1;
+}
+
+.port-loading-sub {
+  font-size: 12px;
+  opacity: 0.5;
+  margin-top: -6px;
+}
+
+/* ===== PROGRESS BAR ===== */
+.port-progress-wrap {
+  width: 100%;
+  max-width: 340px;
+  height: 4px;
+  background: rgba(44,255,201,0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.port-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2cffc9, #7fffe1);
+  border-radius: 4px;
+  transition: width 0.4s ease;
+  box-shadow: 0 0 8px rgba(44,255,201,0.6);
+}
+
+/* ===== SUMMARY OVERVIEW ===== */
+.port-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.port-stat-card {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(44,255,201,0.12);
+  border-radius: 12px;
+  padding: 16px 18px;
+  text-align: center;
+  transition: all 0.22s ease;
+}
+
+.port-stat-card:hover {
+  border-color: rgba(44,255,201,0.35);
+  box-shadow: 0 0 18px rgba(44,255,201,0.1);
+  transform: translateY(-2px);
+}
+
+.port-stat-label {
+  font-size: 11px;
+  opacity: 0.55;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.port-stat-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: #2cffc9;
+}
+
+.port-stat-value.val-warn { color: #ffd36a; }
+.port-stat-value.val-bad  { color: #ff4d4f; }
+.port-stat-value.val-good { color: #2cffc9; }
+
+.port-stat-sub {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-top: 4px;
+}
+
+/* Portfolio health bar */
+.port-health-wrap {
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(44,255,201,0.12);
+  border-radius: 12px;
+  padding: 18px 22px;
+  margin-bottom: 16px;
+}
+
+.port-health-title {
+  font-size: 13px;
+  font-weight: 700;
+  opacity: 0.7;
+  margin-bottom: 14px;
+  letter-spacing: 0.5px;
+}
+
+.port-health-bar-wrap {
+  height: 12px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+  margin-bottom: 10px;
+  display: flex;
+}
+
+.port-health-seg-low  { background: linear-gradient(90deg, #2cffc9, #7fffe1); transition: width 0.6s ease; }
+.port-health-seg-mod  { background: linear-gradient(90deg, #ffd36a, #ffef9c); transition: width 0.6s ease; }
+.port-health-seg-high { background: linear-gradient(90deg, #ff4d4f, #ff8a8a); transition: width 0.6s ease; }
+
+.port-health-legend {
+  display: flex;
+  gap: 18px;
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.port-health-legend span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.75;
+}
+
+.leg-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.leg-low  { background: #2cffc9; }
+.leg-mod  { background: #ffd36a; }
+.leg-high { background: #ff4d4f; }
+
+/* ===== FILTER ROW ===== */
+.port-filter-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-right: 14px;
+  flex-wrap: wrap;
+}
+
+.port-filter-btn {
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  border: 1px solid rgba(44,255,201,0.25);
+  background: transparent;
+  color: rgba(207,255,244,0.6);
+  transition: all 0.18s;
+}
+
+.port-filter-btn:hover,
+.port-filter-btn.active {
+  background: rgba(44,255,201,0.12);
+  border-color: #2cffc9;
+  color: #2cffc9;
+}
+
+/* ===== TOKEN TABLE ===== */
+.port-table-wrap {
+  overflow-x: auto;
+}
+
+.port-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.port-table thead tr {
+  border-bottom: 1px solid rgba(44,255,201,0.15);
+}
+
+.port-table th {
+  text-align: left;
+  padding: 9px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: rgba(207,255,244,0.45);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.port-table tbody tr {
+  border-bottom: 1px solid rgba(44,255,201,0.06);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  animation: rowIn 0.3s ease both;
+}
+
+@keyframes rowIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.port-table tbody tr:hover {
+  background: rgba(44,255,201,0.05);
+  box-shadow: inset 3px 0 0 #2cffc9;
+}
+
+.port-table td {
+  padding: 13px 14px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+/* TOKEN CELL */
+.port-token-cell {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  min-width: 160px;
+}
+
+.port-token-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(44,255,201,0.25);
+  background: #051a14;
+  flex-shrink: 0;
+}
+
+.port-token-name {
+  font-weight: 600;
+  color: #cffff4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.port-token-symbol {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-top: 2px;
+}
+
+/* VALUE CELL */
+.port-value-usd {
+  font-weight: 600;
+  color: #7fffe1;
+}
+
+.port-value-tokens {
+  font-size: 11px;
+  opacity: 0.5;
+  margin-top: 2px;
+}
+
+/* PNL CELL */
+.port-pnl-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.port-pnl-pct {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.port-pnl-usd {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.pnl-profit {
+  color: #2cffc9;
+  text-shadow: 0 0 8px rgba(44,255,201,0.4);
+}
+
+.pnl-loss {
+  color: #ff4d4f;
+  text-shadow: 0 0 8px rgba(255,77,79,0.4);
+}
+
+.pnl-neutral {
+  color: rgba(207,255,244,0.5);
+}
+
+/* RISK BADGE */
+.port-risk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 11px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.risk-low  {
+  background: rgba(44,255,201,0.12);
+  color: #2cffc9;
+  border: 1px solid rgba(44,255,201,0.35);
+}
+
+.risk-mod  {
+  background: rgba(255,211,106,0.12);
+  color: #ffd36a;
+  border: 1px solid rgba(255,211,106,0.35);
+}
+
+.risk-high {
+  background: rgba(255,77,79,0.12);
+  color: #ff4d4f;
+  border: 1px solid rgba(255,77,79,0.35);
+}
+
+/* SCORE CELL */
+.port-score-num {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.score-g { color: #2cffc9; }
+.score-w { color: #ffd36a; }
+.score-b { color: #ff4d4f; }
+
+/* TREND CELL */
+.port-trend {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.port-trend-val {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trend-up   { color: #2cffc9; }
+.trend-down { color: #ff4d4f; }
+.trend-flat { color: rgba(207,255,244,0.45); }
+
+/* ACTION CELL - removed, kept for reference */
+
+/* Token name as Solscan link */
+.port-token-name-link {
+  text-decoration: none;
+}
+
+.port-token-name-link:hover .port-token-name {
+  color: #2cffc9;
+  text-shadow: 0 0 8px rgba(44,255,201,0.4);
+  text-decoration: underline;
+}
+
+/* Wallet address as link */
+a.port-wallet-addr {
+  color: #2cffc9;
+  text-decoration: none;
+  font-family: monospace;
+  font-size: 13px;
+  opacity: 0.85;
+  transition: opacity 0.18s, text-shadow 0.18s;
+}
+
+a.port-wallet-addr:hover {
+  opacity: 1;
+  text-shadow: 0 0 10px rgba(44,255,201,0.5);
+  text-decoration: underline;
+}
+
+/* ===== EMPTY & ERROR STATES ===== */
+.port-empty {
+  text-align: center;
+  padding: 60px 20px;
+  opacity: 0.6;
+}
+
+.port-empty-icon { font-size: 48px; margin-bottom: 14px; }
+.port-empty-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #7fffe1;
+  margin-bottom: 8px;
+}
+
+/* ===== WALLET INFO STRIP ===== */
+.port-wallet-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: rgba(0,0,0,0.25);
+  border-radius: 10px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.port-wallet-addr {
+  font-family: monospace;
+  color: #2cffc9;
+  opacity: 0.8;
+  font-size: 13px;
+}
+
+.port-wallet-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.port-wallet-action-btn {
+  padding: 5px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 8px;
+  border: 1px solid rgba(44,255,201,0.3);
+  background: rgba(44,255,201,0.08);
+  color: #2cffc9;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.port-wallet-action-btn:hover {
+  background: rgba(44,255,201,0.18);
+  box-shadow: 0 0 10px rgba(44,255,201,0.3);
+}
+
+/* ===== PANEL HEADER for this page ===== */
+#tokensPanel .panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 720px) {
+  .port-summary-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .port-table th:nth-child(n+7),
+  .port-table td:nth-child(n+7) {
+    display: none;
+  }
+}
+
+@media (max-width: 500px) {
+  .port-summary-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .port-scan-bar {
+    flex-direction: column;
+  }
+  .port-scan-bar button {
+    width: 100%;
+  }
+}

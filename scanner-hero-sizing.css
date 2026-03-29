@@ -1,0 +1,128 @@
+/* ===================================================
+   SCAN2MOON – FINAL SCORE + TOKEN STATS SIZE REDUCTION
+   ADD THESE AT THE VERY BOTTOM OF scanner-hero.css
+   (after the existing additions)
+   =================================================== */
+
+/* ── FINAL SCORE CARD ── */
+.score-card-pro {
+  padding: 16px 20px;
+}
+
+.score-logo {
+  width: 46px;
+  height: 46px;
+}
+
+.token-name {
+  font-size: 16px;
+}
+
+.token-symbol {
+  font-size: 12px;
+}
+
+.score-main-pro {
+  margin-top: 14px;
+}
+
+.score-value-pro {
+  font-size: 48px;
+}
+
+.score-max-pro {
+  font-size: 20px;
+}
+
+.risk-badge-pro {
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.score-sub-pro {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.signal-explainer-pro {
+  margin-top: 12px;
+  padding: 11px 14px;
+  font-size: 13px;
+}
+
+.metrics-row {
+  margin-top: 14px;
+  gap: 8px;
+}
+
+.metric {
+  padding: 10px;
+  border-radius: 10px;
+}
+
+.metric-label {
+  font-size: 11px;
+}
+
+.metric-value {
+  margin-top: 4px;
+  font-size: 14px;
+}
+
+.score-footer-pro {
+  margin-top: 14px;
+  font-size: 11px;
+}
+
+/* ── TOKEN MARKET STATS ── */
+.token-stats-grid {
+  gap: 10px;
+}
+
+.stat-item {
+  padding: 11px 13px;
+}
+
+.stat-item span {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.stat-item strong {
+  font-size: 15px;
+}
+
+.price-changes-grid {
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.change-card {
+  padding: 9px 6px;
+  border-radius: 8px;
+}
+
+.change-time {
+  font-size: 10px;
+  margin-bottom: 4px;
+}
+
+.change-value {
+  font-size: 13px;
+}
+
+.buyer-seller-bar {
+  height: 17px;
+  margin-top: 9px;
+}
+
+.bar-labels {
+  font-size: 11px;
+  margin-top: 6px;
+}
+
+.pressure-badge {
+  margin-top: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+}

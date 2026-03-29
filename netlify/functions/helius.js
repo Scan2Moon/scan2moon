@@ -6,6 +6,14 @@ const MAX_REQUESTS_PER_WINDOW = 40;
 /* ===== SIMPLE RATE LIMIT ===== */
 const rateLimitMap = new Map();
 
+// Purge stale entries every 5 minutes to prevent unbounded memory growth
+setInterval(() => {
+  const cutoff = Date.now() - RATE_LIMIT_WINDOW * 2;
+  for (const [ip, entry] of rateLimitMap) {
+    if (entry.start < cutoff) rateLimitMap.delete(ip);
+  }
+}, 300000);
+
 function isRateLimited(ip) {
   const now = Date.now();
 

@@ -1,166 +1,254 @@
-/* ===== GLOBAL STATS ENDPOINT ===== */
+/* ============================================================
+   Scan2Moon – community.js  (V2.0)
+   Professional footer community panel
+   ============================================================ */
+
 const statsEndpoint = "/.netlify/functions/stats";
 
-/* ===== SAFE FETCH WITH TIMEOUT ===== */
+/* ============================================================
+   SAFE FETCH WITH TIMEOUT
+   ============================================================ */
 async function safeFetch(url, options = {}, timeout = 8000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
-
   try {
-    const response = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-
+    const response = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(id);
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`HTTP ${response.status}: ${text.substring(0, 120)}`);
-    }
-
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const contentType = response.headers.get("content-type");
-    if (!contentType || !contentType.includes("application/json")) {
-      throw new Error("Invalid JSON response (likely 404 HTML page)");
-    }
-
+    if (!contentType || !contentType.includes("application/json"))
+      throw new Error("Invalid JSON response");
     return await response.json();
-
   } catch (err) {
     clearTimeout(id);
     throw err;
   }
 }
 
-/* ===== RENDER PANEL STRUCTURE ===== */
-
+/* ============================================================
+   RENDER PANEL
+   ============================================================ */
 function renderCommunityPanel() {
   const panel = document.getElementById("communityPanel");
   if (!panel) return;
 
   panel.innerHTML = `
-    <div class="community-grid">
+    <div class="s2m-footer-grid">
 
-      <div class="community-col">
-        <div class="community-item">
-          <span>X / Twitter</span>
-          <a href="https://x.com/Scan2Moon" target="_blank">@Scan2Moon</a>
+      <!-- COL 1: BRAND -->
+      <div class="s2m-footer-brand">
+        <div class="s2m-footer-logo-row">
+          <img src="favicon.png" alt="Scan2Moon" class="s2m-footer-favicon" />
+          <span class="s2m-footer-name">Scan2Moon</span>
+          <span class="s2m-footer-version">V2.0</span>
         </div>
-        <div class="community-item">
-          <span>Discord</span>
-          <a href="https://discord.gg/9XGETdE5" target="_blank">Join Server</a>
+        <div class="s2m-footer-tagline">
+          On-chain Solana intelligence.<br/>Scan smarter. Trade safer.
         </div>
-        <div class="community-item coming">More coming soon</div>
-        <div class="community-item coming">More coming soon</div>
-      </div>
-
-      <div class="community-col">
-        <div class="community-item stat">
-          Site Visits
-          <strong id="statVisits">0</strong>
+        <div class="s2m-footer-chain-pill">
+          <span class="s2m-footer-chain-dot"></span>
+          Built on Solana
         </div>
-        <div class="community-item stat">
-          Wallets Scanned
-          <strong id="statScans">0</strong>
-        </div>
-        <div class="community-item stat">
-          Stats Shared to X
-          <strong id="statShares">0</strong>
-        </div>
-        <div class="community-item stat">
-          Moon Coins Detected
-          <strong id="statMoon">0</strong>
+        <div class="s2m-footer-disclaimer">
+          Informational tool only. Always DYOR.<br/>
+          Not financial advice.
         </div>
       </div>
 
-      <div class="community-col">
-        <div class="community-item coming">Community tools coming</div>
-        <div class="community-item coming">Alerts & bots soon</div>
-        <div class="community-item coming">Analytics expansion</div>
-        <div class="community-item coming">Stay tuned 🌙</div>
+      <!-- COL 2: LIVE STATS -->
+      <div class="s2m-footer-stats-col">
+        <div class="s2m-footer-section-title">📡 Live Stats</div>
+        <div class="s2m-footer-stats-list">
+
+          <div class="s2m-footer-stat-row">
+            <div class="s2m-footer-stat-left">
+              <span class="s2m-footer-stat-icon">👁️</span>
+              <span class="s2m-footer-stat-label">Site Visits</span>
+            </div>
+            <strong class="s2m-footer-stat-val" id="statVisits">—</strong>
+          </div>
+
+          <div class="s2m-footer-stat-row">
+            <div class="s2m-footer-stat-left">
+              <span class="s2m-footer-stat-icon">🔍</span>
+              <span class="s2m-footer-stat-label">Risk Scans Run</span>
+            </div>
+            <strong class="s2m-footer-stat-val" id="statScans">—</strong>
+          </div>
+
+          <div class="s2m-footer-stat-row s2m-footer-stat-moon">
+            <div class="s2m-footer-stat-left">
+              <span class="s2m-footer-stat-icon"><img src="/sol2moon-token.png" class="s2m-token-icon s2m-token-icon--footer"></span>
+              <span class="s2m-footer-stat-label">Moon Coins Detected</span>
+            </div>
+            <strong class="s2m-footer-stat-val s2m-footer-stat-val--moon" id="statMoon">—</strong>
+          </div>
+
+          <div class="s2m-footer-stat-note">
+            Moon Coins = Risk Score ≥ 80/100
+          </div>
+
+        </div>
       </div>
 
+      <!-- COL 3: COMMUNITY LINKS -->
+      <div class="s2m-footer-links-col">
+        <div class="s2m-footer-section-title">🌐 Community</div>
+        <div class="s2m-footer-links-list">
+
+          <a href="https://x.com/Scan2Moon" target="_blank" rel="noopener noreferrer" class="s2m-footer-link s2m-footer-link--x">
+            <span class="s2m-footer-link-icon">𝕏</span>
+            <div class="s2m-footer-link-text">
+              <div class="s2m-footer-link-name">Follow on X</div>
+              <div class="s2m-footer-link-sub">@Scan2Moon</div>
+            </div>
+            <span class="s2m-footer-link-arrow">↗</span>
+          </a>
+
+          <a href="https://t.me/scan2moon" target="_blank" rel="noopener noreferrer" class="s2m-footer-link s2m-footer-link--tg">
+            <span class="s2m-footer-link-icon">✈️</span>
+            <div class="s2m-footer-link-text">
+              <div class="s2m-footer-link-name">Telegram</div>
+              <div class="s2m-footer-link-sub">Join community chat</div>
+            </div>
+            <span class="s2m-footer-link-arrow">↗</span>
+          </a>
+
+          <a href="https://github.com/Scan2Moon/scan2moon" target="_blank" rel="noopener noreferrer" class="s2m-footer-link s2m-footer-link--gh">
+            <span class="s2m-footer-link-icon">⌥</span>
+            <div class="s2m-footer-link-text">
+              <div class="s2m-footer-link-name">GitHub</div>
+              <div class="s2m-footer-link-sub">Open source</div>
+            </div>
+            <span class="s2m-footer-link-arrow">↗</span>
+          </a>
+
+        </div>
+      </div>
+
+      <!-- COL 4: TOOLS -->
+      <div class="s2m-footer-tools-col">
+        <div class="s2m-footer-section-title">🛠️ Tools</div>
+        <div class="s2m-footer-tools-list">
+          <a href="risk-scanner.html" class="s2m-footer-tool">
+            <span>🛡️</span> Risk Scanner
+          </a>
+          <a href="portfolio.html" class="s2m-footer-tool">
+            <span>💼</span> Portfolio Scanner
+          </a>
+          <a href="whale-dna.html" class="s2m-footer-tool">
+            <span>🧬</span> Whale DNA
+          </a>
+          <a href="entry-radar.html" class="s2m-footer-tool">
+            <span>📡</span> Entry Radar
+          </a>
+          <a href="watchlist.html" class="s2m-footer-tool">
+            <span>⭐</span> Watchlist
+          </a>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- BOTTOM BAR -->
+    <div class="s2m-footer-bottom">
+      <span class="s2m-footer-bottom-left">© 2026 Scan2Moon · All rights reserved</span>
+      <span class="s2m-footer-bottom-right">
+        <span class="s2m-footer-live-dot"></span>
+        Live · Auto-refreshes every 60s
+      </span>
     </div>
   `;
 }
 
-/* ===== DEBOUNCE ===== */
-
-function debounce(fn, delay) {
-  let timeout;
-  return (...args) => {
-    clearTimeout(timeout);
-    timeout = setTimeout(() => fn(...args), delay);
-  };
-}
-
-/* ===== UPDATE UI ===== */
-
+/* ============================================================
+   UPDATE STATS UI — animated number update
+   ============================================================ */
 function updateStatsUI(data = {}) {
-  const safe = {
-    visits: Number(data.visits || 0),
-    scans: Number(data.scans || 0),
-    shares: Number(data.shares || 0),
-    moon: Number(data.moon || 0)
-  };
-
-  const visitsEl = document.getElementById("statVisits");
-  const scansEl = document.getElementById("statScans");
-  const sharesEl = document.getElementById("statShares");
-  const moonEl = document.getElementById("statMoon");
-
-  if (visitsEl) visitsEl.innerText = formatNumber(safe.visits);
-  if (scansEl) scansEl.innerText = formatNumber(safe.scans);
-  if (sharesEl) sharesEl.innerText = formatNumber(safe.shares);
-  if (moonEl) moonEl.innerText = formatNumber(safe.moon);
+  animateStat("statVisits", data.visits  || 0);
+  animateStat("statScans",  data.scans   || 0);
+  animateStat("statMoon",   data.moon    || 0);
 }
 
-/* ===== FETCH STATS ===== */
+/* Smooth number count-up animation */
+function animateStat(id, target) {
+  const el = document.getElementById(id);
+  if (!el) return;
 
-const debouncedFetchStats = debounce(async () => {
+  const current = parseInt(el.dataset.value || "0", 10);
+  if (current === target) {
+    el.textContent = formatNumber(target);
+    return;
+  }
+
+  el.dataset.value = target;
+  const diff    = target - current;
+  const steps   = 30;
+  const stepVal = diff / steps;
+  let   count   = current;
+  let   step    = 0;
+
+  const timer = setInterval(() => {
+    step++;
+    count += stepVal;
+    el.textContent = formatNumber(Math.round(count));
+    if (step >= steps) {
+      clearInterval(timer);
+      el.textContent = formatNumber(target);
+    }
+  }, 30);
+}
+
+/* ============================================================
+   FETCH STATS
+   ============================================================ */
+async function fetchStats() {
   try {
     const data = await safeFetch(statsEndpoint);
     updateStatsUI(data);
   } catch (err) {
     console.warn("Stats fetch failed:", err.message);
   }
-}, 10000);
+}
 
-/* ===== INCREMENT STAT ===== */
-
+/* ============================================================
+   INCREMENT STAT
+   ============================================================ */
 async function incrementGlobalStat(type) {
   try {
     await safeFetch(statsEndpoint, {
-      method: "POST",
+      method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type })
+      body:    JSON.stringify({ type })
     });
-
-    debouncedFetchStats();
-
+    await fetchStats();
   } catch (err) {
     console.warn("Stat increment failed:", err.message);
   }
 }
 
-/* ===== HELPERS ===== */
-
+/* ============================================================
+   HELPERS
+   ============================================================ */
 function formatNumber(num) {
-  return Number(num || 0).toLocaleString();
+  const n = Number(num || 0);
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
+  if (n >= 1000)    return (n / 1000).toFixed(1) + "K";
+  return n.toLocaleString();
 }
 
-/* ===== INIT ===== */
-
-document.addEventListener("DOMContentLoaded", () => {
+/* ============================================================
+   INIT
+   ============================================================ */
+document.addEventListener("DOMContentLoaded", async () => {
   renderCommunityPanel();
-  debouncedFetchStats();
+  await fetchStats();
+  setInterval(fetchStats, 60000);
 
   if (!sessionStorage.getItem("visited")) {
-    incrementGlobalStat("visit");
+    await incrementGlobalStat("visit");
     sessionStorage.setItem("visited", "true");
   }
 });
-
-/* ===== EXPORT TO GLOBAL ===== */
 
 window.incrementGlobalStat = incrementGlobalStat;

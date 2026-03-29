@@ -1,7 +1,8 @@
 {
   "name": "scan2moon",
+  "version": "2.0.0",
   "private": true,
   "dependencies": {
-    "@netlify/blobs": "^7.2.0"
+    "@netlify/blobs": "^7.4.0"
   }
 }
