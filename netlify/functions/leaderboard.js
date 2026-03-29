@@ -31,7 +31,7 @@ async function getStore() {
     const { getStore } = require("@netlify/blobs");
     const store = getStore("simulator");
     return {
-      async get(key) { return await store.get(key); },
+      async get(key) { return await store.get(key, { consistency: "strong" }); },
       async set(key, val) { await store.set(key, val); }
     };
   } catch(e) {

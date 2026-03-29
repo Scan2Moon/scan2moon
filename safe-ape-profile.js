@@ -245,17 +245,22 @@ async function fetchProfilePrices() {
 function updateProfilePnlCards() {
   if (!profile) return;
   const holdings = profile.holdings || {};
+  let totalCurValSol = 0;
+  let totalCostSolAll = 0;
   for (const [mint, h] of Object.entries(holdings)) {
     if (!h || h.amount <= 0.000001) continue;
     const price = livePrices[mint];
     if (!price) continue;
     const curValUsd = price * h.amount;
     const curValSol = solPrice > 0 ? curValUsd / solPrice : 0;
-    const costSol   = h.totalCostSol || (solPrice > 0 ? h.totalCost / solPrice : 0);
-    const pnlSol    = curValSol - costSol;
-    const pnlPct    = costSol > 0 ? (pnlSol / costSol) * 100 : 0;
+    const costSol   = h.totalCostSol || (solPrice > 0 ? (h.avgPrice * h.amount) / solPrice : 0);
+    // P/L based on token price change % — immune to SOL/USD rate fluctuations
+    const pnlPct    = h.avgPrice > 0 ? ((price - h.avgPrice) / h.avgPrice) * 100 : 0;
+    const pnlSol    = costSol * (pnlPct / 100);
     const sign      = pnlSol >= 0 ? "+" : "";
     const cl        = pnlSol >= 0 ? "#2cffc9" : "#ff4d6d";
+    totalCurValSol += curValSol;
+    totalCostSolAll += costSol;
 
     const pnlEl = document.getElementById(`prof-pnl-${mint}`);
     const valEl = document.getElementById(`prof-curval-${mint}`);
@@ -275,6 +280,17 @@ function updateProfilePnlCards() {
       clearTimeout(dotEl._t);
       dotEl._t = setTimeout(() => { dotEl.textContent = "⬤ LIVE · 20s"; dotEl.style.color = ""; }, 2000);
     }
+  }
+
+  // Update Portfolio Growth with live prices (cash + live holdings value vs 10 SOL start)
+  const growthEl = document.getElementById("profPortfolioGrowth");
+  if (growthEl && totalCurValSol > 0) {
+    const totalNow = (profile.balance || 0) + totalCurValSol;
+    const growth   = ((totalNow - 10) / 10) * 100;
+    const sign     = growth >= 0 ? "+" : "";
+    const cl       = growth >= 0 ? "#2cffc9" : "#ff4d6d";
+    growthEl.textContent  = `${sign}${growth.toFixed(2)}%`;
+    growthEl.style.color  = cl;
   }
 }
 
@@ -454,13 +470,20 @@ function renderStats() {
   const pnlSign = pnl >= 0 ? "+" : "";
   const pnlCls  = pnl >= 0 ? "#2cffc9" : "#ff4d6d";
 
-  // Best and worst sell trades
-  const sells = trades.filter(t => t.type === "sell");
-  const bestTrade  = sells.length ? sells.reduce((a, b) => (b.pnl > a.pnl ? b : a), sells[0]) : null;
-  const worstTrade = sells.length ? sells.reduce((a, b) => (b.pnl < a.pnl ? b : a), sells[0]) : null;
+  // Best trade = only profitable sells; worst = only losing sells
+  const sells     = trades.filter(t => t.type === "sell");
+  const winSells  = sells.filter(t => (t.pnl || 0) > 0);
+  const lossSells = sells.filter(t => (t.pnl || 0) < 0);
+  const bestTrade  = winSells.length  ? winSells.reduce((a, b)  => (b.pnl > a.pnl ? b : a), winSells[0])  : null;
+  const worstTrade = lossSells.length ? lossSells.reduce((a, b) => (b.pnl < a.pnl ? b : a), lossSells[0]) : null;
 
-  const startBalance = 10; // 10 SOL
-  const portfolioGrowth = ((profile.balance - startBalance) / startBalance * 100).toFixed(2);
+  // Portfolio Growth: cash balance + cost basis of open holdings vs 10 SOL start.
+  // updateProfilePnlCards() will upgrade this to live value once prices load.
+  const startBalance = 10;
+  const openCost = Object.values(profile.holdings || {})
+    .filter(h => h.amount > 0.000001)
+    .reduce((s, h) => s + (h.totalCostSol || 0), 0);
+  const portfolioGrowth = (((profile.balance + openCost) - startBalance) / startBalance * 100).toFixed(2);
   const growthSign = portfolioGrowth >= 0 ? "+" : "";
   const growthCls  = portfolioGrowth >= 0 ? "#2cffc9" : "#ff4d6d";
 
@@ -478,7 +501,7 @@ function renderStats() {
       </div>
       <div class="prof-stat-card">
         <div class="prof-stat-label">Portfolio Growth</div>
-        <div class="prof-stat-val" style="color:${growthCls}">${growthSign}${portfolioGrowth}%</div>
+        <div class="prof-stat-val" id="profPortfolioGrowth" style="color:${growthCls}">${growthSign}${portfolioGrowth}%</div>
         <div class="prof-stat-sub">vs 10 SOL start</div>
       </div>
       <div class="prof-stat-card">
@@ -528,9 +551,10 @@ function renderHoldings() {
     const price     = livePrices[mint];
     const curValUsd = price ? price * h.amount : null;
     const curValSol = curValUsd !== null && solPrice > 0 ? curValUsd / solPrice : null;
-    const costSol   = h.totalCostSol || (solPrice > 0 ? h.totalCost / solPrice : 0);
-    const pnlSol    = curValSol !== null ? curValSol - costSol : null;
-    const pnlPct    = pnlSol !== null && costSol > 0 ? (pnlSol / costSol) * 100 : null;
+    const costSol   = h.totalCostSol || (solPrice > 0 ? (h.avgPrice * h.amount) / solPrice : 0);
+    // P/L based on token price change % — immune to SOL/USD rate fluctuations
+    const pnlPct    = price && h.avgPrice > 0 ? ((price - h.avgPrice) / h.avgPrice) * 100 : null;
+    const pnlSol    = pnlPct !== null ? costSol * (pnlPct / 100) : null;
     const sign      = pnlSol !== null ? (pnlSol >= 0 ? "+" : "") : "";
     const cl        = pnlSol !== null ? (pnlSol >= 0 ? "#2cffc9" : "#ff4d6d") : "#7fffe1";
     const pnlText   = pnlSol !== null
