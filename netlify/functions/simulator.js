@@ -68,12 +68,11 @@ function getDailyReward(streak, isFirstEver) {
   return DAILY_REWARDS_SOL[day];
 }
 
-// File-based fallback for local dev.
-// Both simulator.js and leaderboard.js write to the SAME .json file on disk,
-// so they share state even though esbuild bundles each function separately.
+// File-based fallback for local dev only.
+// On live Netlify we always use Blobs (see getStore below).
 const fs   = require("fs");
 const path = require("path");
-const LOCAL_DB_PATH = path.join(process.cwd(), ".netlify", "local-store.json");
+const LOCAL_DB_PATH = path.join("/tmp", "sim-local-store.json");
 
 function _readDb() {
   try { return JSON.parse(fs.readFileSync(LOCAL_DB_PATH, "utf8")); }
@@ -81,8 +80,6 @@ function _readDb() {
 }
 function _writeDb(data) {
   try {
-    const dir = path.dirname(LOCAL_DB_PATH);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(LOCAL_DB_PATH, JSON.stringify(data), "utf8");
   } catch(e) { console.warn("_writeDb error:", e.message); }
 }
@@ -96,11 +93,13 @@ async function getStore() {
     const { getStore } = require("@netlify/blobs");
     const store = getStore("simulator");
     return {
-      async get(key) { return await store.get(key); },
+      // consistency:"strong" ensures we always read the latest write,
+      // even if the previous Lambda invocation just wrote it milliseconds ago.
+      async get(key) { return await store.get(key, { consistency: "strong" }); },
       async set(key, val) { await store.set(key, val); }
     };
   } catch(e) {
-    console.warn("@netlify/blobs not available, using file-based store (local dev only)");
+    console.warn("@netlify/blobs not available, using /tmp file store (local dev only):", e.message);
     return {
       async get(key) { return _readDb()[key] || null; },
       async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); }
@@ -364,16 +363,14 @@ exports.handler = async function(event, context) {
     // ── BUY ──
     if (action === "buy") {
       const { mint, symbol, name, logo, priceUsd, amount, slippage, riskScore,
-              solPrice: clientSolPrice } = body;
-      if (!mint || !priceUsd || !amount) {
+              solAmount: clientSolAmount, solPrice: clientSolPrice } = body;
+      if (!mint || !priceUsd) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing trade data" }) };
       }
 
       // ── Input sanity checks ──
       const parsedPrice  = parseFloat(priceUsd);
-      const parsedAmount = parseFloat(amount);
-      if (!isFinite(parsedPrice)  || parsedPrice  <= 0) return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid price" }) };
-      if (!isFinite(parsedAmount) || parsedAmount <= 0) return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid amount" }) };
+      if (!isFinite(parsedPrice) || parsedPrice <= 0) return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid price" }) };
 
       // ── Server-side price validation (token + SOL price fetched in parallel) ──
       const [realPrice, solPriceForTrade] = await Promise.all([
@@ -387,13 +384,27 @@ exports.handler = async function(event, context) {
           return { statusCode: 400, headers, body: JSON.stringify({ error: `Price mismatch — submitted $${parsedPrice.toFixed(8)} vs market $${realPrice.toFixed(8)}. Refresh and try again.` }) };
         }
       }
-      // solPriceForTrade is always the server-fetched price — never trust clientSolPrice
-      // to avoid balance manipulation via fake SOL/USD rate.
 
       const slip           = Math.min(Math.abs(slippage || 0.01), 0.05);
       const effectivePrice = parsedPrice * (1 + slip);
-      const totalCostUsd   = effectivePrice * parsedAmount;
-      const totalCostSol   = totalCostUsd / solPriceForTrade;   // ← SOL cost
+
+      // ── Prefer solAmount (desired SOL spend) over token-count amount ──
+      // When the client sends solAmount, the server uses its own SOL price to
+      // calculate the token count and deducts exactly solAmount from the balance.
+      // This prevents SOL-price divergence between client and server.
+      let totalCostSol, parsedAmount;
+      const desiredSol = parseFloat(clientSolAmount || 0);
+      if (desiredSol > 0) {
+        totalCostSol  = desiredSol;
+        const totalCostUsdCalc = desiredSol * solPriceForTrade;
+        parsedAmount  = totalCostUsdCalc / effectivePrice;
+      } else {
+        parsedAmount  = parseFloat(amount || 0);
+        if (!isFinite(parsedAmount) || parsedAmount <= 0) return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid amount" }) };
+        const totalCostUsdCalc = effectivePrice * parsedAmount;
+        totalCostSol  = totalCostUsdCalc / solPriceForTrade;
+      }
+      const totalCostUsd = effectivePrice * parsedAmount;
 
       if (totalCostSol > profile.balance) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Insufficient SOL balance" }) };

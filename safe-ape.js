@@ -388,7 +388,10 @@ async function pollActivePair(mint) {
       /* Slowly adapt EMA so genuine sustained moves eventually pass */
       _priceEmas[mint] = _priceEmas[mint] * 0.90 + rawPrice * 0.10;
       console.warn(`Rejected bad price for ${mint}: ${rawPrice} (EMA ${_priceEmas[mint].toFixed(8)}, dev ${(_dev*100).toFixed(1)}%)`);
-      return; // skip this poll — keep previous valid livePrices value
+      /* Still update livePrices to the EMA value so trades always have a
+         price available — the server validates independently anyway. */
+      livePrices[mint] = _priceEmas[mint];
+      return; // skip chart/tick update — price was too spiky for display
     }
     /* Valid price — update EMA and store */
     _priceEmas[mint] = _priceEmas[mint] * 0.75 + rawPrice * 0.25;
@@ -1243,7 +1246,9 @@ window.executeBuy = async function() {
   const tokens    = amountUsd/(price*(1+slippage));
   btn.textContent="⏳ Processing…";
   try {
-    const resp = await fetch(SIM_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet,action:"buy",mint:currentToken.mint,symbol:currentToken.symbol,name:currentToken.name,logo:currentToken.logo,priceUsd:price,amount:tokens,slippage,riskScore:currentToken.riskScore,solPrice})});
+    // Send solAmount so the server deducts exactly what the user requested,
+    // regardless of any SOL-price divergence between client and server.
+    const resp = await fetch(SIM_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet,action:"buy",mint:currentToken.mint,symbol:currentToken.symbol,name:currentToken.name,logo:currentToken.logo,priceUsd:price,solAmount:amountSol,slippage,riskScore:currentToken.riskScore,solPrice})});
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;
@@ -1251,7 +1256,10 @@ window.executeBuy = async function() {
     /* Use setTradeMarkers (server timestamps) instead of addTradeMarker
        (Date.now) so the B marker lands on the correct historical candle. */
     if (candleChart) candleChart.setTradeMarkers(profile.trades, currentToken.mint);
-    showToast(`✅ Bought ${formatAmount(tokens)} ${currentToken.symbol} for ${formatSol(amountSol)}`);
+    // Use server's actual cost (trade.totalCostSol) for accurate display
+    const actualCostSol = data.trade?.totalCostSol || amountSol;
+    const actualTokens  = data.trade?.amount || tokens;
+    showToast(`✅ Bought ${formatAmount(actualTokens)} ${currentToken.symbol} for ${formatSol(actualCostSol)}`);
     showBadgeToasts(data.newBadges);
     showDebrief(data.trade,"buy",currentToken.riskScore);
     document.getElementById("buyAmount").value=""; updateBuyInfo();
