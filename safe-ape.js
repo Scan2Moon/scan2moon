@@ -1179,12 +1179,13 @@ function renderSellHoldingInfo() {
   const h  = profile?.holdings?.[currentToken?.mint];
   const el = document.getElementById("saHoldingInfo");
   if (!h||h.amount<=0) { el.innerHTML=`<div class="sa-no-holding">You don't hold ${currentToken?.symbol||"this token"} yet.</div>`; return; }
-  const price     = livePrices[currentToken.mint]||parseFloat(currentToken.pair.priceUsd||"0");
+  const price     = livePrices[currentToken.mint]||parseFloat(currentToken.pair?.priceUsd||"0");
   const curValUsd = price*h.amount;
   const curValSol = solPrice>0?curValUsd/solPrice:0;
-  const costSol   = h.totalCostSol||(solPrice>0?h.totalCost/solPrice:0);
-  const pnlSol    = curValSol-costSol;
-  const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
+  const costSol   = h.totalCostSol||(solPrice>0?(h.avgPrice*h.amount)/solPrice:0);
+  // P/L based on token price change % — consistent regardless of SOL/USD fluctuations
+  const pnlPct    = h.avgPrice>0?((price-h.avgPrice)/h.avgPrice)*100:0;
+  const pnlSol    = costSol*(pnlPct/100);
   const sign      = pnlSol>=0?"+":"";
   el.innerHTML = `
     <div class="sa-holding-stat"><span class="sa-holding-label">Holdings</span><span class="sa-holding-val">${formatAmount(h.amount)} ${currentToken.symbol}</span></div>
@@ -1203,9 +1204,10 @@ function updateLivePnl(price) {
   if (!h||h.amount<=0) return;
   const curValUsd = price*h.amount;
   const curValSol = solPrice>0?curValUsd/solPrice:0;
-  const costSol   = h.totalCostSol||(solPrice>0?h.totalCost/solPrice:0);
-  const pnlSol    = curValSol-costSol;
-  const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
+  const costSol   = h.totalCostSol||(solPrice>0?(h.avgPrice*h.amount)/solPrice:0);
+  // P/L based on token price change % — consistent regardless of SOL/USD fluctuations
+  const pnlPct    = h.avgPrice>0?((price-h.avgPrice)/h.avgPrice)*100:0;
+  const pnlSol    = costSol*(pnlPct/100);
   const sign      = pnlSol>=0?"+":"";
   const pnlEl     = document.getElementById("saLivePnl");
   const valEl     = document.getElementById("saLiveCurrentValue");
