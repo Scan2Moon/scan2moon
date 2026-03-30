@@ -17,8 +17,21 @@ import { addToWatchlist, isOnWatchlist } from "./watchlist.js";
 
 const DEX_API     = "https://api.dexscreener.com/latest/dex/tokens/";
 const SIM_API     = "/.netlify/functions/simulator";
+const LB_API      = "/.netlify/functions/leaderboard";
 const GECKO_API   = "https://api.geckoterminal.com/api/v2/networks/solana/pools/";
 const CHART_PROXY = "/.netlify/functions/chartProxy";
+
+/* ── Leaderboard auto-registration ─────────────────────────────────────
+   Called after every buy/sell so the wallet always appears in rankings.
+   Fire-and-forget — any failure is logged but never blocks the trade. */
+function registerInLeaderboard(walletAddr) {
+  if (!walletAddr) return;
+  fetch(LB_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ wallet: walletAddr })
+  }).catch(err => console.warn("LB register failed (non-critical):", err.message));
+}
 
 /* ── Pick the best Solana pair for a token ─────────────────────────────
    DexScreener's chart UI shows the pool with the highest 24h volume —
@@ -1255,11 +1268,23 @@ function updateBuyInfo() {
 
 function updateSellInfo() {
   if (!currentToken) return;
-  const amt         = parseFloat(document.getElementById("sellAmount").value)||0;
-  const price       = livePrices[currentToken.mint]||parseFloat(currentToken.pair.priceUsd||"0");
-  const slippage    = parseFloat(document.getElementById("slippageSelect").value);
-  const receivedUsd = amt*price*(1-slippage);
-  const receivedSol = solPrice>0?receivedUsd/solPrice:0;
+  const amt      = parseFloat(document.getElementById("sellAmount").value)||0;
+  const price    = livePrices[currentToken.mint]||parseFloat(currentToken.pair.priceUsd||"0");
+  const slippage = parseFloat(document.getElementById("slippageSelect").value);
+
+  // Use price-ratio formula so "Receive" matches Current Value display
+  const h = profile?.holdings?.[currentToken.mint];
+  const costSol   = h?.totalCostSol || 0;
+  const totalHeld = h?.amount || 0;
+  let receivedSol = 0;
+  let receivedUsd = 0;
+  if (price > 0 && h?.avgPrice > 0 && costSol > 0 && totalHeld > 0 && amt > 0) {
+    const curValSol = costSol * (price / h.avgPrice);
+    const fraction  = Math.min(amt / totalHeld, 1);
+    receivedSol = curValSol * fraction * (1 - slippage);
+    receivedUsd = solPrice > 0 ? receivedSol * solPrice : amt * price * (1 - slippage);
+  }
+
   document.getElementById("sellInfo").innerHTML = amt>0
     ?`You sell: ${formatAmount(amt)} ${currentToken.symbol}<br/>Receive: ${formatSol(receivedSol)}${solPrice>0?` ≈ ${formatUsd(receivedUsd)}`:''} (${(slippage*100).toFixed(1)}% slip)`
     :"Enter token amount to sell.";
@@ -1308,6 +1333,7 @@ window.executeBuy = async function() {
     showToast(`✅ Bought ${formatAmount(actualTokens)} ${currentToken.symbol} for ${formatSol(actualCostSol)}`);
     showBadgeToasts(data.newBadges);
     showDebrief(data.trade,"buy",currentToken.riskScore);
+    registerInLeaderboard(wallet);
     document.getElementById("buyAmount").value=""; updateBuyInfo();
   } catch(e) { showToast("⚠️ Buy failed: "+e.message); }
   finally { btn.disabled=false; btn.textContent="🦍 APE IN (BUY)"; }
@@ -1342,11 +1368,19 @@ window.executeSell = async function() {
     /* Use setTradeMarkers (server timestamps) instead of addTradeMarker
        (Date.now) so the S marker lands on the correct historical candle. */
     if (candleChart) candleChart.setTradeMarkers(profile.trades, currentToken.mint);
-    const _receivedUsd = actualAmount*price*(1-slippage);
-    const _receivedSol = solPrice>0?_receivedUsd/solPrice:0;
+    // Use price-ratio formula (same as Current Value) for toast
+    let _receivedSol = 0;
+    const _costSol   = h?.totalCostSol || 0;
+    const _totalHeld = h?.amount || 0;
+    if (price > 0 && h?.avgPrice > 0 && _costSol > 0 && _totalHeld > 0) {
+      const _curValSol = _costSol * (price / h.avgPrice);
+      const _fraction  = Math.min(actualAmount / _totalHeld, 1);
+      _receivedSol = _curValSol * _fraction * (1 - slippage);
+    }
     showToast(`✅ Sold ${formatAmount(actualAmount)} ${currentToken.symbol} — received ${formatSol(_receivedSol)}`);
     showBadgeToasts(data.newBadges);
     showDebrief(data.trade,"sell",currentToken.riskScore);
+    registerInLeaderboard(wallet);
     document.getElementById("sellAmount").value=""; updateSellInfo(); renderSellHoldingInfo();
   } catch(e) { showToast("⚠️ Sell failed: "+e.message); }
   finally { btn.disabled=false; btn.textContent="🔴 EXIT POSITION (SELL)"; }
