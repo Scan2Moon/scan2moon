@@ -419,12 +419,12 @@ async function pollActivePair(mint) {
     /* ── Price spike filter ─────────────────────────────────────────────
        DexScreener REST occasionally returns a stale/wrong price for one
        poll cycle. We keep a per-mint EMA and reject any price that deviates
-       >25% from it.  This stops bad prices from corrupting livePrices
+       >35% from it.  This stops truly bad prices from corrupting livePrices
        (which drives P/L display and trade execution).
        Same logic as the chart's tick() filter — both must agree. */
     if (!_priceEmas[mint] || _priceEmas[mint] <= 0) _priceEmas[mint] = rawPrice;
     const _dev  = Math.abs(rawPrice - _priceEmas[mint]) / _priceEmas[mint];
-    if (_dev > 0.25) {
+    if (_dev > 0.35) {
       /* Slowly adapt EMA so genuine sustained moves eventually pass */
       _priceEmas[mint] = _priceEmas[mint] * 0.90 + rawPrice * 0.10;
       console.warn(`Rejected bad price for ${mint}: ${rawPrice} (EMA ${_priceEmas[mint].toFixed(8)}, dev ${(_dev*100).toFixed(1)}%)`);
@@ -513,7 +513,7 @@ async function pollPortfolioPrices() {
         /* Spike filter */
         if (!_priceEmas[m] || _priceEmas[m] <= 0) { _priceEmas[m] = price; livePrices[m] = price; continue; }
         const dev = Math.abs(price - _priceEmas[m]) / _priceEmas[m];
-        if (dev > 0.25) { _priceEmas[m] = _priceEmas[m] * 0.90 + price * 0.10; continue; }
+        if (dev > 0.35) { _priceEmas[m] = _priceEmas[m] * 0.90 + price * 0.10; continue; }
         _priceEmas[m] = _priceEmas[m] * 0.75 + price * 0.25;
         livePrices[m] = price;
       }
@@ -1327,7 +1327,10 @@ window.executeSell = async function() {
   const btn = document.getElementById("saSellBtn");
   btn.disabled=true; btn.textContent="⏳ Fetching price…";
   await pollActivePair(currentToken.mint);
-  const price = livePrices[currentToken.mint]||0;
+  // Use livePrices (EMA-filtered) OR the pair's last known priceUsd, whichever is available.
+  // For sells, a lower price is conservative (user gets less SOL) and always server-accepted.
+  const pairPrice = parseFloat(currentToken.pair?.priceUsd||"0");
+  const price = livePrices[currentToken.mint] || pairPrice || 0;
   if (!price) { showToast("⚠️ Could not get price. Try again."); btn.disabled=false; btn.textContent="🔴 EXIT POSITION (SELL)"; return; }
   btn.textContent="⏳ Processing…";
   try {

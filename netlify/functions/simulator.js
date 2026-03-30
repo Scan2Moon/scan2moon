@@ -470,10 +470,13 @@ exports.handler = async function(event, context) {
         fetchSolPriceServer(),
       ]);
       if (realSellPrice !== null) {
-        const deviation = Math.abs(parsedSellPrice - realSellPrice) / realSellPrice;
-        if (deviation > PRICE_TOLERANCE) {
-          console.warn(`SELL price rejected: submitted=${parsedSellPrice}, real=${realSellPrice}, dev=${(deviation*100).toFixed(1)}%`);
-          return { statusCode: 400, headers, body: JSON.stringify({ error: `Price mismatch — submitted $${parsedSellPrice.toFixed(8)} vs market $${realSellPrice.toFixed(8)}. Refresh and try again.` }) };
+        // For sells: only reject if the submitted price is HIGHER than the real price
+        // (that would inflate the user's SOL received — actual cheating).
+        // If submitted price is lower (user selling at a discount during a spike / EMA lag),
+        // always allow it — the user simply gets less SOL, which is conservative and fair.
+        if (parsedSellPrice > realSellPrice * (1 + PRICE_TOLERANCE)) {
+          console.warn(`SELL price rejected (too high): submitted=${parsedSellPrice}, real=${realSellPrice}, dev=${(((parsedSellPrice-realSellPrice)/realSellPrice)*100).toFixed(1)}%`);
+          return { statusCode: 400, headers, body: JSON.stringify({ error: `Sell price too high — submitted $${parsedSellPrice.toFixed(8)} vs market $${realSellPrice.toFixed(8)}. Refresh and try again.` }) };
         }
       }
       // solPriceForTrade is always the server-fetched price — never trust clientSolPrice
