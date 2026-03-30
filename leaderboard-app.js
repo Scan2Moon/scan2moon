@@ -56,11 +56,18 @@ document.addEventListener("DOMContentLoaded", () => {
   fetchSolPrice();
   setInterval(fetchSolPrice, 60_000);
 
-  // Check saved wallet
+  // Check saved wallet — also auto-register in leaderboard so traders
+  // appear automatically without needing to click "Submit Score"
   const saved = localStorage.getItem("sa_wallet");
   if (saved) {
     connectedWallet = saved;
     updateConnectUI();
+    // Fire-and-forget registration so existing traders populate the leaderboard
+    fetch(LB_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet: saved })
+    }).catch(() => {});
   }
 
   // Bind buttons
@@ -106,6 +113,12 @@ async function connectWallet() {
     connectedWallet = resp.publicKey.toString();
     localStorage.setItem("sa_wallet", connectedWallet);
     updateConnectUI();
+    // Auto-register on connect so user appears in leaderboard immediately
+    fetch(LB_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet: connectedWallet })
+    }).catch(() => {});
     loadLeaderboard();
   } catch (e) {
     alert("Wallet connection cancelled or failed.");

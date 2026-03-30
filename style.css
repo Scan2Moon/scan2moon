@@ -1211,11 +1211,16 @@ a {
   .nav-links {
     justify-content: center;
     width: 100%;
+    flex-wrap: wrap;       /* prevent horizontal overflow */
+    gap: 4px 2px;
   }
   .nav-link {
-    padding: 7px 12px;
+    padding: 6px 10px;
     font-size: 11px;
     letter-spacing: 0.5px;
+  }
+  .nav-icon {
+    display: none;         /* hide emoji icons on small screens to save space */
   }
   .nav-brand { font-size: 14px; }
 }
