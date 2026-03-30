@@ -304,12 +304,13 @@ async function liveRefreshTick() {
     if (liqEl)  liqEl.textContent  = fmtUsd(liq);
     if (volEl)  volEl.textContent  = fmtUsd(vol24);
 
-    /* Simulator P/L strip — based on token price change % to avoid SOL rate distortion */
+    /* Simulator P/L strip — actual SOL value change (consistent with Current Value) */
     const h = _simProfile?.holdings?.[t.mint];
-    if (h && h.amount > 0 && price > 0 && h.avgPrice > 0 && _solUsd > 0) {
-      const costSol = h.totalCostSol || ((h.avgPrice * h.amount) / _solUsd);
-      const pnlPct  = ((price - h.avgPrice) / h.avgPrice) * 100;
-      const pnlSol  = costSol * (pnlPct / 100);
+    if (h && h.amount > 0 && price > 0 && _solUsd > 0) {
+      const curValSol = (price * h.amount) / _solUsd;
+      const costSol   = h.totalCostSol || ((h.avgPrice * h.amount) / _solUsd);
+      const pnlSol    = curValSol - costSol;
+      const pnlPct    = costSol > 0 ? (pnlSol / costSol) * 100 : 0;
       injectPnlStrip(card, pnlSol, pnlPct);
     }
   });
