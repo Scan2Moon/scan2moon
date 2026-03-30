@@ -62,11 +62,21 @@ exports.handler = async function (event) {
     try {
       const raw = await store.get(BLOB_KEY, { consistency: "strong" });
       if (raw) stats = { ...DEFAULT, ...JSON.parse(raw) };
-    } catch {}
+      else console.log("Stats Blobs: no data yet, starting from DEFAULT");
+    } catch(readErr) {
+      console.warn("Stats Blobs read error:", readErr.message);
+    }
 
     if (event.httpMethod === "POST") {
       stats = applyIncrement(stats, body.type);
-      await store.set(BLOB_KEY, JSON.stringify(stats));
+      try {
+        await store.set(BLOB_KEY, JSON.stringify(stats));
+        console.log("Stats Blobs write OK:", JSON.stringify(stats));
+      } catch(writeErr) {
+        // Write failed — log it but still return the incremented value.
+        // Do NOT fall through to /tmp or the site-level data will be lost.
+        console.error("Stats Blobs write failed:", writeErr.message);
+      }
     }
 
     return respond(200, stats);

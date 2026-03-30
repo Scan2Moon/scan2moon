@@ -29,16 +29,24 @@ function _writeDb(data) {
 async function getStore() {
   try {
     const { getStore } = require("@netlify/blobs");
-    const store = getStore("simulator");
+    const blobStore = getStore("simulator");
     return {
-      async get(key) { return await store.get(key, { consistency: "strong" }); },
-      async set(key, val) { await store.set(key, val); }
+      async get(key)        { return await blobStore.get(key, { consistency: "strong" }); },
+      async set(key, val)   { await blobStore.set(key, val); },
+      // list() — returns all keys so we don't rely on __lb_index__
+      async list()          {
+        try {
+          const result = await blobStore.list({ consistency: "strong" });
+          return (result.blobs || []).map(b => b.key);
+        } catch { return null; }  // null = fall back to __lb_index__
+      }
     };
   } catch(e) {
     console.warn("@netlify/blobs not available, using file-based store (local dev)");
     return {
-      async get(key) { return _readDb()[key] || null; },
-      async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); }
+      async get(key)  { return _readDb()[key] || null; },
+      async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); },
+      async list()    { return null; }  // no list support in local dev
     };
   }
 }
@@ -202,7 +210,19 @@ exports.handler = async function(event, context) {
     const period = (event.queryStringParameters && event.queryStringParameters.period) || "alltime";
 
     try {
-      const wallets = await getIndex(store);
+      // Primary: use store.list() to enumerate all profiles directly.
+      // This is more reliable than __lb_index__ which can miss entries.
+      // Fall back to __lb_index__ only if list() is unavailable (local dev).
+      let wallets;
+      const listedKeys = await store.list();
+      if (listedKeys !== null) {
+        // Filter to only wallet-shaped keys (Solana addresses are base58, never start with __)
+        wallets = listedKeys.filter(k => !k.startsWith("__") && k.length >= 32);
+        console.log(`store.list() returned ${listedKeys.length} keys, ${wallets.length} wallets`);
+      } else {
+        wallets = await getIndex(store);
+        console.log(`Fell back to __lb_index__, ${wallets.length} wallets`);
+      }
 
       const entries = [];
 
