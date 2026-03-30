@@ -90,6 +90,7 @@ function todayStr() {
 }
 
 async function getStore() {
+  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT;
   try {
     const { getStore } = require("@netlify/blobs");
     const store = getStore("simulator");
@@ -100,6 +101,14 @@ async function getStore() {
       async set(key, val) { await store.set(key, val); }
     };
   } catch(e) {
+    if (isProduction) {
+      // In production, Blobs MUST be available. Falling back to /tmp would
+      // silently corrupt or reset user profiles because /tmp is ephemeral
+      // per Lambda invocation. Throw so the caller returns a 500 instead.
+      console.error("FATAL: @netlify/blobs unavailable in production:", e.message);
+      throw new Error("Storage unavailable — please retry.");
+    }
+    // Local dev only — /tmp is fine as a scratch store
     console.warn("@netlify/blobs not available, using /tmp file store (local dev only):", e.message);
     return {
       async get(key) { return _readDb()[key] || null; },
@@ -228,7 +237,13 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, headers, body: "" };
   }
 
-  const store = await getStore();
+  let store;
+  try {
+    store = await getStore();
+  } catch(storeErr) {
+    console.error("getStore() failed:", storeErr.message);
+    return { statusCode: 503, headers, body: JSON.stringify({ error: storeErr.message || "Storage unavailable" }) };
+  }
 
   // ── GET: load user profile ──
   if (event.httpMethod === "GET") {
