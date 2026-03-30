@@ -60,7 +60,7 @@ exports.handler = async function (event) {
 
     let stats = { ...DEFAULT };
     try {
-      const raw = await store.get(BLOB_KEY);
+      const raw = await store.get(BLOB_KEY, { consistency: "strong" });
       if (raw) stats = { ...DEFAULT, ...JSON.parse(raw) };
     } catch {}
 

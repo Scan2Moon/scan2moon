@@ -251,10 +251,11 @@ function updateProfilePnlCards() {
     if (!h || h.amount <= 0.000001) continue;
     const price = livePrices[mint];
     if (!price) continue;
-    const curValUsd = price * h.amount;
-    const curValSol = solPrice > 0 ? curValUsd / solPrice : 0;
-    const costSol   = h.totalCostSol || (solPrice > 0 ? (h.avgPrice * h.amount) / solPrice : 0);
-    // P/L = actual SOL value change (consistent with Current Value display)
+    const costSol   = h.totalCostSol || 0;
+    // curValSol uses price ratio — immune to solPrice API errors
+    const curValSol = (h.avgPrice > 0 && costSol > 0) ? costSol * (price / h.avgPrice) : costSol;
+    const curValUsd = solPrice > 0 ? curValSol * solPrice : price * h.amount;
+    // P/L = actual SOL value change
     const pnlSol    = curValSol - costSol;
     const pnlPct    = costSol > 0 ? (pnlSol / costSol) * 100 : 0;
     const sign      = pnlSol >= 0 ? "+" : "";
@@ -549,10 +550,11 @@ function renderHoldings() {
     const h         = holdings[mint];
     const logo      = h.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}` : "https://placehold.co/36x36";
     const price     = livePrices[mint];
-    const curValUsd = price ? price * h.amount : null;
-    const curValSol = curValUsd !== null && solPrice > 0 ? curValUsd / solPrice : null;
-    const costSol   = h.totalCostSol || (solPrice > 0 ? (h.avgPrice * h.amount) / solPrice : 0);
-    // P/L = actual SOL value change (consistent with Current Value display)
+    const costSol   = h.totalCostSol || 0;
+    // curValSol uses price ratio — immune to solPrice API errors
+    const curValSol = (price && h.avgPrice > 0 && costSol > 0) ? costSol * (price / h.avgPrice) : null;
+    const curValUsd = curValSol !== null && solPrice > 0 ? curValSol * solPrice : (price ? price * h.amount : null);
+    // P/L = actual SOL value change
     const pnlSol    = curValSol !== null ? curValSol - costSol : null;
     const pnlPct    = pnlSol !== null && costSol > 0 ? (pnlSol / costSol) * 100 : null;
     const sign      = pnlSol !== null ? (pnlSol >= 0 ? "+" : "") : "";

@@ -419,12 +419,12 @@ async function pollActivePair(mint) {
     /* ── Price spike filter ─────────────────────────────────────────────
        DexScreener REST occasionally returns a stale/wrong price for one
        poll cycle. We keep a per-mint EMA and reject any price that deviates
-       >15% from it.  This stops bad prices from corrupting livePrices
+       >25% from it.  This stops bad prices from corrupting livePrices
        (which drives P/L display and trade execution).
        Same logic as the chart's tick() filter — both must agree. */
     if (!_priceEmas[mint] || _priceEmas[mint] <= 0) _priceEmas[mint] = rawPrice;
     const _dev  = Math.abs(rawPrice - _priceEmas[mint]) / _priceEmas[mint];
-    if (_dev > 0.15) {
+    if (_dev > 0.25) {
       /* Slowly adapt EMA so genuine sustained moves eventually pass */
       _priceEmas[mint] = _priceEmas[mint] * 0.90 + rawPrice * 0.10;
       console.warn(`Rejected bad price for ${mint}: ${rawPrice} (EMA ${_priceEmas[mint].toFixed(8)}, dev ${(_dev*100).toFixed(1)}%)`);
@@ -513,7 +513,7 @@ async function pollPortfolioPrices() {
         /* Spike filter */
         if (!_priceEmas[m] || _priceEmas[m] <= 0) { _priceEmas[m] = price; livePrices[m] = price; continue; }
         const dev = Math.abs(price - _priceEmas[m]) / _priceEmas[m];
-        if (dev > 0.15) { _priceEmas[m] = _priceEmas[m] * 0.90 + price * 0.10; continue; }
+        if (dev > 0.25) { _priceEmas[m] = _priceEmas[m] * 0.90 + price * 0.10; continue; }
         _priceEmas[m] = _priceEmas[m] * 0.75 + price * 0.25;
         livePrices[m] = price;
       }
@@ -1180,10 +1180,11 @@ function renderSellHoldingInfo() {
   const el = document.getElementById("saHoldingInfo");
   if (!h||h.amount<=0) { el.innerHTML=`<div class="sa-no-holding">You don't hold ${currentToken?.symbol||"this token"} yet.</div>`; return; }
   const price     = livePrices[currentToken.mint]||parseFloat(currentToken.pair?.priceUsd||"0");
-  const curValUsd = price*h.amount;
-  const curValSol = solPrice>0?curValUsd/solPrice:0;
-  const costSol   = h.totalCostSol||(solPrice>0?(h.avgPrice*h.amount)/solPrice:0);
-  // P/L = actual SOL value change (consistent with Current Value display)
+  const costSol   = h.totalCostSol||0;
+  // curValSol uses price ratio — immune to solPrice API errors
+  const curValSol = (price>0&&h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
+  const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
+  // P/L = actual SOL value change
   const pnlSol    = curValSol - costSol;
   const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
   const sign      = pnlSol>=0?"+":"";
@@ -1202,10 +1203,11 @@ function updateLivePnl(price) {
   if (!currentToken||!profile) return;
   const h = profile.holdings?.[currentToken.mint];
   if (!h||h.amount<=0) return;
-  const curValUsd = price*h.amount;
-  const curValSol = solPrice>0?curValUsd/solPrice:0;
-  const costSol   = h.totalCostSol||(solPrice>0?(h.avgPrice*h.amount)/solPrice:0);
-  // P/L = actual SOL value change (consistent with Current Value display)
+  const costSol   = h.totalCostSol||0;
+  // curValSol uses price ratio — immune to solPrice API errors
+  const curValSol = (price>0&&h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
+  const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
+  // P/L = actual SOL value change
   const pnlSol    = curValSol - costSol;
   const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
   const sign      = pnlSol>=0?"+":"";
@@ -1220,10 +1222,11 @@ function updatePortfolioPnlCards() {
   for (const [mint,h] of Object.entries(profile.holdings||{})) {
     if (!h||h.amount<=0) continue;
     const price = livePrices[mint]; if (!price) continue;
-    const curValUsd = price*h.amount;
-    const curValSol = solPrice>0?curValUsd/solPrice:0;
-    const costSol   = h.totalCostSol||(solPrice>0?(h.avgPrice*h.amount)/solPrice:0);
-    // P/L = actual SOL value change (consistent with Current Value display)
+    const costSol   = h.totalCostSol||0;
+    // curValSol uses price ratio — immune to solPrice API errors
+    const curValSol = (h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
+    const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
+    // P/L = actual SOL value change
     const pnlSol    = curValSol - costSol;
     const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
     const sign      = pnlSol>=0?"+":"";
@@ -1397,10 +1400,11 @@ function renderPortfolio() {
     const h=holdings[mint];
     const logo=h.logo?`/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}`:"https://placehold.co/36x36";
     const price=livePrices[mint]||0;
-    const curValUsd=price>0?price*h.amount:null;
-    const curValSol=curValUsd!==null&&solPrice>0?curValUsd/solPrice:null;
-    const costSol=h.totalCostSol||(solPrice>0?(h.avgPrice*h.amount)/solPrice:0);
-    // P/L = actual SOL value change (consistent with Current Value display)
+    const costSol=h.totalCostSol||0;
+    // curValSol uses price ratio — immune to solPrice API errors
+    const curValSol=(price>0&&h.avgPrice>0&&costSol>0)?costSol*(price/h.avgPrice):null;
+    const curValUsd=curValSol!==null&&solPrice>0?curValSol*solPrice:(price>0?price*h.amount:null);
+    // P/L = actual SOL value change
     const pnlSol=curValSol!==null?curValSol-costSol:null;
     const pnlPct=pnlSol!==null&&costSol>0?(pnlSol/costSol)*100:null;
     const sign=pnlSol!==null?(pnlSol>=0?"+":""):"";

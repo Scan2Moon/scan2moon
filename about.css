@@ -214,7 +214,7 @@
 /* ── Tools grid ── */
 .ab-tools-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(290px, 100%), 1fr));
   gap: 14px;
 }
 .ab-tool-card {
@@ -442,3 +442,33 @@
 
 /* Future entry – slight fade */
 .ab-future .ab-timeline-desc { opacity: 0.75; }
+
+/* ── Mobile Responsive ── */
+@media (max-width: 600px) {
+  /* Reduce section body padding on small screens */
+  .ab-what-body  { padding: 16px 14px; }
+  .ab-mission-body { padding: 24px 14px; }
+
+  /* Timeline: compress horizontal layout */
+  .ab-timeline { padding: 6px 0 6px 12px; }
+  .ab-timeline::before { left: 12px; }
+  .ab-timeline-item { gap: 12px; }
+  .ab-timeline-dot {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+
+  /* Hero stats row: wrap nicely */
+  .ab-hero-stats { flex-wrap: wrap; gap: 8px; justify-content: center; }
+
+  /* Mission pillars: single column */
+  .ab-mission-pillars { grid-template-columns: 1fr; }
+
+  /* Panel sub-title: smaller */
+  .ab-panel-sub { font-size: 12px; }
+
+  /* CTA buttons: stack vertically */
+  .ab-hero-cta-row { flex-direction: column; align-items: center; gap: 10px; }
+}
