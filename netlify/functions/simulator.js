@@ -60,13 +60,14 @@ async function fetchSolPriceServer() {
 const PRICE_TOLERANCE = 0.25;
 
 // Day-based login rewards — values in SOL.
-// Index 0 = first-ever login bonus; Index 1-7 = day-streak rewards.
-const DAILY_REWARDS_SOL = [0.5, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
-function getDailyReward(streak, isFirstEver) {
-  if (isFirstEver) return DAILY_REWARDS_SOL[0];
+// Index 1–7 = streak day rewards. Day 1 starts at 0.1, caps at Day 7 = 0.7 SOL.
+const DAILY_REWARDS_SOL = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+function getDailyReward(streak) {
   const day = Math.max(1, Math.min(7, streak));
   return DAILY_REWARDS_SOL[day];
 }
+// Welcome gift — claimed once per wallet from the APE Profile page.
+const WELCOME_GIFT_SOL = 0.5;
 
 // File-based fallback for local dev only.
 // On live Netlify we always use Blobs (see getStore below).
@@ -318,45 +319,51 @@ exports.handler = async function(event, context) {
         return { statusCode: 200, headers, body: JSON.stringify({ profile, reward: 0, message: "Already claimed today" }) };
       }
 
-      // Determine if first ever, consecutive, or missed day
-      const isFirstEver = !lastLogin && (profile.loginStreak || 0) === 0;
       let streak = profile.loginStreak || 0;
-
-      if (!isFirstEver && lastLogin) {
-        // Check if yesterday was the last login
+      if (lastLogin) {
         const yesterday = new Date();
         yesterday.setDate(yesterday.getDate() - 1);
         const yesterdayStr = yesterday.toISOString().slice(0, 10);
-        if (lastLogin === yesterdayStr) {
-          // Consecutive day — advance streak (cap at 7)
-          streak = Math.min(7, streak + 1);
-        } else {
-          // Missed at least one day — reset to Day 1
-          streak = 1;
-        }
-      } else if (isFirstEver) {
-        streak = 0; // will use DAILY_REWARDS[0] = first-time $500
+        streak = lastLogin === yesterdayStr ? Math.min(7, streak + 1) : 1;
       } else {
-        streak = 1; // fallback
+        streak = 1; // first-ever login counts as Day 1
       }
 
-      const reward = getDailyReward(streak, isFirstEver);
-      profile.balance    += reward;
-      profile.lastLogin   = today;
-      profile.loginStreak = isFirstEver ? 1 : streak;
+      const reward = getDailyReward(streak);
+      profile.balance     += reward;
+      profile.lastLogin    = today;
+      profile.loginStreak  = streak;
 
-      const dayLabel = isFirstEver ? "First Login!" : `Day ${streak}`;
+      const dayLabel = `Day ${streak}`;
       const newBadgesLogin = awardNewBadges(profile);
       await store.set(wallet, JSON.stringify(profile));
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile,
         reward,
-        streak: profile.loginStreak,
+        streak,
         dayLabel,
-        isFirstEver,
+        isFirstEver: false,
         message: `${dayLabel} — +${reward.toFixed(3)} SOL claimed!`,
         newBadges: newBadgesLogin
+      })};
+    }
+
+    // ── WELCOME GIFT ──
+    if (action === "welcome_gift") {
+      if (profile.welcomeGiftClaimed) {
+        return { statusCode: 200, headers, body: JSON.stringify({ profile, reward: 0, message: "Welcome gift already claimed" }) };
+      }
+      profile.balance            += WELCOME_GIFT_SOL;
+      profile.welcomeGiftClaimed  = true;
+      const newBadgesWelcome = awardNewBadges(profile);
+      await store.set(wallet, JSON.stringify(profile));
+      await registerInLeaderboard(store, wallet);
+      return { statusCode: 200, headers, body: JSON.stringify({
+        profile,
+        reward: WELCOME_GIFT_SOL,
+        message: `🎁 Welcome gift claimed! +${WELCOME_GIFT_SOL} SOL added to your balance.`,
+        newBadges: newBadgesWelcome
       })};
     }
 
@@ -584,9 +591,10 @@ exports.handler = async function(event, context) {
       profile.totalPnL        = 0;
       profile.winCount        = 0;
       profile.lossCount       = 0;
-      profile.badges          = [];   // ← clear badges so rewards can be earned again
-      profile.lastLogin       = null; // ← reset daily login so streak restarts from Day 1
-      profile.loginStreak     = 0;
+      profile.badges              = [];   // ← clear badges so rewards can be earned again
+      profile.lastLogin           = null; // ← reset daily login so streak restarts from Day 1
+      profile.loginStreak         = 0;
+      profile.welcomeGiftClaimed  = false; // ← allow re-claiming welcome gift after reset
       profile.updatedAt       = new Date().toISOString(); // ← leaderboard uses this for "Last Active"
       await store.set(wallet, JSON.stringify(profile));
       await registerInLeaderboard(store, wallet);

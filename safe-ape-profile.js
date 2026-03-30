@@ -103,6 +103,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("profileConnectBtn").addEventListener("click", connectWallet);
   document.getElementById("profileDisconnectBtn").addEventListener("click", disconnect);
   document.getElementById("resetAccountBtn").addEventListener("click", resetAccount);
+  document.getElementById("welcomeGiftBtn")?.addEventListener("click", claimWelcomeGift);
 });
 
 /* ─────────────────────────────────────
@@ -176,7 +177,14 @@ async function loadProfile(viewOnly = false) {
     renderHoldings();
     tradesCurrentPage = 0;
     renderTrades();
-    if (!viewOnly) startProfilePricePoll();
+    if (!viewOnly) {
+      startProfilePricePoll();
+      // Show welcome gift banner if not yet claimed
+      const giftBanner = document.getElementById("welcomeGiftBanner");
+      if (giftBanner) {
+        giftBanner.style.display = profile.welcomeGiftClaimed ? "none" : "flex";
+      }
+    }
   } catch (e) {
     console.error("Profile load failed:", e);
     alert("Failed to load profile. Make sure netlify dev is running.");
@@ -759,4 +767,36 @@ function formatAmount(n) {
   if (n >= 1e6)  return (n/1e6).toFixed(2)  + "M";
   if (n >= 1e3)  return (n/1e3).toFixed(2)  + "K";
   return n.toLocaleString(undefined, { maximumFractionDigits: 4 });
+}
+
+/* ─────────────────────────────────────
+   WELCOME GIFT CLAIM
+───────────────────────────────────── */
+async function claimWelcomeGift() {
+  const btn = document.getElementById("welcomeGiftBtn");
+  if (!btn || !wallet) return;
+  btn.disabled = true;
+  btn.textContent = "Claiming…";
+  try {
+    const resp = await fetch(SIM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, action: "welcome_gift" })
+    });
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+    profile = data.profile;
+    // Hide banner
+    const banner = document.getElementById("welcomeGiftBanner");
+    if (banner) banner.style.display = "none";
+    // Refresh stats display
+    renderStats();
+    renderProfileCard();
+    // Toast-style message
+    alert(`🎁 Welcome gift claimed!\n+0.50 SOL added to your balance.\n\nGood luck trading! 🚀`);
+  } catch (e) {
+    alert("⚠️ Could not claim welcome gift: " + e.message);
+    btn.disabled = false;
+    btn.textContent = "🎁 Claim +0.50 SOL";
+  }
 }

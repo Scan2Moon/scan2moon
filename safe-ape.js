@@ -379,7 +379,7 @@ function checkDailyReward() {
   if (!profile) return;
   if (profile.lastLogin !== new Date().toISOString().slice(0, 10)) {
     document.getElementById("dailyBanner").style.display = "flex";
-    const DAILY_REWARDS_SOL = [0.5, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+    const DAILY_REWARDS_SOL = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
     const streak = Math.max(1, Math.min(7, (profile.loginStreak || 0) + 1));
     const nextReward = DAILY_REWARDS_SOL[streak];
     const btn = document.getElementById("dailyClaimBtn");
