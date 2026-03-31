@@ -258,6 +258,11 @@ exports.handler = async function(event, context) {
   /* ── GET: return leaderboard ── */
   if (event.httpMethod === "GET") {
     const period = (event.queryStringParameters && event.queryStringParameters.period) || "alltime";
+    // Optional: if the caller passes ?wallet=<addr>, that wallet is ALWAYS
+    // included in results via a direct strong-consistency read, regardless of
+    // whether the index or list() has it. This ensures the connected user
+    // always sees their own score immediately after making a trade.
+    const callerWallet = (event.queryStringParameters && event.queryStringParameters.wallet) || null;
 
     try {
       // PRIMARY: use __lb_index__ — read with consistency:"strong" so it is
@@ -268,6 +273,7 @@ exports.handler = async function(event, context) {
       // Strategy: start with the index (strong consistency, fast), then
       // supplement with list() to catch any wallets that somehow bypassed
       // the index registration. Merge and de-duplicate the two sets.
+      // Also always include the callerWallet if provided.
       let wallets;
       const indexWallets = await getIndex(store);
       console.log(`__lb_index__ returned ${indexWallets.length} wallets`);
@@ -281,11 +287,15 @@ exports.handler = async function(event, context) {
         // Merge: index first (strong consistency), then any additional from list
         const merged = new Set(indexWallets);
         listedWallets.forEach(w => merged.add(w));
+        // Always include the connected user's wallet so they see their own score
+        if (callerWallet) merged.add(callerWallet);
         wallets = Array.from(merged);
-        console.log(`Merged total: ${wallets.length} unique wallets`);
+        console.log(`Merged total: ${wallets.length} unique wallets (callerWallet: ${callerWallet ? callerWallet.slice(0,8) : "none"})`);
       } else {
-        wallets = indexWallets;
-        console.log(`list() unavailable (local dev), using index only`);
+        const merged = new Set(indexWallets);
+        if (callerWallet) merged.add(callerWallet);
+        wallets = Array.from(merged);
+        console.log(`list() unavailable (local dev), using index + callerWallet: ${wallets.length} wallets`);
       }
 
       const entries = [];

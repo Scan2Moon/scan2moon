@@ -51,7 +51,7 @@ function formatSol(n) {
 /* ============================================================
    INIT
    ============================================================ */
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
   renderNav();
   fetchSolPrice();
   setInterval(fetchSolPrice, 60_000);
@@ -62,12 +62,18 @@ document.addEventListener("DOMContentLoaded", () => {
   if (saved) {
     connectedWallet = saved;
     updateConnectUI();
-    // Fire-and-forget registration so existing traders populate the leaderboard
-    fetch(LB_API, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: saved })
-    }).catch(() => {});
+    // AWAIT the registration so the wallet is in the index before loadLeaderboard()
+    // runs. Previously this was fire-and-forget, causing loadLeaderboard() to run
+    // before the POST completed, and the index read found 0 wallets.
+    try {
+      await fetch(LB_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: saved })
+      });
+    } catch (e) {
+      console.warn("LB pre-registration failed (non-critical):", e.message);
+    }
   }
 
   // Bind buttons
@@ -155,7 +161,10 @@ async function loadLeaderboard() {
   }
 
   try {
-    const res  = await fetch(`${LB_API}?period=${currentPeriod}`);
+    // Pass the connected wallet so the server can always include it directly
+    // via a strong-consistency read, even if the index hasn't caught up yet.
+    const walletParam = connectedWallet ? `&wallet=${connectedWallet}` : "";
+    const res  = await fetch(`${LB_API}?period=${currentPeriod}${walletParam}`);
     const data = await res.json();
 
     if (data.error) throw new Error(data.error);
