@@ -353,14 +353,68 @@ async function initSimulator() {
   await fetchSolPrice();
   setInterval(fetchSolPrice, 60_000); // refresh every 60 s
 
+  /* ── Resilient profile fetch with client-side retries ───────────────────
+     The server already retries Blobs reads internally (up to 3 attempts).
+     We add up to 3 more client-side retries in case the server returns 503
+     (storage temporarily unavailable) or isNew:true for an existing wallet.
+     This prevents the "everything reset to 0" experience caused by Blobs
+     cold-start glitches. Only after all retries exhaust do we accept isNew. */
+  let data;
+  let retryCount = 0;
+  const MAX_RETRIES = 3;
+
+  while (retryCount <= MAX_RETRIES) {
+    try {
+      const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
+
+      // 503 = storage temporarily unavailable — retry
+      if (resp.status === 503) {
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          const delay = retryCount * 1500; // 1.5s, 3s, 4.5s
+          showToast(`⏳ Loading profile… (attempt ${retryCount + 1})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        throw new Error("Profile server temporarily unavailable. Please refresh the page.");
+      }
+
+      data = await resp.json();
+      if (data.error) throw new Error(data.error);
+
+      // If the server says isNew but we have a local backup, the server might
+      // be seeing a Blobs glitch. Try restoring from backup first; if that
+      // fails, retry the GET a couple more times before accepting isNew.
+      if (data.isNew && retryCount < MAX_RETRIES) {
+        const backup = localStorage.getItem("sa_backup_" + wallet);
+        if (backup) {
+          // We have a backup — don't retry the GET, go straight to restore
+          break;
+        }
+        retryCount++;
+        const delay = retryCount * 1500;
+        showToast(`⏳ Verifying profile… (attempt ${retryCount + 1})`);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+
+      break; // success or final retry exhausted
+    } catch(e) {
+      if (retryCount >= MAX_RETRIES) {
+        console.error(e);
+        showToast("⚠️ Could not load profile. Please refresh the page.");
+        return;
+      }
+      retryCount++;
+      await new Promise(r => setTimeout(r, retryCount * 1500));
+    }
+  }
+
   try {
-    const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
+    if (!data) throw new Error("No response from server");
 
     if (data.isNew) {
-      // Server says no profile found. Before treating as new user, check if
-      // we have a localStorage backup (guards against Blobs momentary glitches).
+      // Server says no profile found after all retries. Check localStorage backup.
       const restored = await tryRestoreFromBackup();
       if (restored) {
         profile = restored;
@@ -450,7 +504,12 @@ async function claimDaily() {
   btn.disabled = true; btn.textContent = "Claiming…";
   try {
     const resp = await fetch(SIM_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wallet, action: "daily_login" }) });
+    if (resp.status === 503) {
+      showToast("⚠️ Server busy, please try again in a moment.");
+      return;
+    }
     const data = await resp.json();
+    if (data.error) { showToast("⚠️ " + data.error); return; }
     profile = data.profile;
     saveProfileBackup(profile);
     updateStaticUI();
@@ -1379,6 +1438,7 @@ window.executeBuy = async function() {
     // Send solAmount so the server deducts exactly what the user requested,
     // regardless of any SOL-price divergence between client and server.
     const resp = await fetch(SIM_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet,action:"buy",mint:currentToken.mint,symbol:currentToken.symbol,name:currentToken.name,logo:currentToken.logo,priceUsd:price,solAmount:amountSol,slippage,riskScore:currentToken.riskScore,solPrice})});
+    if (resp.status === 503) { showToast("⚠️ Server busy, please try again."); return; }
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;
@@ -1421,6 +1481,7 @@ window.executeSell = async function() {
   btn.textContent="⏳ Processing…";
   try {
     const resp = await fetch(SIM_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet,action:"sell",mint:currentToken.mint,priceUsd:price,amount:actualAmount,slippage,riskScore:currentToken.riskScore,solPrice})});
+    if (resp.status === 503) { showToast("⚠️ Server busy, please try again."); return; }
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;

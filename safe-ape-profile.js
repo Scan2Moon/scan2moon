@@ -188,9 +188,37 @@ async function loadProfile(viewOnly = false) {
   try {
     await fetchSolPrice();
     setInterval(fetchSolPrice, 60_000);
-    const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
+
+    // Resilient profile fetch: retry up to 3 times on 503 or isNew
+    let data;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    while (retryCount <= MAX_RETRIES) {
+      const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
+      if (resp.status === 503) {
+        if (retryCount < MAX_RETRIES) {
+          retryCount++;
+          showToast(`⏳ Loading profile… (attempt ${retryCount + 1})`);
+          await new Promise(r => setTimeout(r, retryCount * 1500));
+          continue;
+        }
+        throw new Error("Profile server temporarily unavailable. Please refresh.");
+      }
+      data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      // If server says isNew, try retrying before accepting
+      if (data.isNew && !viewOnly && retryCount < MAX_RETRIES) {
+        const backup = localStorage.getItem("sa_backup_" + wallet);
+        if (!backup) {
+          // No local backup — retry GET to guard against Blobs cold-start glitch
+          retryCount++;
+          showToast(`⏳ Verifying profile… (attempt ${retryCount + 1})`);
+          await new Promise(r => setTimeout(r, retryCount * 1500));
+          continue;
+        }
+      }
+      break;
+    }
 
     if (data.isNew && !viewOnly) {
       // Server returned no profile — check for localStorage backup first
@@ -839,6 +867,12 @@ async function claimWelcomeGift() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ wallet, action: "welcome_gift" })
     });
+    if (resp.status === 503) {
+      alert("⚠️ Server busy, please try again in a moment.");
+      btn.disabled = false;
+      btn.textContent = "🎁 Claim +0.50 SOL";
+      return;
+    }
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;

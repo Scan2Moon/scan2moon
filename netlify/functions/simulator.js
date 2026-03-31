@@ -270,13 +270,33 @@ exports.handler = async function(event, context) {
     }
 
     try {
-      const raw = await store.get(wallet);
+      // Retry up to 3 times (500 ms apart) before concluding the profile is genuinely new.
+      // Netlify Blobs can occasionally return null on the first read after a cold start
+      // or under brief propagation lag — retrying here prevents false "new user" responses
+      // that can later cause data loss when POST actions save a fresh profile on top of the real one.
+      let raw = await store.get(wallet);
       if (!raw) {
-        // No profile found. DO NOT save here — if Blobs has a momentary
-        // null-return glitch, saving now would overwrite the real profile
-        // with a fresh 10-SOL one and wipe all history. The profile is
-        // created (and persisted) on the first real action (daily_login,
-        // buy, sell, etc.) in the POST handler below.
+        await new Promise(r => setTimeout(r, 500));
+        raw = await store.get(wallet);
+      }
+      if (!raw) {
+        await new Promise(r => setTimeout(r, 700));
+        raw = await store.get(wallet);
+      }
+
+      if (!raw) {
+        // Still null after 3 attempts. Safety check: if this wallet is already
+        // in the leaderboard index, it HAS a profile — Blobs is having a bad
+        // moment. Return 503 so the client can retry instead of accepting a
+        // stale "new user" state that could wipe the real profile on next action.
+        const index = await getIndex(store);
+        if (index.includes(wallet)) {
+          console.warn("GET: wallet in leaderboard but profile null after 3 retries — returning 503");
+          return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+        }
+
+        // Genuinely new wallet — no profile found and not in leaderboard.
+        // DO NOT save here: the profile is created on the first real action.
         const profile = {
           wallet,
           accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
@@ -318,20 +338,33 @@ exports.handler = async function(event, context) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing wallet or action" }) };
     }
 
-    // Load profile — with one retry to guard against momentary Blobs null-returns.
-    // If the first read returns null but the wallet has an existing profile in
-    // Blobs, a second read 400ms later will find it. Only create a fresh profile
-    // if both reads return null (genuinely new wallet).
+    // Load profile — with retries to guard against momentary Blobs null-returns.
+    // CRITICAL SAFETY: if all retries fail but the wallet is in the leaderboard
+    // index (meaning it has an existing profile), we return 503 rather than
+    // creating and saving a fresh 10-SOL profile that would wipe real data.
     let profile;
     try {
       let raw = await store.get(wallet);
       if (!raw) {
-        // First read returned null — wait briefly and retry once before
-        // assuming this is a brand-new wallet.
         await new Promise(r => setTimeout(r, 400));
         raw = await store.get(wallet);
       }
       if (!raw) {
+        await new Promise(r => setTimeout(r, 600));
+        raw = await store.get(wallet);
+      }
+      if (!raw) {
+        // All 3 reads returned null. Before creating a fresh profile, check
+        // whether this wallet already exists in the leaderboard. If it does,
+        // Blobs is having a bad moment — return 503 so the client retries
+        // rather than wiping a real profile.
+        if (action !== "reset") {
+          const index = await getIndex(store);
+          if (index.includes(wallet)) {
+            console.warn("POST action", action, ": wallet in leaderboard but profile null after 3 retries — returning 503");
+            return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+          }
+        }
         profile = {
           wallet,
           accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
