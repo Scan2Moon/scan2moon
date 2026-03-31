@@ -27,26 +27,70 @@ function _writeDb(data) {
 }
 
 async function getStore() {
+  // Mirror the same production guard used in simulator.js.
+  // NETLIFY_BLOBS_CONTEXT is only injected in real Netlify Lambda invocations.
+  // If it's missing AND we fall to the /tmp or local-file store, the leaderboard
+  // silently shows "0 traders" because there is no data in that fallback.
+  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT;
+  console.log("leaderboard getStore: isProduction=", isProduction);
+
   try {
     const { getStore } = require("@netlify/blobs");
     const blobStore = getStore("simulator");
+    console.log("leaderboard: using Netlify Blobs store");
     return {
-      async get(key)        { return await blobStore.get(key, { consistency: "strong" }); },
-      async set(key, val)   { await blobStore.set(key, val); },
-      // list() — returns all keys so we don't rely on __lb_index__
-      async list()          {
+      async get(key) {
         try {
-          const result = await blobStore.list({ consistency: "strong" });
-          return (result.blobs || []).map(b => b.key);
-        } catch { return null; }  // null = fall back to __lb_index__
+          const v = await blobStore.get(key, { consistency: "strong" });
+          console.log("LB Blobs GET", key.slice(0, 8), "→", v ? "found" : "null");
+          return v;
+        } catch(e) {
+          console.error("LB Blobs GET failed:", key.slice(0, 8), e.message);
+          throw e;
+        }
+      },
+      async set(key, val) {
+        try {
+          await blobStore.set(key, val);
+          console.log("LB Blobs SET", key.slice(0, 8), "→ OK");
+        } catch(e) {
+          console.error("LB Blobs SET failed:", key.slice(0, 8), e.message);
+          throw e;
+        }
+      },
+      // list() — enumerates ALL keys; no consistency option (not supported for list in all versions)
+      async list() {
+        try {
+          // Collect all pages of results
+          const allKeys = [];
+          let cursor;
+          do {
+            const opts = cursor ? { cursor } : {};
+            const result = await blobStore.list(opts);
+            const page   = result.blobs || [];
+            allKeys.push(...page.map(b => b.key));
+            cursor = result.cursor;
+          } while (cursor);
+          console.log("LB Blobs list() →", allKeys.length, "total keys:", JSON.stringify(allKeys.slice(0,5)));
+          return allKeys;
+        } catch(e) {
+          console.error("LB Blobs list() failed:", e.message);
+          return null;  // null → fall back to __lb_index__
+        }
       }
     };
   } catch(e) {
+    if (isProduction) {
+      // In production, Blobs MUST be available. Failing silently would show
+      // 0 traders because the local dev file store has no data in Lambda.
+      console.error("FATAL: leaderboard @netlify/blobs unavailable in production:", e.message);
+      throw new Error("Leaderboard storage unavailable — please retry.");
+    }
     console.warn("@netlify/blobs not available, using file-based store (local dev)");
     return {
-      async get(key)  { return _readDb()[key] || null; },
+      async get(key)      { return _readDb()[key] || null; },
       async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); },
-      async list()    { return null; }  // no list support in local dev
+      async list()        { return null; }  // no list support in local dev
     };
   }
 }
@@ -203,7 +247,13 @@ exports.handler = async function(event, context) {
 
   if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
 
-  const store = await getStore();
+  let store;
+  try {
+    store = await getStore();
+  } catch(storeErr) {
+    console.error("leaderboard getStore() failed:", storeErr.message);
+    return { statusCode: 503, headers, body: JSON.stringify({ error: storeErr.message }) };
+  }
 
   /* ── GET: return leaderboard ── */
   if (event.httpMethod === "GET") {
