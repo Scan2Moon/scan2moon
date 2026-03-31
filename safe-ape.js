@@ -301,6 +301,48 @@ function disconnectWallet() {
 }
 
 /* ============================================================
+   PROFILE BACKUP — localStorage safety net
+   Saves a copy of the profile locally after every server update.
+   If Netlify Blobs ever returns null for an existing wallet,
+   the client restores the profile from this backup automatically.
+   ============================================================ */
+function saveProfileBackup(p) {
+  if (!p || !wallet) return;
+  try {
+    localStorage.setItem("sa_backup_" + wallet, JSON.stringify({
+      profile: p,
+      savedAt: Date.now(),
+    }));
+  } catch(e) { console.warn("Backup save failed:", e); }
+}
+
+async function tryRestoreFromBackup() {
+  // Only called when server returned isNew:true for a non-new wallet.
+  // Check localStorage for a recent backup and attempt server-side restore.
+  try {
+    const raw = localStorage.getItem("sa_backup_" + wallet);
+    if (!raw) return null;
+    const { profile: bp, savedAt } = JSON.parse(raw);
+    if (!bp || !bp.wallet) return null;
+    const ageHours = (Date.now() - savedAt) / 3_600_000;
+    if (ageHours > 168) return null; // backup older than 7 days — don't use
+    if (bp.balance === 10 && !bp.trades?.length) return null; // fresh/empty backup — skip
+    showToast("🔄 Restoring your profile...");
+    const resp = await fetch(SIM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, action: "restore_backup", backupProfile: bp }),
+    });
+    const data = await resp.json();
+    if (data.error) { console.warn("Restore failed:", data.error); return null; }
+    return data.profile || null;
+  } catch(e) {
+    console.warn("tryRestoreFromBackup error:", e);
+    return null;
+  }
+}
+
+/* ============================================================
    INIT SIMULATOR
    ============================================================ */
 async function initSimulator() {
@@ -315,9 +357,24 @@ async function initSimulator() {
     const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    profile = data.profile;
-    if (data.isNew) showToast("🦍 Welcome! Your account starts with 10 SOL!");
-    else showToast(`Welcome back, ${profile.accountName}!`);
+
+    if (data.isNew) {
+      // Server says no profile found. Before treating as new user, check if
+      // we have a localStorage backup (guards against Blobs momentary glitches).
+      const restored = await tryRestoreFromBackup();
+      if (restored) {
+        profile = restored;
+        saveProfileBackup(profile);
+        showToast(`✅ Profile restored! Welcome back, ${profile.accountName}!`);
+      } else {
+        profile = data.profile;
+        showToast("🦍 Welcome! Your account starts with 10 SOL!");
+      }
+    } else {
+      profile = data.profile;
+      saveProfileBackup(profile); // always keep backup fresh
+      showToast(`Welcome back, ${profile.accountName}!`);
+    }
   } catch (e) { console.error(e); showToast("⚠️ Could not load profile."); return; }
 
   /* Migrate legacy USD-denominated profiles to SOL automatically */
@@ -331,6 +388,7 @@ async function initSimulator() {
       const md = await mr.json();
       if (!md.error && md.profile) {
         profile = md.profile;
+        saveProfileBackup(profile);
         showToast("✅ Account converted to SOL denomination");
       }
     } catch (e) { console.warn("Migration failed:", e); }
@@ -394,6 +452,7 @@ async function claimDaily() {
     const resp = await fetch(SIM_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wallet, action: "daily_login" }) });
     const data = await resp.json();
     profile = data.profile;
+    saveProfileBackup(profile);
     updateStaticUI();
     document.getElementById("dailyBanner").style.display = "none";
     if (data.reward > 0) {
@@ -1323,6 +1382,7 @@ window.executeBuy = async function() {
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;
+    saveProfileBackup(profile);
     updateStaticUI();
     /* Use setTradeMarkers (server timestamps) instead of addTradeMarker
        (Date.now) so the B marker lands on the correct historical candle. */
@@ -1364,6 +1424,7 @@ window.executeSell = async function() {
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;
+    saveProfileBackup(profile);
     updateStaticUI();
     /* Use setTradeMarkers (server timestamps) instead of addTradeMarker
        (Date.now) so the S marker lands on the correct historical candle. */

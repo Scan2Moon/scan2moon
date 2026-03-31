@@ -144,6 +144,44 @@ function disconnect() {
 }
 
 /* ─────────────────────────────────────
+   PROFILE BACKUP — localStorage safety net
+   Mirrors the same logic in safe-ape.js.
+───────────────────────────────────── */
+function saveProfileBackup(p) {
+  if (!p || !wallet) return;
+  try {
+    localStorage.setItem("sa_backup_" + wallet, JSON.stringify({
+      profile: p,
+      savedAt: Date.now(),
+    }));
+  } catch(e) { console.warn("Backup save failed:", e); }
+}
+
+async function tryRestoreFromBackup() {
+  try {
+    const raw = localStorage.getItem("sa_backup_" + wallet);
+    if (!raw) return null;
+    const { profile: bp, savedAt } = JSON.parse(raw);
+    if (!bp || !bp.wallet) return null;
+    const ageHours = (Date.now() - savedAt) / 3_600_000;
+    if (ageHours > 168) return null;
+    if (bp.balance === 10 && !bp.trades?.length) return null;
+    showToast("🔄 Restoring your profile...");
+    const resp = await fetch(SIM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, action: "restore_backup", backupProfile: bp }),
+    });
+    const data = await resp.json();
+    if (data.error) { console.warn("Restore failed:", data.error); return null; }
+    return data.profile || null;
+  } catch(e) {
+    console.warn("tryRestoreFromBackup error:", e);
+    return null;
+  }
+}
+
+/* ─────────────────────────────────────
    LOAD PROFILE
 ───────────────────────────────────── */
 async function loadProfile(viewOnly = false) {
@@ -153,7 +191,22 @@ async function loadProfile(viewOnly = false) {
     const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
-    profile = data.profile;
+
+    if (data.isNew && !viewOnly) {
+      // Server returned no profile — check for localStorage backup first
+      const restored = await tryRestoreFromBackup();
+      if (restored) {
+        profile = restored;
+        saveProfileBackup(profile);
+        showToast(`✅ Profile restored! Welcome back, ${profile.accountName}!`);
+      } else {
+        profile = data.profile;
+        showToast("🦍 Welcome! Your account starts with 10 SOL!");
+      }
+    } else {
+      profile = data.profile;
+      if (!viewOnly) saveProfileBackup(profile);
+    }
 
     document.getElementById("profileGate").style.display = "none";
     document.getElementById("profileApp").style.display  = "block";
@@ -711,6 +764,9 @@ async function resetAccount() {
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;
+    // Intentional reset — clear the localStorage backup so it doesn't
+    // accidentally restore the old data next time the page loads.
+    try { localStorage.removeItem("sa_backup_" + wallet); } catch {}
     renderProfileCard();
     renderStats();
     renderHoldings();
@@ -786,6 +842,7 @@ async function claimWelcomeGift() {
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
     profile = data.profile;
+    saveProfileBackup(profile);
     // Hide banner
     const banner = document.getElementById("welcomeGiftBanner");
     if (banner) banner.style.display = "none";

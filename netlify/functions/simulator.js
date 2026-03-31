@@ -97,8 +97,25 @@ async function getStore() {
     return {
       // consistency:"strong" ensures we always read the latest write,
       // even if the previous Lambda invocation just wrote it milliseconds ago.
-      async get(key) { return await store.get(key, { consistency: "strong" }); },
-      async set(key, val) { await store.set(key, val); }
+      async get(key) {
+        try {
+          const v = await store.get(key, { consistency: "strong" });
+          console.log("Blobs GET", key.slice(0,8), "→", v ? "found" : "null");
+          return v;
+        } catch(e) {
+          console.error("Blobs GET failed:", key.slice(0,8), e.message);
+          throw e; // propagate so caller can return 500
+        }
+      },
+      async set(key, val) {
+        try {
+          await store.set(key, val);
+          console.log("Blobs SET", key.slice(0,8), "→ OK");
+        } catch(e) {
+          console.error("Blobs SET failed:", key.slice(0,8), e.message);
+          throw e; // propagate so caller can return 500
+        }
+      }
     };
   } catch(e) {
     if (isProduction) {
@@ -606,6 +623,44 @@ exports.handler = async function(event, context) {
       }
       await store.set(wallet, JSON.stringify(profile));
       return { statusCode: 200, headers, body: JSON.stringify({ profile, migrated: true, solPriceUsed: solPriceMig }) };
+    }
+
+    // ── RESTORE FROM BACKUP ──
+    // Called by the client when GET returned isNew:true but localStorage has a
+    // saved copy. The server tries to read Blobs one more time; if real data is
+    // there it takes priority over the backup. Only if Blobs truly has no data
+    // does it save the client's backup, preventing permanent data loss from
+    // momentary Blobs null-returns.
+    if (action === "restore_backup") {
+      const bp = body.backupProfile;
+      if (!bp || typeof bp !== "object") {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing or invalid backupProfile" }) };
+      }
+      if (bp.wallet && bp.wallet !== wallet) {
+        return { statusCode: 400, headers, body: JSON.stringify({ error: "Backup wallet mismatch" }) };
+      }
+
+      // Always try Blobs one more time — it may have recovered since GET.
+      const latestRaw = await store.get(wallet);
+      if (latestRaw) {
+        // Real profile found — Blobs was just glitching at GET time. Return real data.
+        const real = JSON.parse(latestRaw);
+        console.log("restore_backup: real profile found in Blobs, ignoring backup for", wallet);
+        return { statusCode: 200, headers, body: JSON.stringify({
+          profile: real, restored: false, message: "Real profile found" }) };
+      }
+
+      // Blobs has no data — save the client backup.
+      // Basic sanity: balance must be ≥ 0 and wallet must match.
+      const safeBalance = Math.max(0, parseFloat(bp.balance) || STARTING_BALANCE_SOL);
+      bp.balance  = safeBalance;
+      bp.wallet   = wallet;
+      bp.restoredAt = new Date().toISOString();
+      console.log("restore_backup: saving backup for", wallet, "balance=", safeBalance);
+      await store.set(wallet, JSON.stringify(bp));
+      await registerInLeaderboard(store, wallet);
+      return { statusCode: 200, headers, body: JSON.stringify({
+        profile: bp, restored: true, message: "Profile restored from local backup" }) };
     }
 
     // ── RESET ──
