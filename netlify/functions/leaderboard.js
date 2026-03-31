@@ -260,18 +260,32 @@ exports.handler = async function(event, context) {
     const period = (event.queryStringParameters && event.queryStringParameters.period) || "alltime";
 
     try {
-      // Primary: use store.list() to enumerate all profiles directly.
-      // This is more reliable than __lb_index__ which can miss entries.
-      // Fall back to __lb_index__ only if list() is unavailable (local dev).
+      // PRIMARY: use __lb_index__ — read with consistency:"strong" so it is
+      // always up-to-date even immediately after a new trade/profile is saved.
+      // store.list() has EVENTUAL consistency and can lag by seconds to minutes,
+      // causing the leaderboard to show 0 traders right after a trade is made.
+      //
+      // Strategy: start with the index (strong consistency, fast), then
+      // supplement with list() to catch any wallets that somehow bypassed
+      // the index registration. Merge and de-duplicate the two sets.
       let wallets;
+      const indexWallets = await getIndex(store);
+      console.log(`__lb_index__ returned ${indexWallets.length} wallets`);
+
+      // Supplement with list() if available (eventual consistency — may be stale
+      // but catches anything that somehow isn't in the index).
       const listedKeys = await store.list();
       if (listedKeys !== null) {
-        // Filter to only wallet-shaped keys (Solana addresses are base58, never start with __)
-        wallets = listedKeys.filter(k => !k.startsWith("__") && k.length >= 32);
-        console.log(`store.list() returned ${listedKeys.length} keys, ${wallets.length} wallets`);
+        const listedWallets = listedKeys.filter(k => !k.startsWith("__") && k.length >= 32);
+        console.log(`store.list() returned ${listedKeys.length} keys, ${listedWallets.length} wallets`);
+        // Merge: index first (strong consistency), then any additional from list
+        const merged = new Set(indexWallets);
+        listedWallets.forEach(w => merged.add(w));
+        wallets = Array.from(merged);
+        console.log(`Merged total: ${wallets.length} unique wallets`);
       } else {
-        wallets = await getIndex(store);
-        console.log(`Fell back to __lb_index__, ${wallets.length} wallets`);
+        wallets = indexWallets;
+        console.log(`list() unavailable (local dev), using index only`);
       }
 
       const entries = [];

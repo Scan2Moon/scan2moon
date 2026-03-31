@@ -200,12 +200,44 @@ function animateStat(id, target) {
 }
 
 /* ============================================================
-   FETCH STATS
+   FETCH STATS  — with localStorage cache to prevent showing 0
+   on cold-start or brief Blobs read failures.
    ============================================================ */
+const STATS_CACHE_KEY = "s2m_stats_cache";
+
+function loadCachedStats() {
+  try {
+    const raw = localStorage.getItem(STATS_CACHE_KEY);
+    if (!raw) return null;
+    const { data, savedAt } = JSON.parse(raw);
+    // Cache is valid for 24 hours
+    if (Date.now() - savedAt > 86_400_000) return null;
+    return data;
+  } catch { return null; }
+}
+
+function saveCachedStats(data) {
+  try {
+    // Only cache if data looks real (at least one non-zero value)
+    if ((data.visits || 0) + (data.scans || 0) + (data.moon || 0) > 0) {
+      localStorage.setItem(STATS_CACHE_KEY, JSON.stringify({ data, savedAt: Date.now() }));
+    }
+  } catch {}
+}
+
 async function fetchStats() {
+  // Show cached stats immediately so UI never flickers to 0
+  const cached = loadCachedStats();
+  if (cached) updateStatsUI(cached);
+
   try {
     const data = await safeFetch(statsEndpoint);
-    updateStatsUI(data);
+    // Only update UI if server returns meaningful data (not all-zero fallback)
+    const total = (data.visits || 0) + (data.scans || 0) + (data.moon || 0);
+    if (total > 0 || !cached) {
+      updateStatsUI(data);
+      saveCachedStats(data);
+    }
   } catch (err) {
     console.warn("Stats fetch failed:", err.message);
   }

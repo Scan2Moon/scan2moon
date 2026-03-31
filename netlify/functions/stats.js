@@ -64,12 +64,21 @@ exports.handler = async function (event) {
 
     let stats = { ...DEFAULT };
     try {
-      const raw = await store.get(BLOB_KEY, { consistency: "strong" });
+      // Retry up to 3 times to handle cold-start Blobs propagation lag.
+      let raw = await store.get(BLOB_KEY, { consistency: "strong" });
+      if (!raw) {
+        await new Promise(r => setTimeout(r, 400));
+        raw = await store.get(BLOB_KEY, { consistency: "strong" });
+      }
+      if (!raw) {
+        await new Promise(r => setTimeout(r, 600));
+        raw = await store.get(BLOB_KEY, { consistency: "strong" });
+      }
       if (raw) {
         stats = { ...DEFAULT, ...JSON.parse(raw) };
         console.log("Stats Blobs read OK:", JSON.stringify(stats));
       } else {
-        console.log("Stats Blobs: no data yet, starting from DEFAULT");
+        console.log("Stats Blobs: no data yet after retries, starting from DEFAULT");
       }
     } catch(readErr) {
       console.error("Stats Blobs read error:", readErr.message);
