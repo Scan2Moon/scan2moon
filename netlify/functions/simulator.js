@@ -255,7 +255,11 @@ exports.handler = async function(event, context) {
     try {
       const raw = await store.get(wallet);
       if (!raw) {
-        // New profile
+        // No profile found. DO NOT save here — if Blobs has a momentary
+        // null-return glitch, saving now would overwrite the real profile
+        // with a fresh 10-SOL one and wipe all history. The profile is
+        // created (and persisted) on the first real action (daily_login,
+        // buy, sell, etc.) in the POST handler below.
         const profile = {
           wallet,
           accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
@@ -270,8 +274,6 @@ exports.handler = async function(event, context) {
           lastLogin:   null,
           loginStreak: 0,
         };
-        await store.set(wallet, JSON.stringify(profile));
-        await registerInLeaderboard(store, wallet);
         return { statusCode: 200, headers, body: JSON.stringify({ profile, isNew: true }) };
       }
       // Existing profile — ensure it is registered in leaderboard (catches old profiles)
@@ -299,10 +301,19 @@ exports.handler = async function(event, context) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing wallet or action" }) };
     }
 
-    // Load profile
+    // Load profile — with one retry to guard against momentary Blobs null-returns.
+    // If the first read returns null but the wallet has an existing profile in
+    // Blobs, a second read 400ms later will find it. Only create a fresh profile
+    // if both reads return null (genuinely new wallet).
     let profile;
     try {
-      const raw = await store.get(wallet);
+      let raw = await store.get(wallet);
+      if (!raw) {
+        // First read returned null — wait briefly and retry once before
+        // assuming this is a brand-new wallet.
+        await new Promise(r => setTimeout(r, 400));
+        raw = await store.get(wallet);
+      }
       if (!raw) {
         profile = {
           wallet,

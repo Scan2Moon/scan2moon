@@ -1202,27 +1202,46 @@ a {
   text-shadow: 0 0 6px rgba(44,255,201,0.5);
 }
 
-@media (max-width: 600px) {
+@media (max-width: 768px) {
+  /* Stack nav into two clean rows: logo on top, links centred below */
   .nav-inner {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: flex-start;
     padding: 10px 14px;
-    gap: 10px;
+    gap: 8px;
   }
+  /* Logo stays left-aligned on its own row */
+  .nav-logo {
+    align-self: flex-start;
+  }
+  /* Links fill the full width and sit in a single scrollable row */
   .nav-links {
-    justify-content: center;
     width: 100%;
-    flex-wrap: wrap;       /* prevent horizontal overflow */
-    gap: 4px 2px;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 2px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;          /* Firefox */
   }
-  .nav-link {
-    padding: 6px 10px;
-    font-size: 11px;
-    letter-spacing: 0.5px;
+  .nav-links::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+  /* Tighten each link/button so all four fit on one row */
+  .nav-link,
+  .nav-drop-btn {
+    padding: 6px 9px;
+    font-size: 10.5px;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
   }
   .nav-icon {
-    display: none;         /* hide emoji icons on small screens to save space */
+    display: none;         /* hide emoji icons on small screens */
+  }
+  /* Hide the V2.0 badge — it breaks the layout on narrow screens */
+  .nav-badge {
+    display: none;
   }
   .nav-brand { font-size: 14px; }
+  .nav-favicon { width: 26px; height: 26px; }
 }
 /* ── Dropdown wrapper ── */
 .nav-dropdown {

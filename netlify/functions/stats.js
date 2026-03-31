@@ -53,6 +53,10 @@ exports.handler = async function (event) {
     try { body = JSON.parse(event.body || "{}"); } catch {}
   }
 
+  // Detect production vs local dev the same way simulator.js does.
+  // NETLIFY_BLOBS_CONTEXT is only present in real Netlify Lambda invocations.
+  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT;
+
   /* ── Try Netlify Blobs first ── */
   try {
     const { getStore } = require("@netlify/blobs");
@@ -61,10 +65,19 @@ exports.handler = async function (event) {
     let stats = { ...DEFAULT };
     try {
       const raw = await store.get(BLOB_KEY, { consistency: "strong" });
-      if (raw) stats = { ...DEFAULT, ...JSON.parse(raw) };
-      else console.log("Stats Blobs: no data yet, starting from DEFAULT");
+      if (raw) {
+        stats = { ...DEFAULT, ...JSON.parse(raw) };
+        console.log("Stats Blobs read OK:", JSON.stringify(stats));
+      } else {
+        console.log("Stats Blobs: no data yet, starting from DEFAULT");
+      }
     } catch(readErr) {
-      console.warn("Stats Blobs read error:", readErr.message);
+      console.error("Stats Blobs read error:", readErr.message);
+      if (isProduction) {
+        // In production, a read failure means we can't trust our data.
+        // Return an error rather than silently showing DEFAULT (0).
+        return respond(500, { error: "Stats read failed: " + readErr.message });
+      }
     }
 
     if (event.httpMethod === "POST") {
@@ -82,10 +95,16 @@ exports.handler = async function (event) {
     return respond(200, stats);
 
   } catch (blobErr) {
-    console.warn("Blobs unavailable, using tmp store:", blobErr.message);
+    if (isProduction) {
+      // In production, Blobs MUST be available. Falling back to /tmp would
+      // silently reset stats to 0 on every cold Lambda start (ephemeral /tmp).
+      console.error("FATAL: Stats Blobs unavailable in production:", blobErr.message);
+      return respond(503, { error: "Stats storage unavailable — please retry." });
+    }
+    console.warn("Blobs unavailable, using tmp store (local dev only):", blobErr.message);
   }
 
-  /* ── Fallback: /tmp file store (local dev) ── */
+  /* ── Fallback: /tmp file store (local dev only) ── */
   try {
     const db    = readLocalDB();
     let stats   = { ...DEFAULT, ...(db.__stats || {}) };
