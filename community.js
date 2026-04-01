@@ -210,8 +210,9 @@ function loadCachedStats() {
     const raw = localStorage.getItem(STATS_CACHE_KEY);
     if (!raw) return null;
     const { data, savedAt } = JSON.parse(raw);
-    // Cache is valid for 24 hours
-    if (Date.now() - savedAt > 86_400_000) return null;
+    // Cache valid for 7 days — stats should never show 0 just because
+    // Blobs is having a cold-start moment.
+    if (Date.now() - savedAt > 7 * 86_400_000) return null;
     return data;
   } catch { return null; }
 }
@@ -226,20 +227,26 @@ function saveCachedStats(data) {
 }
 
 async function fetchStats() {
-  // Show cached stats immediately so UI never flickers to 0
+  // Show cached stats immediately so UI never flickers to 0 during fetch
   const cached = loadCachedStats();
   if (cached) updateStatsUI(cached);
 
   try {
     const data = await safeFetch(statsEndpoint);
-    // Only update UI if server returns meaningful data (not all-zero fallback)
+    // Only update UI & cache if server returns meaningful data.
+    // A 503 throws before we get here (safeFetch throws on non-OK),
+    // so the cached display stays. A 200 with all-zeros is also ignored
+    // when we have a valid cache, preventing a brief Blobs null from
+    // wiping the displayed numbers.
     const total = (data.visits || 0) + (data.scans || 0) + (data.moon || 0);
     if (total > 0 || !cached) {
       updateStatsUI(data);
       saveCachedStats(data);
     }
+    // If total === 0 and we have cached data, keep the cache displayed (don't update UI)
   } catch (err) {
-    console.warn("Stats fetch failed:", err.message);
+    // 503 (Blobs cold-start) or network error — cached display stays, no action needed
+    console.warn("Stats fetch failed (cached values retained):", err.message);
   }
 }
 
@@ -248,14 +255,25 @@ async function fetchStats() {
    ============================================================ */
 async function incrementGlobalStat(type) {
   try {
-    await safeFetch(statsEndpoint, {
+    const result = await safeFetch(statsEndpoint, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ type })
     });
-    await fetchStats();
+    // Increment succeeded — update display with the returned (incremented) values
+    const total = (result.visits || 0) + (result.scans || 0) + (result.moon || 0);
+    if (total > 0) {
+      updateStatsUI(result);
+      saveCachedStats(result);
+    } else {
+      // Server returned zeros — don't clobber cached display, just re-fetch
+      await fetchStats();
+    }
   } catch (err) {
-    console.warn("Stat increment failed:", err.message);
+    // 503 (Blobs protecting data) or network error — just show cached values
+    console.warn("Stat increment skipped (Blobs busy or network error):", err.message);
+    const cached = loadCachedStats();
+    if (cached) updateStatsUI(cached);
   }
 }
 

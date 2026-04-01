@@ -17,9 +17,10 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
-const DEFAULT  = { visits: 0, scans: 0, shares: 0, moon: 0 };
-const BLOB_KEY = "stats";
-const LOCAL_DB = path.join("/tmp", "local-store.json");
+const DEFAULT      = { visits: 0, scans: 0, shares: 0, moon: 0 };
+const BLOB_KEY     = "stats";
+const SENTINEL_KEY = "stats_ever_written"; // written once we've saved real data; used to detect cold-start null vs. genuinely fresh
+const LOCAL_DB     = path.join("/tmp", "local-store.json");
 
 function respond(code, body) {
   return { statusCode: code, headers: CORS, body: JSON.stringify(body) };
@@ -62,7 +63,9 @@ exports.handler = async function (event) {
     const { getStore } = require("@netlify/blobs");
     const store = getStore("scan2moon-stats");
 
-    let stats = { ...DEFAULT };
+    let stats  = { ...DEFAULT };
+    let rawNull = false;  // tracks whether all reads came back null
+
     try {
       // Retry up to 3 times to handle cold-start Blobs propagation lag.
       let raw = await store.get(BLOB_KEY, { consistency: "strong" });
@@ -71,21 +74,51 @@ exports.handler = async function (event) {
         raw = await store.get(BLOB_KEY, { consistency: "strong" });
       }
       if (!raw) {
-        await new Promise(r => setTimeout(r, 600));
+        await new Promise(r => setTimeout(r, 700));
         raw = await store.get(BLOB_KEY, { consistency: "strong" });
       }
+
       if (raw) {
         stats = { ...DEFAULT, ...JSON.parse(raw) };
         console.log("Stats Blobs read OK:", JSON.stringify(stats));
       } else {
-        console.log("Stats Blobs: no data yet after retries, starting from DEFAULT");
+        rawNull = true;
+        console.log("Stats Blobs: null after 3 retries");
       }
     } catch(readErr) {
       console.error("Stats Blobs read error:", readErr.message);
       if (isProduction) {
-        // In production, a read failure means we can't trust our data.
-        // Return an error rather than silently showing DEFAULT (0).
         return respond(500, { error: "Stats read failed: " + readErr.message });
+      }
+    }
+
+    // ── CRITICAL: if Blobs returned null, distinguish cold-start from fresh deploy ──
+    // Problem: on Lambda cold-start, Blobs.get() can return null even though real
+    // data exists. If we blindly increment from DEFAULT and write back, we WIPE all
+    // stats (resets visits, scans, moon back to ~1).
+    //
+    // Solution: keep a sentinel key ("stats_ever_written") that is set once real
+    // data has been saved. If main key is null but sentinel exists → Blobs is having
+    // a bad moment → return 503 so the client retries / shows cached data instead
+    // of corrupting the store.
+    // If neither key exists → genuinely fresh deployment → proceed normally.
+    if (rawNull && isProduction) {
+      try {
+        const sentinel = await store.get(SENTINEL_KEY, { consistency: "strong" });
+        if (sentinel) {
+          // Real data exists somewhere in Blobs — this is a cold-start null.
+          // For GET: return 503 so community.js shows its localStorage cache.
+          // For POST: NEVER write, or we'd overwrite real data with zeros+1.
+          console.warn("Stats: null data but sentinel exists — Blobs cold start, returning 503 to protect data");
+          return respond(503, { error: "Stats temporarily unavailable, please retry" });
+        }
+        // No sentinel → this is a genuinely fresh deployment with no data yet.
+        console.log("Stats: no sentinel — fresh deployment, proceeding normally");
+      } catch(sentinelErr) {
+        // Can't read sentinel either — Blobs is seriously struggling.
+        // Be safe: return 503 rather than risking a data wipe.
+        console.warn("Stats: sentinel check failed, returning 503 to be safe:", sentinelErr.message);
+        return respond(503, { error: "Stats temporarily unavailable, please retry" });
       }
     }
 
@@ -94,6 +127,9 @@ exports.handler = async function (event) {
       try {
         await store.set(BLOB_KEY, JSON.stringify(stats));
         console.log("Stats Blobs write OK:", JSON.stringify(stats));
+        // Write the sentinel so future cold-start reads know real data exists.
+        // Use try/catch so a sentinel write failure never blocks the main write.
+        try { await store.set(SENTINEL_KEY, "1"); } catch {}
       } catch(writeErr) {
         // Write failed — log it but still return the incremented value.
         // Do NOT fall through to /tmp or the site-level data will be lost.
