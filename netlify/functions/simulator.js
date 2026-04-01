@@ -220,6 +220,69 @@ function awardNewBadges(profile) {
   return newly;
 }
 
+// ── Badge definitions (for leaderboard endpoint served from this function) ──
+const BADGE_DEFS = [
+  { id: "first_profit",         img: "/badges/First_Profit.png",   icon: "🏆", name: "First Profit",          desc: "Made your first profitable trade" },
+  { id: "win_streak_5",         img: "/badges/win_streak_5.png",   icon: "🔥", name: "Win Streak x5",         desc: "Won 5 trades in a row" },
+  { id: "safe_trader",          img: "/badges/Safe_Trader.png",    icon: "🛡️", name: "Safe Trader",            desc: "Buy 10 tokens with entry risk score ≥ 65" },
+  { id: "diamond_hands",        img: "/badges/Diamond_Hands.png",  icon: "💎", name: "Diamond Hands",          desc: "Held a token for 7+ days" },
+  { id: "degen_survivor",       img: "/badges/Degen_Survivor.png", icon: "🦍", name: "Degen Survivor",         desc: "Profit 10× on tokens with risk score < 45 (1 sell per buy)" },
+  { id: "portfolio_100",        img: "/badges/portfolio_100.png",  icon: "📈", name: "100% Growth",            desc: "Doubled your 10 SOL starting balance" },
+  { id: "wins_25",              img: "/badges/Wins_25.png",        icon: "⭐", name: "25 Safe Wins",           desc: "25 profitable trades" },
+  { id: "wins_50",              img: "/badges/Wins_50.png",        icon: "🌟", name: "50 Safe Wins",           desc: "50 profitable trades" },
+  { id: "wins_100",             img: "/badges/Wins_100.png",       icon: "💫", name: "100 Safe Wins",          desc: "100 profitable trades" },
+  { id: "wins_500",             img: "/badges/Wins_500.png",       icon: "🚀", name: "500 Safe Wins",          desc: "500 profitable trades" },
+  { id: "wins_1000",            img: "/badges/Wins_1000.png",      icon: "🐐", name: "1000 Safe Wins — GOAT",  desc: "The absolute GOAT." },
+  { id: "sol2moon_millionaire", img: "/badges/Sol2Moon.png",       icon: "🌙", name: "Sol2Moon Millionaire",    desc: "Reach 10,000 SOL" },
+];
+
+// ── Leaderboard scoring helpers ──
+function _lbAvgRiskScore(trades) {
+  const withScore = trades.filter(t => t.riskScore != null && !isNaN(Number(t.riskScore)));
+  if (!withScore.length) return 50;
+  return withScore.reduce((s, t) => s + Number(t.riskScore), 0) / withScore.length;
+}
+function _lbComputeRiskAdjReturn(profile) {
+  const start   = 10;
+  const balance = profile.balance || start;
+  const pnlPct  = ((balance - start) / start) * 100;
+  return parseFloat((pnlPct * (_lbAvgRiskScore(profile.trades || []) / 100)).toFixed(2));
+}
+function _lbGetStartDate(period) {
+  const now = new Date();
+  if (period === "daily")   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === "weekly")  { const d = new Date(now); d.setDate(d.getDate() - d.getDay()); d.setHours(0,0,0,0); return d; }
+  if (period === "monthly") return new Date(now.getFullYear(), now.getMonth(), 1);
+  return new Date(0);
+}
+function _lbGetPeriodPnL(profile, period) {
+  if (period === "alltime") return profile.totalPnL || 0;
+  const cutoff = _lbGetStartDate(period);
+  return (profile.trades || [])
+    .filter(t => t.type === "sell" && !isNaN(t.pnl) && new Date(t.timestamp) >= cutoff)
+    .reduce((s, t) => s + parseFloat(t.pnl || 0), 0);
+}
+function _lbTimeAgo(isoStr) {
+  if (!isoStr) return "Never";
+  const diff = Date.now() - new Date(isoStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1)  return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)  return `${hrs}h ago`;
+  return `${Math.floor(hrs/24)}d ago`;
+}
+function _lbCalcSol2MoonReward(rank, adjReturn) {
+  if (rank === 1) return 5000;
+  if (rank === 2) return 3000;
+  if (rank === 3) return 2000;
+  if (rank <= 5)  return 1000;
+  if (rank <= 10) return 500;
+  if (rank <= 25) return 250;
+  if (adjReturn > 0) return 100;
+  return 0;
+}
+
 // ── Leaderboard index helpers ──
 // Keeps a JSON array at key "__lb_index__" with all wallet addresses.
 // This avoids needing store.list() which fails in local dev.
@@ -262,9 +325,97 @@ exports.handler = async function(event, context) {
     return { statusCode: 503, headers, body: JSON.stringify({ error: storeErr.message || "Storage unavailable" }) };
   }
 
-  // ── GET: load user profile ──
+  // ── GET: load user profile OR serve leaderboard data ──
   if (event.httpMethod === "GET") {
     const wallet = event.queryStringParameters && event.queryStringParameters.wallet;
+    const action = event.queryStringParameters && event.queryStringParameters.action;
+
+    // ── action=leaderboard: serve leaderboard from THIS function's store context ──
+    // This ensures zero cross-function Blobs isolation issues — the same Lambda
+    // that writes profiles and the __lb_index__ is also the one reading them here.
+    if (action === "leaderboard") {
+      const period       = (event.queryStringParameters && event.queryStringParameters.period) || "alltime";
+      const callerWallet = (event.queryStringParameters && event.queryStringParameters.wallet_caller) || null;
+
+      try {
+        const indexWallets = await getIndex(store);
+        console.log(`LB (from simulator): __lb_index__ has ${indexWallets.length} wallets`);
+
+        // Always include the connected user's wallet so they see their own score
+        // immediately, even if the index hasn't had time to propagate yet.
+        const merged = new Set(indexWallets);
+        if (callerWallet) merged.add(callerWallet);
+        const wallets = Array.from(merged);
+
+        const entries = [];
+        for (const w of wallets) {
+          if (w === "__lb_index__") continue;
+          try {
+            const raw = await store.get(w);
+            if (!raw) continue;
+            const profile = JSON.parse(raw);
+            // Skip future-dated profiles (anti-cheat)
+            if (profile.createdAt && new Date(profile.createdAt) > new Date(Date.now() + 60000)) continue;
+
+            const adjReturn  = _lbComputeRiskAdjReturn(profile);
+            const periodPnL  = _lbGetPeriodPnL(profile, period);
+            const badges     = profile.badges || [];
+            const trades     = profile.trades || [];
+            const sells      = trades.filter(t => t.type === "sell");
+            const avgRisk    = parseFloat(_lbAvgRiskScore(trades).toFixed(1));
+            const lastTrade  = trades.length > 0 ? trades[0].timestamp : (profile.updatedAt || profile.createdAt);
+
+            entries.push({
+              wallet:       profile.wallet || w,
+              accountName:  profile.accountName || "Ape",
+              adjReturn,
+              periodPnL:    parseFloat(periodPnL.toFixed(2)),
+              totalPnL:     parseFloat((profile.totalPnL || 0).toFixed(2)),
+              balance:      parseFloat((profile.balance || 10).toFixed(4)),
+              winCount:     profile.winCount  || 0,
+              lossCount:    profile.lossCount || 0,
+              tradeCount:   sells.length,
+              avgRiskScore: avgRisk,
+              badges,
+              lastActive:   _lbTimeAgo(lastTrade),
+              lastTradeTs:  lastTrade,
+              loginStreak:  profile.loginStreak || 0,
+            });
+          } catch(e) {
+            console.warn(`LB: failed to process wallet ${w}:`, e.message);
+          }
+        }
+
+        // Sort by risk-adjusted return (highest first)
+        entries.sort((a, b) => b.adjReturn - a.adjReturn);
+        entries.forEach((e, i) => {
+          e.rank = i + 1;
+          e.sol2moonReward = _lbCalcSol2MoonReward(i + 1, e.adjReturn);
+        });
+
+        const periodWinners  = [...entries].filter(e => e.periodPnL > 0).sort((a, b) => b.periodPnL - a.periodPnL);
+        const alltimeWinners = entries.filter(e => (e.totalPnL || 0) > 0);
+        const mvp = {
+          daily:   periodWinners[0]  || null,
+          weekly:  periodWinners[0]  || null,
+          monthly: periodWinners[0]  || null,
+          alltime: alltimeWinners[0] || null,
+        };
+
+        return { statusCode: 200, headers, body: JSON.stringify({
+          entries:   entries.slice(0, 100),
+          total:     entries.length,
+          period,
+          mvp,
+          badgeDefs: BADGE_DEFS,
+          timestamp: new Date().toISOString(),
+        })};
+      } catch(e) {
+        console.error("LB GET (from simulator) error:", e);
+        return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+      }
+    }
+
     if (!wallet) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing wallet" }) };
     }

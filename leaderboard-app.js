@@ -136,8 +136,23 @@ async function connectWallet() {
 
 function updateConnectUI() {
   const connectBanner = document.getElementById("lbConnectBanner");
-  if (connectedWallet && connectBanner) {
-    connectBanner.style.display = "none";
+  const rankBanner    = document.getElementById("yourRankBanner");
+
+  if (connectedWallet) {
+    // Hide the "connect wallet" prompt
+    if (connectBanner) connectBanner.style.display = "none";
+    // Always show the rank banner so Submit Score is always accessible
+    if (rankBanner) {
+      rankBanner.style.display = "flex";
+      const nameEl = document.getElementById("yourRankName");
+      const posEl  = document.getElementById("yourRankPos");
+      // Only set placeholders if not already populated by renderYourRank
+      if (nameEl && !nameEl.dataset.populated) nameEl.textContent = "Loading…";
+      if (posEl  && !posEl.dataset.populated)  posEl.textContent  = "#—";
+    }
+  } else {
+    if (connectBanner) connectBanner.style.display = "";
+    if (rankBanner)    rankBanner.style.display = "none";
   }
 }
 
@@ -161,10 +176,12 @@ async function loadLeaderboard() {
   }
 
   try {
-    // Pass the connected wallet so the server can always include it directly
-    // via a strong-consistency read, even if the index hasn't caught up yet.
-    const walletParam = connectedWallet ? `&wallet=${connectedWallet}` : "";
-    const res  = await fetch(`${LB_API}?period=${currentPeriod}${walletParam}`);
+    // Use simulator endpoint for leaderboard data — same function that writes
+    // profiles and the __lb_index__, so zero cross-function Blobs isolation risk.
+    // wallet_caller ensures the connected user always appears in results via a
+    // direct strong-consistency read, even if the index hasn't caught up yet.
+    const walletParam = connectedWallet ? `&wallet_caller=${connectedWallet}` : "";
+    const res  = await fetch(`${SIM_API}?action=leaderboard&period=${currentPeriod}${walletParam}`);
     const data = await res.json();
 
     if (data.error) throw new Error(data.error);
@@ -431,17 +448,24 @@ window.lbGoPage = function(page) {
    ============================================================ */
 function renderYourRank(entries) {
   if (!connectedWallet) return;
-  const entry = entries.find(e => e.wallet === connectedWallet);
-  if (!entry) return;
 
   const banner  = document.getElementById("yourRankBanner");
   const nameEl  = document.getElementById("yourRankName");
   const posEl   = document.getElementById("yourRankPos");
 
   if (!banner) return;
+  // Always show the banner when connected — Submit Score must always be accessible
   banner.style.display = "flex";
-  if (nameEl) nameEl.textContent = entry.accountName || "Ape";
-  if (posEl)  posEl.textContent  = `#${entry.rank}`;
+
+  const entry = entries.find(e => e.wallet === connectedWallet);
+  if (entry) {
+    if (nameEl) { nameEl.textContent = entry.accountName || "Ape"; nameEl.dataset.populated = "1"; }
+    if (posEl)  { posEl.textContent  = `#${entry.rank}`;           posEl.dataset.populated  = "1"; }
+  } else {
+    // Connected but not ranked yet — show placeholder so Submit Score is still visible
+    if (nameEl) { nameEl.textContent = "Not yet ranked"; nameEl.dataset.populated = "1"; }
+    if (posEl)  { posEl.textContent  = "#—";             posEl.dataset.populated  = "1"; }
+  }
 }
 
 /* ============================================================
