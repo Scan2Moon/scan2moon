@@ -338,6 +338,29 @@ async function _redisCmd(...args) {
   return data.result;
 }
 
+// ── Redis profile cache helpers ───────────────────────────────────────────
+// Profiles live in Netlify Blobs. Redis acts as a backup cache so that when
+// Blobs token expires (~1-2h), we can still serve the last known profile.
+async function redisCacheProfile(wallet, profile) {
+  if (!_redisAvailable()) return;
+  try {
+    await _redisCmd("SET", `s2m:profile:${wallet}`, JSON.stringify(profile), "EX", 604800);
+  } catch(e) {
+    console.warn("Redis profile cache write failed:", e.message);
+  }
+}
+async function redisGetCachedProfile(wallet) {
+  if (!_redisAvailable()) return null;
+  try {
+    const raw = await _redisCmd("GET", `s2m:profile:${wallet}`);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) {
+    console.warn("Redis profile cache read failed:", e.message);
+    return null;
+  }
+}
+
 // ── READ the leaderboard wallet list ──────────────────────────────────────
 async function getLbIndex(store) {
   // ── Redis path (preferred) ──
@@ -641,7 +664,13 @@ exports.handler = async function(event, context) {
         // Return 503 so the client retries instead of getting a fake isNew.
         const registered = await isWalletRegistered(store, wallet);
         if (registered) {
-          console.warn("GET: wallet registered but profile null — returning 503");
+          // Before giving up with 503, try the Redis profile cache.
+          const cached = await redisGetCachedProfile(wallet);
+          if (cached) {
+            console.log("GET: serving profile from Redis cache (Blobs unavailable)");
+            return { statusCode: 200, headers, body: JSON.stringify({ ...cached, _fromCache: true }) };
+          }
+          console.warn("GET: wallet registered but profile null in both Blobs and Redis — returning 503");
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
         }
         // Not registered → genuinely new user
@@ -766,7 +795,7 @@ exports.handler = async function(event, context) {
 
       const dayLabel = `Day ${streak}`;
       const newBadgesLogin = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile,
@@ -787,7 +816,7 @@ exports.handler = async function(event, context) {
       profile.balance            += WELCOME_GIFT_SOL;
       profile.welcomeGiftClaimed  = true;
       const newBadgesWelcome = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile,
@@ -882,7 +911,7 @@ exports.handler = async function(event, context) {
       if (profile.trades.length > 200) profile.trades = profile.trades.slice(0, 200);
 
       const newBadgesBuy = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile, trade, newBadges: newBadgesBuy }) };
     }
@@ -968,7 +997,7 @@ exports.handler = async function(event, context) {
       if (profile.trades.length > 200) profile.trades = profile.trades.slice(0, 200);
 
       const newBadgesSell = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile, trade, newBadges: newBadgesSell }) };
     }
@@ -980,7 +1009,7 @@ exports.handler = async function(event, context) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid name (max 24 chars)" }) };
       }
       profile.accountName = accountName.trim();
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };
     }
 
@@ -1008,7 +1037,7 @@ exports.handler = async function(event, context) {
           h.avgCostSol   = h.amount > 0 ? h.totalCostSol / h.amount : 0;
         }
       }
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       return { statusCode: 200, headers, body: JSON.stringify({ profile, migrated: true, solPriceUsed: solPriceMig }) };
     }
 
@@ -1044,7 +1073,7 @@ exports.handler = async function(event, context) {
       bp.wallet   = wallet;
       bp.restoredAt = new Date().toISOString();
       console.log("restore_backup: saving backup for", wallet, "balance=", safeBalance);
-      await store.set(wallet, JSON.stringify(bp));
+      await store.set(wallet, JSON.stringify(bp)); redisCacheProfile(wallet, bp);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile: bp, restored: true, message: "Profile restored from local backup" }) };
@@ -1064,7 +1093,7 @@ exports.handler = async function(event, context) {
       profile.loginStreak         = 0;
       profile.welcomeGiftClaimed  = false; // ← allow re-claiming welcome gift after reset
       profile.updatedAt       = new Date().toISOString(); // ← leaderboard uses this for "Last Active"
-      await store.set(wallet, JSON.stringify(profile));
+      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };
     }
