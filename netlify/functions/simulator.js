@@ -643,10 +643,15 @@ exports.handler = async function(event, context) {
     }
 
     try {
-      // Retry up to 3 times (500 ms apart) before concluding the profile is genuinely new.
-      // Netlify Blobs can occasionally return null on the first read after a cold start
-      // or under brief propagation lag — retrying here prevents false "new user" responses
-      // that can later cause data loss when POST actions save a fresh profile on top of the real one.
+      // ── Step 1: Try Redis first (never expires, immune to Blobs token issues) ──
+      let profile = null;
+      const redisCached = await redisGetCachedProfile(wallet);
+      if (redisCached) {
+        console.log("GET: profile loaded from Redis");
+        return { statusCode: 200, headers, body: JSON.stringify(redisCached) };
+      }
+
+      // ── Step 2: Try Blobs (retry 3× for cold-start propagation lag) ──
       let raw = await store.get(wallet);
       if (!raw) {
         await new Promise(r => setTimeout(r, 500));
@@ -658,19 +663,14 @@ exports.handler = async function(event, context) {
       }
 
       if (!raw) {
-        // Still null after 3 attempts.
-        // Check whether this wallet is registered (single fast key read).
-        // If it is registered, it HAS a real profile — Blobs is cold-starting.
-        // Return 503 so the client retries instead of getting a fake isNew.
+        // Blobs returned null after 3 attempts.
+        // Check registration to distinguish existing vs new user.
         const registered = await isWalletRegistered(store, wallet);
         if (registered) {
-          // Before giving up with 503, try the Redis profile cache.
-          const cached = await redisGetCachedProfile(wallet);
-          if (cached) {
-            console.log("GET: serving profile from Redis cache (Blobs unavailable)");
-            return { statusCode: 200, headers, body: JSON.stringify({ ...cached, _fromCache: true }) };
-          }
-          console.warn("GET: wallet registered but profile null in both Blobs and Redis — returning 503");
+          // Wallet has a real profile in Blobs but Blobs token is expired.
+          // Redis cache is also empty (profile existed before caching was added).
+          // Return 503 — a fresh Lambda container (new Blobs token) will fix this.
+          console.warn("GET: registered wallet, Blobs null, Redis empty — returning 503");
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
         }
         // Not registered → genuinely new user
