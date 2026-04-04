@@ -116,7 +116,19 @@ exports.handler = async function (event) {
     clearTimeout(timeout);
 
     if (!heliusResponse.ok) {
-      return jsonResponse(502, { error: "Upstream RPC error" });
+      let errBody = "";
+      try { errBody = await heliusResponse.text(); } catch {}
+      console.error(`Helius upstream error: HTTP ${heliusResponse.status} — ${errBody}`);
+
+      // 429 = rate limited — tell client to retry after 1s
+      if (heliusResponse.status === 429) {
+        return jsonResponse(429, { error: "RPC rate limited — retry shortly" });
+      }
+      // 401/403 = bad API key
+      if (heliusResponse.status === 401 || heliusResponse.status === 403) {
+        return jsonResponse(502, { error: `Helius auth error (${heliusResponse.status}) — check HELIUS_KEY env var` });
+      }
+      return jsonResponse(502, { error: `Upstream RPC error (${heliusResponse.status})` });
     }
 
     const data = await heliusResponse.json();

@@ -208,7 +208,7 @@ function estimateHolders(pair) {
    Results are streamed to the table as soon as each
    batch completes so the user sees tokens immediately.
    =================================================== */
-const PROCESS_BATCH_SIZE = 8;  // concurrent API calls per batch
+const PROCESS_BATCH_SIZE = 4;  // 4 tokens × 2 RPC calls = 8 concurrent Helius calls max
 
 async function processOneBatch(batch) {
   const batchResults = await Promise.allSettled(
