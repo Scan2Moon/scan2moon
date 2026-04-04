@@ -285,20 +285,65 @@ function _lbCalcSol2MoonReward(rank, adjReturn) {
 
 // ── Leaderboard index helpers ──
 // Keeps a JSON array at key "__lb_index__" with all wallet addresses.
-// This avoids needing store.list() which fails in local dev.
+// "__lb_index_sentinel__" is written once we have real wallets — used to
+// distinguish a genuine empty index from a cold-start null return.
+const LB_INDEX_KEY    = "__lb_index__";
+const LB_SENTINEL_KEY = "__lb_index_sentinel__";
+
 async function getIndex(store) {
   try {
-    const raw = await store.get("__lb_index__");
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
+    // Retry up to 3 times — cold Lambda starts can return null even for
+    // existing keys, and we must not treat that as "no wallets registered".
+    let raw = await store.get(LB_INDEX_KEY);
+    if (!raw) {
+      await new Promise(r => setTimeout(r, 400));
+      raw = await store.get(LB_INDEX_KEY);
+    }
+    if (!raw) {
+      await new Promise(r => setTimeout(r, 700));
+      raw = await store.get(LB_INDEX_KEY);
+    }
+    if (!raw) {
+      console.warn("getIndex: null after 3 retries");
+      return null; // null = uncertain; [] = confirmed empty
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch(e) {
+    console.warn("getIndex error:", e.message);
+    return null;
+  }
 }
 
 async function registerInLeaderboard(store, wallet) {
   try {
-    const index = await getIndex(store);
-    if (!index.includes(wallet)) {
-      index.push(wallet);
-      await store.set("__lb_index__", JSON.stringify(index));
+    const index = await getIndex(store); // null = uncertain after retries
+
+    if (index === null) {
+      // Blobs returned null after 3 retries. Check sentinel before writing.
+      // If the sentinel exists, real wallets are in the index but Blobs is
+      // cold-starting. Writing now would overwrite the real index with just
+      // this one wallet — wiping everyone else. Skip the write safely.
+      try {
+        const sentinel = await store.get(LB_SENTINEL_KEY);
+        if (sentinel) {
+          console.warn("registerInLeaderboard: empty index but sentinel exists — cold start, skipping write to protect index");
+          return;
+        }
+      } catch(e) {
+        console.warn("registerInLeaderboard: sentinel check failed, skipping write to be safe:", e.message);
+        return;
+      }
+      // No sentinel → genuinely empty index → safe to start fresh
+    }
+
+    const safeIndex = index || [];
+    if (!safeIndex.includes(wallet)) {
+      safeIndex.push(wallet);
+      await store.set(LB_INDEX_KEY, JSON.stringify(safeIndex));
+      // Write sentinel so future cold-start reads know wallets exist
+      try { await store.set(LB_SENTINEL_KEY, "1"); } catch {}
+      console.log("registerInLeaderboard: added", wallet.slice(0,8), "→ index now", safeIndex.length, "wallets");
     }
   } catch(e) {
     console.warn("Could not update leaderboard index:", e.message);
@@ -338,12 +383,26 @@ exports.handler = async function(event, context) {
       const callerWallet = (event.queryStringParameters && event.queryStringParameters.wallet_caller) || null;
 
       try {
-        const indexWallets = await getIndex(store);
-        console.log(`LB (from simulator): __lb_index__ has ${indexWallets.length} wallets`);
+        const indexWallets = await getIndex(store); // null = uncertain (cold start)
+        console.log(`LB (from simulator): __lb_index__ returned ${indexWallets === null ? "null (cold start)" : indexWallets.length + " wallets"}`);
+
+        // If index returned null (cold start), check sentinel before deciding what to do
+        if (indexWallets === null) {
+          try {
+            const sentinel = await store.get(LB_SENTINEL_KEY);
+            if (sentinel) {
+              // Wallets ARE registered but Blobs is temporarily unreachable.
+              // Return 503 so the client retries instead of showing empty leaderboard.
+              console.warn("LB GET: null index but sentinel exists — returning 503 for retry");
+              return { statusCode: 503, headers, body: JSON.stringify({ error: "Leaderboard temporarily unavailable, please retry" }) };
+            }
+          } catch {}
+          // No sentinel → genuinely no wallets yet → fall through with empty list
+        }
 
         // Always include the connected user's wallet so they see their own score
         // immediately, even if the index hasn't had time to propagate yet.
-        const merged = new Set(indexWallets);
+        const merged = new Set(indexWallets || []);
         if (callerWallet) merged.add(callerWallet);
         const wallets = Array.from(merged);
 

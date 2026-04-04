@@ -180,10 +180,23 @@ async function loadLeaderboard() {
     // wallet_caller ensures the connected user always appears in results via a
     // direct strong-consistency read, even if the index hasn't caught up yet.
     const walletParam = connectedWallet ? `&wallet_caller=${connectedWallet}` : "";
-    const res  = await fetch(`${SIM_API}?action=leaderboard&period=${currentPeriod}${walletParam}`);
+
+    // Retry up to 3 times on 503 — server returns 503 when the Blobs index is
+    // temporarily null (Lambda cold start). Better to retry than show empty leaderboard.
+    let res, retries = 0;
+    while (retries <= 2) {
+      res = await fetch(`${SIM_API}?action=leaderboard&period=${currentPeriod}${walletParam}`);
+      if (res.status !== 503) break;
+      retries++;
+      if (retries <= 2) {
+        console.warn(`Leaderboard 503, retry ${retries}/2…`);
+        await new Promise(r => setTimeout(r, 800 * retries));
+      }
+    }
     const data = await res.json();
 
-    if (data.error) throw new Error(data.error);
+    if (data.error && res.status !== 503) throw new Error(data.error);
+    if (res.status === 503) throw new Error("Leaderboard temporarily unavailable — please refresh in a moment");
 
     allEntries = data.entries || [];
     badgeDefs  = data.badgeDefs || [];
