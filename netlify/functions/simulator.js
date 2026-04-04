@@ -304,104 +304,125 @@ function _lbCalcSol2MoonReward(rank, adjReturn) {
   return 0;
 }
 
-// ── Leaderboard index — single JSON key, strong-consistency GET ──
+// ── Leaderboard storage ───────────────────────────────────────────────────
 //
-// store.list() is EVENTUALLY CONSISTENT and can return [] at any time,
-// not just on cold start. It cannot be relied upon for the leaderboard.
+// PRIMARY: Upstash Redis (if UPSTASH_REDIS_REST_URL + TOKEN are set)
+//   • Uses a Redis SET (SADD/SMEMBERS) — atomic, no race conditions,
+//     no cold-start issues, no eventual-consistency problems, no token expiry.
+//   • SADD is idempotent — calling it twice for the same wallet is safe.
 //
-// Instead we maintain ONE index key: __lb_index__ = JSON array of wallets.
-// Reading it uses { consistency: "strong" } — a single-key GET is orders
-// of magnitude more reliable than a list() call on Netlify Blobs.
+// FALLBACK: Netlify Blobs __lb_index__ (single strong-consistency GET key)
+//   • Works but can return null when Netlify's Blobs context token expires
+//     (~1-2h on warm Lambda containers) — that's the root cause of data loss.
+//   • Protected by sentinel + migration from per-wallet __reg_ keys.
 //
-// Writing uses a safe read-modify-write with:
-//   • 5 retries (300ms–1500ms) before concluding null is real
-//   • Sentinel check: if index is null but sentinel exists → Blobs is
-//     struggling → skip write rather than overwriting real data with []
-//   • We ALSO keep per-wallet __reg_<wallet> keys as pure-write backups;
-//     getLbIndex() migrates from them if the index key is somehow gone.
-//
-const LB_INDEX_KEY   = "__lb_index__";   // primary: JSON string[] of registered wallets
-const REG_PREFIX     = "__reg_";          // backup: per-wallet timestamp keys
-const REG_SENTINEL_KEY = "__reg_sentinel__"; // exists once any wallet has registered
+const LB_INDEX_KEY     = "__lb_index__";      // Blobs: JSON array of wallets
+const LB_REDIS_SET_KEY = "s2m:lb:wallets";    // Redis: SET of wallet addresses
+const REG_PREFIX       = "__reg_";             // Blobs: per-wallet timestamp keys (backup)
+const REG_SENTINEL_KEY = "__reg_sentinel__";   // Blobs: sentinel
+
+// ── Upstash Redis helpers ─────────────────────────────────────────────────
+function _redisAvailable() {
+  return !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+}
+async function _redisCmd(...args) {
+  const url   = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  const res = await fetch(url, {
+    method:  "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body:    JSON.stringify(args),
+  });
+  if (!res.ok) throw new Error(`Redis HTTP ${res.status}`);
+  const data = await res.json();
+  return data.result;
+}
 
 // ── READ the leaderboard wallet list ──────────────────────────────────────
-// Returns string[] (may be empty on genuine fresh deploy) or null (unavailable → 503).
 async function getLbIndex(store) {
-  // Try reading the single index key with strong consistency — up to 3 attempts.
+  // ── Redis path (preferred) ──
+  if (_redisAvailable()) {
+    try {
+      const members = await _redisCmd("SMEMBERS", LB_REDIS_SET_KEY);
+      const wallets = Array.isArray(members) ? members : [];
+      console.log("LB: Redis SMEMBERS →", wallets.length, "wallets");
+      return wallets;
+    } catch(e) {
+      console.error("LB: Redis SMEMBERS failed, falling back to Blobs:", e.message);
+    }
+  }
+
+  // ── Blobs path (fallback) ──
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       if (attempt > 0) await new Promise(r => setTimeout(r, 600));
       const raw = await store.get(LB_INDEX_KEY, { consistency: "strong" });
       if (raw) {
         const parsed = JSON.parse(raw);
-        console.log("LB: index read OK —", parsed.length, "wallets");
+        console.log("LB: Blobs index OK —", parsed.length, "wallets");
         return Array.isArray(parsed) ? parsed : [];
       }
     } catch(e) {
-      console.warn("getLbIndex attempt", attempt, "error:", e.message);
+      console.warn("getLbIndex Blobs attempt", attempt, ":", e.message);
     }
   }
 
-  // Index not found after retries — could be fresh deploy or severe Blobs outage.
-  // Try one migration pass from per-wallet __reg_ keys via list().
-  console.warn("LB: __lb_index__ not found — attempting migration from __reg_ keys");
+  // Blobs index missing — try migration from per-wallet keys
+  console.warn("LB: __lb_index__ missing — migration attempt");
   try {
     const listed = await store.listKeys(REG_PREFIX);
     if (listed && listed.length > 0) {
       const wallets = listed.map(k => k.slice(REG_PREFIX.length)).filter(w => w.length >= 32);
       if (wallets.length > 0) {
-        console.log("LB: migrating", wallets.length, "wallets into __lb_index__");
+        console.log("LB: migrating", wallets.length, "wallets");
         try { await store.set(LB_INDEX_KEY, JSON.stringify(wallets)); } catch {}
         return wallets;
       }
     }
-  } catch(e) {
-    console.warn("LB: migration list() failed:", e.message);
-  }
+  } catch(e) { console.warn("LB: migration list() failed:", e.message); }
 
-  // Check sentinel: if it exists we KNOW wallets are registered even though we can't find them.
-  // Return null → caller returns 503 → client retries.
+  // Check sentinel — if present, data exists but Blobs is struggling → 503
   try {
     const sentinel = await store.get(REG_SENTINEL_KEY, { consistency: "strong" });
-    if (sentinel) {
-      console.warn("LB: sentinel exists but index+list both failed → 503");
-      return null;
-    }
+    if (sentinel) { console.warn("LB: sentinel exists but Blobs failing → 503"); return null; }
   } catch {}
 
-  // No sentinel → genuinely fresh deployment → empty is correct.
-  console.log("LB: no index, no sentinel — fresh deployment, empty leaderboard");
+  console.log("LB: no sentinel — fresh deployment");
   return [];
 }
 
 // ── WRITE a wallet into the index ─────────────────────────────────────────
-// Safe read-modify-write: retries + sentinel guard prevent data wipe.
 async function addToLbIndex(store, wallet) {
-  // Read with strong consistency, retry up to 5× with growing delays.
+  // ── Redis path (preferred) — SADD is atomic, no wipe risk ──
+  if (_redisAvailable()) {
+    try {
+      await _redisCmd("SADD", LB_REDIS_SET_KEY, wallet);
+      console.log("LB: Redis SADD OK for", wallet.slice(0, 8));
+      return;
+    } catch(e) {
+      console.error("LB: Redis SADD failed, falling back to Blobs:", e.message);
+    }
+  }
+
+  // ── Blobs path (fallback) — safe read-modify-write with null protection ──
   let raw = null;
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       raw = await store.get(LB_INDEX_KEY, { consistency: "strong" });
       if (raw !== null) break;
-    } catch(e) {
-      console.warn("addToLbIndex read err attempt", attempt, ":", e.message);
-    }
+    } catch(e) { console.warn("addToLbIndex read err:", attempt, e.message); }
     if (attempt < 4) await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
   }
 
   if (raw === null) {
-    // Still null after 5 attempts — sentinel tells us whether this is safe to create fresh.
     try {
       const sentinel = await store.get(REG_SENTINEL_KEY, { consistency: "strong" });
       if (sentinel) {
-        // Sentinel present → real data exists somewhere → Blobs is struggling.
-        // Do NOT write an empty index — would wipe all existing wallets.
-        console.warn("addToLbIndex: null+sentinel → skipping write to protect existing data");
+        console.warn("addToLbIndex: null+sentinel → skipping (Blobs outage, data protected)");
         return;
       }
     } catch {}
-    // No sentinel → fresh deployment → safe to start a new index.
-    console.log("addToLbIndex: null+no sentinel → creating fresh index");
+    console.log("addToLbIndex: null+no sentinel → creating fresh Blobs index");
   }
 
   const index = raw ? JSON.parse(raw) : [];
@@ -409,38 +430,50 @@ async function addToLbIndex(store, wallet) {
   if (!index.includes(wallet)) {
     index.push(wallet);
     await store.set(LB_INDEX_KEY, JSON.stringify(index));
-    console.log("addToLbIndex: wrote", index.length, "wallets (added", wallet.slice(0, 8), ")");
-  } else {
-    console.log("addToLbIndex:", wallet.slice(0, 8), "already in index");
+    try { await store.set(REG_SENTINEL_KEY, "1"); } catch {}
+    console.log("addToLbIndex: Blobs wrote", index.length, "wallets");
   }
 }
 
 // ── CHECK if a wallet is registered ───────────────────────────────────────
 async function isWalletRegistered(store, wallet) {
+  // Redis: check set membership
+  if (_redisAvailable()) {
+    try {
+      const v = await _redisCmd("SISMEMBER", LB_REDIS_SET_KEY, wallet);
+      if (v === 1) return true;
+    } catch(e) { console.warn("isWalletRegistered Redis err:", e.message); }
+  }
+  // Blobs: check per-wallet key
   try {
-    // Check per-wallet key (strong) — fastest single-key read.
     const v = await store.get(REG_PREFIX + wallet, { consistency: "strong" });
     if (v) return true;
-    // Also check the index as a fallback (in case __reg_ key is missing).
+    // Also check index
     const raw = await store.get(LB_INDEX_KEY, { consistency: "strong" });
-    if (raw) {
-      const index = JSON.parse(raw);
-      return Array.isArray(index) && index.includes(wallet);
-    }
-    return false;
-  } catch { return false; }
+    if (raw) { const idx = JSON.parse(raw); return Array.isArray(idx) && idx.includes(wallet); }
+  } catch {}
+  return false;
 }
 
 // ── REGISTER a wallet ──────────────────────────────────────────────────────
 async function registerInLeaderboard(store, wallet) {
   try {
-    // 1. Per-wallet key — pure write, safe, used as migration source.
+    if (_redisAvailable()) {
+      // Redis: single atomic SADD — this is all we need
+      await _redisCmd("SADD", LB_REDIS_SET_KEY, wallet);
+      console.log("registerInLeaderboard (Redis): done for", wallet.slice(0, 8));
+      // Also write Blobs per-wallet key + sentinel as backup for when Redis is unavailable
+      try {
+        await store.set(REG_PREFIX + wallet, new Date().toISOString());
+        await store.set(REG_SENTINEL_KEY, "1");
+      } catch {}
+      return;
+    }
+    // Blobs-only path
     await store.set(REG_PREFIX + wallet, new Date().toISOString());
-    // 2. Sentinel — written once, lives forever, protects against wipe.
     try { await store.set(REG_SENTINEL_KEY, "1"); } catch {}
-    // 3. Add to the primary index (safe read-modify-write with null protection).
     await addToLbIndex(store, wallet);
-    console.log("registerInLeaderboard: done for", wallet.slice(0, 8));
+    console.log("registerInLeaderboard (Blobs): done for", wallet.slice(0, 8));
   } catch(e) {
     console.warn("Could not register in leaderboard:", e.message);
   }

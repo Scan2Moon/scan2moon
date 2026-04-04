@@ -198,12 +198,52 @@ async function loadLeaderboard() {
     if (data.error && res.status !== 503) throw new Error(data.error);
     if (res.status === 503) throw new Error("Leaderboard temporarily unavailable — please refresh in a moment");
 
-    allEntries = data.entries || [];
-    badgeDefs  = data.badgeDefs || [];
+    const freshEntries = data.entries || [];
+    badgeDefs = data.badgeDefs || [];
 
-    // Update stats
+    // If server returned real entries, cache them so we survive future outages.
+    // If server returned 0 entries but we have a valid cache, use the cache instead
+    // — this prevents the leaderboard from going blank when Blobs/Redis is flaky.
+    if (freshEntries.length > 0) {
+      allEntries = freshEntries;
+      try {
+        localStorage.setItem("s2m_lb_cache", JSON.stringify({
+          entries:  freshEntries,
+          badgeDefs: data.badgeDefs || [],
+          mvp:      data.mvp || {},
+          savedAt:  Date.now()
+        }));
+      } catch {}
+    } else {
+      // Server returned 0 — try the cache (valid up to 24h)
+      try {
+        const raw = localStorage.getItem("s2m_lb_cache");
+        if (raw) {
+          const c = JSON.parse(raw);
+          if (Date.now() - c.savedAt < 86_400_000 && c.entries.length > 0) {
+            allEntries = c.entries;
+            if (c.badgeDefs) badgeDefs = c.badgeDefs;
+            if (c.mvp) data.mvp = c.mvp;
+            console.warn("Leaderboard: server returned 0, showing cached data");
+            const updateEl = document.getElementById("lbLastUpdate");
+            if (updateEl) updateEl.textContent = "⚠ Showing cached data";
+            const totalEl = document.getElementById("lbTotalTraders");
+            if (totalEl) totalEl.textContent = `${allEntries.length} traders (cached)`;
+            renderMvpStrip(data.mvp);
+            lbPage = 0;
+            renderTable(allEntries);
+            if (connectedWallet) renderYourRank(allEntries);
+            renderBadgesShowcase();
+            return; // skip normal render below
+          }
+        }
+      } catch {}
+      allEntries = []; // genuinely empty (fresh deploy, no cache)
+    }
+
+    // Normal render path (server returned real data)
     const totalEl = document.getElementById("lbTotalTraders");
-    if (totalEl) totalEl.textContent = `${data.total || 0} traders`;
+    if (totalEl) totalEl.textContent = `${data.total || allEntries.length} traders`;
 
     const updateEl = document.getElementById("lbLastUpdate");
     if (updateEl) {
@@ -211,21 +251,35 @@ async function loadLeaderboard() {
       updateEl.textContent = `Updated ${now.toLocaleTimeString()}`;
     }
 
-    // Render MVP strip
     renderMvpStrip(data.mvp);
-
-    // Render full unified table (paginated)
     lbPage = 0;
     renderTable(allEntries);
-
-    // Render your rank
     if (connectedWallet) renderYourRank(allEntries);
-
-    // Render badges showcase
     renderBadgesShowcase();
 
   } catch (err) {
     console.error("Leaderboard load failed:", err);
+    // On any error, try to show cached data rather than "No rankings yet"
+    try {
+      const raw = localStorage.getItem("s2m_lb_cache");
+      if (raw) {
+        const c = JSON.parse(raw);
+        if (Date.now() - c.savedAt < 86_400_000 && c.entries.length > 0) {
+          allEntries = c.entries;
+          if (c.badgeDefs) badgeDefs = c.badgeDefs;
+          const updateEl = document.getElementById("lbLastUpdate");
+          if (updateEl) updateEl.textContent = "⚠ Showing cached data";
+          const totalEl = document.getElementById("lbTotalTraders");
+          if (totalEl) totalEl.textContent = `${allEntries.length} traders (cached)`;
+          renderMvpStrip(c.mvp || {});
+          lbPage = 0;
+          renderTable(allEntries);
+          if (connectedWallet) renderYourRank(allEntries);
+          renderBadgesShowcase();
+          return;
+        }
+      }
+    } catch {}
     if (tableBody) {
       tableBody.innerHTML = `
         <div class="lb-empty">

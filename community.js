@@ -236,25 +236,30 @@ function saveCachedStats(data) {
 }
 
 async function fetchStats() {
-  // Show cached stats immediately so UI never flickers to 0 during fetch
+  // Always show cached stats immediately — UI never flickers to 0
   const cached = loadCachedStats();
   if (cached) updateStatsUI(cached);
 
   try {
     const data = await safeFetch(statsEndpoint);
-    // Only update UI & cache if server returns meaningful data.
-    // A 503 throws before we get here (safeFetch throws on non-OK),
-    // so the cached display stays. A 200 with all-zeros is also ignored
-    // when we have a valid cache, preventing a brief Blobs null from
-    // wiping the displayed numbers.
-    const total = (data.visits || 0) + (data.scans || 0) + (data.moon || 0);
-    if (total > 0 || !cached) {
+    // Only update UI & cache if new values are >= cached values.
+    // This prevents a server-side reset from wiping the displayed numbers.
+    // Stats are monotonically increasing counters — they should NEVER decrease.
+    const shouldUpdate = !cached || (
+      (data.visits || 0) >= (cached.visits || 0) &&
+      (data.scans  || 0) >= (cached.scans  || 0) &&
+      (data.moon   || 0) >= (cached.moon   || 0)
+    );
+    if (shouldUpdate) {
       updateStatsUI(data);
       saveCachedStats(data);
+    } else {
+      // Server returned lower values than cache — data was wiped server-side.
+      // Keep the cached (higher) values displayed; don't corrupt the cache.
+      console.warn("Stats: server returned lower values than cache — keeping cached display");
     }
-    // If total === 0 and we have cached data, keep the cache displayed (don't update UI)
   } catch (err) {
-    // 503 (Blobs cold-start) or network error — cached display stays, no action needed
+    // 503 or network error — cached display stays
     console.warn("Stats fetch failed (cached values retained):", err.message);
   }
 }
@@ -269,14 +274,18 @@ async function incrementGlobalStat(type) {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ type })
     });
-    // Increment succeeded — update display with the returned (incremented) values
-    const total = (result.visits || 0) + (result.scans || 0) + (result.moon || 0);
-    if (total > 0) {
+    // Only update if returned values are >= cached (stats never decrease)
+    const cached2 = loadCachedStats();
+    const shouldUpdate = !cached2 || (
+      (result.visits || 0) >= (cached2.visits || 0) &&
+      (result.scans  || 0) >= (cached2.scans  || 0) &&
+      (result.moon   || 0) >= (cached2.moon   || 0)
+    );
+    if (shouldUpdate) {
       updateStatsUI(result);
       saveCachedStats(result);
     } else {
-      // Server returned zeros — don't clobber cached display, just re-fetch
-      await fetchStats();
+      console.warn("Stat increment returned lower values than cache — keeping cached display");
     }
   } catch (err) {
     // 503 (Blobs protecting data) or network error — just show cached values
