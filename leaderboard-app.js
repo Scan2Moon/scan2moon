@@ -235,11 +235,12 @@ async function loadLeaderboard() {
 function renderMvpStrip(mvp) {
   if (!mvp) return;
 
+  // pnlKey maps each slot to the correct per-period P/L field on the entry object
   const slots = [
-    { key: "daily",   nameId: "mvpDayName",     valId: "mvpDayVal",     isAllTime: false },
-    { key: "weekly",  nameId: "mvpWeekName",     valId: "mvpWeekVal",    isAllTime: false },
-    { key: "monthly", nameId: "mvpMonthName",    valId: "mvpMonthVal",   isAllTime: false },
-    { key: "alltime", nameId: "mvpAllTimeName",  valId: "mvpAllTimeVal", isAllTime: true  },
+    { key: "daily",   nameId: "mvpDayName",    valId: "mvpDayVal",     pnlKey: "dailyPnL",  isAllTime: false },
+    { key: "weekly",  nameId: "mvpWeekName",   valId: "mvpWeekVal",    pnlKey: "weeklyPnL", isAllTime: false },
+    { key: "monthly", nameId: "mvpMonthName",  valId: "mvpMonthVal",   pnlKey: "monthlyPnL",isAllTime: false },
+    { key: "alltime", nameId: "mvpAllTimeName",valId: "mvpAllTimeVal", pnlKey: "totalPnL",  isAllTime: true  },
   ];
 
   for (const slot of slots) {
@@ -255,7 +256,8 @@ function renderMvpStrip(mvp) {
         const sign = adjR >= 0 ? "+" : "";
         valEl.textContent = `${sign}${adjR.toFixed(2)}% adj. return`;
       } else {
-        const pnl  = entry.periodPnL ?? 0;
+        // Use the period-specific P/L so Daily MVP shows today's P/L only, etc.
+        const pnl  = entry[slot.pnlKey] ?? 0;
         const sign = pnl >= 0 ? "+" : "";
         valEl.textContent = pnl !== 0
           ? `${sign}${formatSol(pnl)} P/L`
@@ -263,7 +265,7 @@ function renderMvpStrip(mvp) {
       }
     } else {
       nameEl.textContent = "—";
-      valEl.textContent  = "No data yet";
+      valEl.textContent  = "No activity yet";
     }
   }
 }

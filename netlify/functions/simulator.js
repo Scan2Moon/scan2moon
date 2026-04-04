@@ -358,7 +358,11 @@ exports.handler = async function(event, context) {
             if (profile.createdAt && new Date(profile.createdAt) > new Date(Date.now() + 60000)) continue;
 
             const adjReturn  = _lbComputeRiskAdjReturn(profile);
-            const periodPnL  = _lbGetPeriodPnL(profile, period);
+            // Compute P/L for ALL four periods so each MVP slot uses the right window
+            const dailyPnL   = parseFloat(_lbGetPeriodPnL(profile, "daily").toFixed(2));
+            const weeklyPnL  = parseFloat(_lbGetPeriodPnL(profile, "weekly").toFixed(2));
+            const monthlyPnL = parseFloat(_lbGetPeriodPnL(profile, "monthly").toFixed(2));
+            const periodPnL  = parseFloat(_lbGetPeriodPnL(profile, period).toFixed(2));
             const badges     = profile.badges || [];
             const trades     = profile.trades || [];
             const sells      = trades.filter(t => t.type === "sell");
@@ -369,7 +373,10 @@ exports.handler = async function(event, context) {
               wallet:       profile.wallet || w,
               accountName:  profile.accountName || "Ape",
               adjReturn,
-              periodPnL:    parseFloat(periodPnL.toFixed(2)),
+              periodPnL,
+              dailyPnL,
+              weeklyPnL,
+              monthlyPnL,
               totalPnL:     parseFloat((profile.totalPnL || 0).toFixed(2)),
               balance:      parseFloat((profile.balance || 10).toFixed(4)),
               winCount:     profile.winCount  || 0,
@@ -393,13 +400,13 @@ exports.handler = async function(event, context) {
           e.sol2moonReward = _lbCalcSol2MoonReward(i + 1, e.adjReturn);
         });
 
-        const periodWinners  = [...entries].filter(e => e.periodPnL > 0).sort((a, b) => b.periodPnL - a.periodPnL);
-        const alltimeWinners = entries.filter(e => (e.totalPnL || 0) > 0);
+        // Build MVP per period using each period's own P/L — not the shared periodPnL
+        // which only reflects the currently selected tab period.
         const mvp = {
-          daily:   periodWinners[0]  || null,
-          weekly:  periodWinners[0]  || null,
-          monthly: periodWinners[0]  || null,
-          alltime: alltimeWinners[0] || null,
+          daily:   [...entries].filter(e => e.dailyPnL   > 0).sort((a, b) => b.dailyPnL   - a.dailyPnL)[0]   || null,
+          weekly:  [...entries].filter(e => e.weeklyPnL  > 0).sort((a, b) => b.weeklyPnL  - a.weeklyPnL)[0]  || null,
+          monthly: [...entries].filter(e => e.monthlyPnL > 0).sort((a, b) => b.monthlyPnL - a.monthlyPnL)[0] || null,
+          alltime: [...entries].filter(e => (e.totalPnL  || 0) > 0).sort((a, b) => b.totalPnL - a.totalPnL)[0] || null,
         };
 
         return { statusCode: 200, headers, body: JSON.stringify({
