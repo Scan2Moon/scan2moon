@@ -427,7 +427,13 @@ exports.handler = async function(event, context) {
         for (const w of wallets) {
           if (w === "__lb_index__") continue;
           try {
-            const raw = await store.get(w);
+            // Retry profile read for the caller's own wallet — strong-consistency get()
+            // can still return null occasionally on cold start. One extra retry is enough.
+            let raw = await store.get(w);
+            if (!raw && w === callerWallet) {
+              await new Promise(r => setTimeout(r, 500));
+              raw = await store.get(w);
+            }
             if (!raw) continue;
             const profile = JSON.parse(raw);
             // Skip future-dated profiles (anti-cheat)
