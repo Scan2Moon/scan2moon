@@ -507,8 +507,10 @@ exports.handler = async function(event, context) {
         // moment. Return 503 so the client can retry instead of accepting a
         // stale "new user" state that could wipe the real profile on next action.
         const index = await getIndex(store);
-        if (index.includes(wallet)) {
-          console.warn("GET: wallet in leaderboard but profile null after 3 retries — returning 503");
+        // index === null means Blobs is uncertain (cold start) — treat as 503.
+        // index.includes(wallet) means wallet has a real profile that Blobs is hiding — also 503.
+        if (index === null || index.includes(wallet)) {
+          console.warn("GET: profile null and index uncertain/match after 3 retries — returning 503");
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
         }
 
@@ -577,8 +579,10 @@ exports.handler = async function(event, context) {
         // rather than wiping a real profile.
         if (action !== "reset") {
           const index = await getIndex(store);
-          if (index.includes(wallet)) {
-            console.warn("POST action", action, ": wallet in leaderboard but profile null after 3 retries — returning 503");
+          // index === null means Blobs is uncertain (cold start) — treat as 503.
+          // index.includes(wallet) means wallet has a real profile Blobs is hiding — also 503.
+          if (index === null || index.includes(wallet)) {
+            console.warn("POST action", action, ": profile null and index uncertain/match — returning 503");
             return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
           }
         }
