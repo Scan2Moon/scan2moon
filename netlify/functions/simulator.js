@@ -104,7 +104,7 @@ async function getStore() {
           return v;
         } catch(e) {
           console.error("Blobs GET failed:", key.slice(0,8), e.message);
-          throw e; // propagate so caller can return 500
+          throw e;
         }
       },
       async set(key, val) {
@@ -113,23 +113,44 @@ async function getStore() {
           console.log("Blobs SET", key.slice(0,8), "→ OK");
         } catch(e) {
           console.error("Blobs SET failed:", key.slice(0,8), e.message);
-          throw e; // propagate so caller can return 500
+          throw e;
+        }
+      },
+      // listKeys(prefix): returns all keys that start with prefix, or null on failure.
+      // Uses eventual consistency — fine for leaderboard enumeration.
+      async listKeys(prefix) {
+        try {
+          const allKeys = [];
+          let cursor;
+          do {
+            const opts = prefix ? { prefix } : {};
+            if (cursor) opts.cursor = cursor;
+            const result = await store.list(opts);
+            const page   = result.blobs || [];
+            allKeys.push(...page.map(b => b.key));
+            cursor = result.cursor;
+          } while (cursor);
+          console.log("Blobs LIST prefix='" + (prefix||"") + "' →", allKeys.length, "keys");
+          return allKeys;
+        } catch(e) {
+          console.warn("Blobs listKeys failed:", e.message);
+          return null; // null = unavailable; [] = genuinely empty
         }
       }
     };
   } catch(e) {
     if (isProduction) {
-      // In production, Blobs MUST be available. Falling back to /tmp would
-      // silently corrupt or reset user profiles because /tmp is ephemeral
-      // per Lambda invocation. Throw so the caller returns a 500 instead.
       console.error("FATAL: @netlify/blobs unavailable in production:", e.message);
       throw new Error("Storage unavailable — please retry.");
     }
-    // Local dev only — /tmp is fine as a scratch store
     console.warn("@netlify/blobs not available, using /tmp file store (local dev only):", e.message);
     return {
       async get(key) { return _readDb()[key] || null; },
-      async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); }
+      async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); },
+      async listKeys(prefix) {
+        const db = _readDb();
+        return Object.keys(db).filter(k => !prefix || k.startsWith(prefix));
+      }
     };
   }
 }
@@ -283,70 +304,41 @@ function _lbCalcSol2MoonReward(rank, adjReturn) {
   return 0;
 }
 
-// ── Leaderboard index helpers ──
-// Keeps a JSON array at key "__lb_index__" with all wallet addresses.
-// "__lb_index_sentinel__" is written once we have real wallets — used to
-// distinguish a genuine empty index from a cold-start null return.
-const LB_INDEX_KEY    = "__lb_index__";
-const LB_SENTINEL_KEY = "__lb_index_sentinel__";
+// ── Leaderboard registration — per-wallet keys ──
+//
+// OLD approach: one __lb_index__ JSON array.  Problem: read-then-write meant a
+// cold-start null read would wipe the whole array when we wrote back just one wallet.
+//
+// NEW approach: each wallet gets its own key  "__reg_<wallet>" = ISO timestamp.
+// Registration is a PURE WRITE — no read needed, no overwrite risk, impossible
+// to accidentally wipe everyone else's registration.
+// The leaderboard GET enumerates registrations via store.listKeys("__reg_").
+// Profile-existence guard uses store.get("__reg_<wallet>") — a single fast read.
+//
+const REG_PREFIX = "__reg_";
 
-async function getIndex(store) {
-  try {
-    // Retry up to 3 times — cold Lambda starts can return null even for
-    // existing keys, and we must not treat that as "no wallets registered".
-    let raw = await store.get(LB_INDEX_KEY);
-    if (!raw) {
-      await new Promise(r => setTimeout(r, 400));
-      raw = await store.get(LB_INDEX_KEY);
-    }
-    if (!raw) {
-      await new Promise(r => setTimeout(r, 700));
-      raw = await store.get(LB_INDEX_KEY);
-    }
-    if (!raw) {
-      console.warn("getIndex: null after 3 retries");
-      return null; // null = uncertain; [] = confirmed empty
-    }
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch(e) {
-    console.warn("getIndex error:", e.message);
-    return null;
-  }
+// Returns all registered wallet addresses, or null if listing is unavailable.
+async function getRegisteredWallets(store) {
+  const keys = await store.listKeys(REG_PREFIX);
+  if (keys === null) return null; // unavailable (store.list() failed)
+  return keys.map(k => k.slice(REG_PREFIX.length)).filter(w => w.length >= 32);
 }
 
+// Returns true if this wallet has ever been registered (pure GET — no list needed).
+async function isWalletRegistered(store, wallet) {
+  try {
+    const v = await store.get(REG_PREFIX + wallet);
+    return !!v;
+  } catch { return false; }
+}
+
+// Register a wallet — pure write, never reads the existing list, never wipes anyone.
 async function registerInLeaderboard(store, wallet) {
   try {
-    const index = await getIndex(store); // null = uncertain after retries
-
-    if (index === null) {
-      // Blobs returned null after 3 retries. Check sentinel before writing.
-      // If the sentinel exists, real wallets are in the index but Blobs is
-      // cold-starting. Writing now would overwrite the real index with just
-      // this one wallet — wiping everyone else. Skip the write safely.
-      try {
-        const sentinel = await store.get(LB_SENTINEL_KEY);
-        if (sentinel) {
-          console.warn("registerInLeaderboard: empty index but sentinel exists — cold start, skipping write to protect index");
-          return;
-        }
-      } catch(e) {
-        console.warn("registerInLeaderboard: sentinel check failed, skipping write to be safe:", e.message);
-        return;
-      }
-      // No sentinel → genuinely empty index → safe to start fresh
-    }
-
-    const safeIndex = index || [];
-    if (!safeIndex.includes(wallet)) {
-      safeIndex.push(wallet);
-      await store.set(LB_INDEX_KEY, JSON.stringify(safeIndex));
-      // Write sentinel so future cold-start reads know wallets exist
-      try { await store.set(LB_SENTINEL_KEY, "1"); } catch {}
-      console.log("registerInLeaderboard: added", wallet.slice(0,8), "→ index now", safeIndex.length, "wallets");
-    }
+    await store.set(REG_PREFIX + wallet, new Date().toISOString());
+    console.log("registerInLeaderboard: registered", wallet.slice(0, 8));
   } catch(e) {
-    console.warn("Could not update leaderboard index:", e.message);
+    console.warn("Could not register in leaderboard:", e.message);
   }
 }
 
@@ -383,26 +375,19 @@ exports.handler = async function(event, context) {
       const callerWallet = (event.queryStringParameters && event.queryStringParameters.wallet_caller) || null;
 
       try {
-        const indexWallets = await getIndex(store); // null = uncertain (cold start)
-        console.log(`LB (from simulator): __lb_index__ returned ${indexWallets === null ? "null (cold start)" : indexWallets.length + " wallets"}`);
+        // getRegisteredWallets uses store.listKeys("__reg_") — each wallet has its
+        // own key, so there is nothing to "wipe". Returns null if list() fails.
+        const regWallets = await getRegisteredWallets(store);
+        console.log(`LB: registered wallets = ${regWallets === null ? "unavailable" : regWallets.length}`);
 
-        // If index returned null (cold start), check sentinel before deciding what to do
-        if (indexWallets === null) {
-          try {
-            const sentinel = await store.get(LB_SENTINEL_KEY);
-            if (sentinel) {
-              // Wallets ARE registered but Blobs is temporarily unreachable.
-              // Return 503 so the client retries instead of showing empty leaderboard.
-              console.warn("LB GET: null index but sentinel exists — returning 503 for retry");
-              return { statusCode: 503, headers, body: JSON.stringify({ error: "Leaderboard temporarily unavailable, please retry" }) };
-            }
-          } catch {}
-          // No sentinel → genuinely no wallets yet → fall through with empty list
+        if (regWallets === null) {
+          // store.list() failed — return 503 so the client retries
+          return { statusCode: 503, headers, body: JSON.stringify({ error: "Leaderboard temporarily unavailable, please retry" }) };
         }
 
-        // Always include the connected user's wallet so they see their own score
-        // immediately, even if the index hasn't had time to propagate yet.
-        const merged = new Set(indexWallets || []);
+        // Always include the caller's wallet directly — covers the brief window
+        // between registration write and store.list() eventual-consistency catch-up.
+        const merged = new Set(regWallets);
         if (callerWallet) merged.add(callerWallet);
         const wallets = Array.from(merged);
 
@@ -503,16 +488,15 @@ exports.handler = async function(event, context) {
 
       if (!raw) {
         // Still null after 3 attempts.
-        // Only block with 503 if the wallet is CONFIRMED in the index.
-        // If the index itself is null (cold start), let the user in as isNew — the
-        // POST guard (which checks the sentinel) will stop data being overwritten
-        // if they take an action. Being too aggressive here locks out new users.
-        const index = await getIndex(store);
-        if (Array.isArray(index) && index.includes(wallet)) {
-          console.warn("GET: wallet confirmed in index but profile null — returning 503");
+        // Check whether this wallet is registered (single fast key read).
+        // If it is registered, it HAS a real profile — Blobs is cold-starting.
+        // Return 503 so the client retries instead of getting a fake isNew.
+        const registered = await isWalletRegistered(store, wallet);
+        if (registered) {
+          console.warn("GET: wallet registered but profile null — returning 503");
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
         }
-        // index === null (uncertain) or wallet not in index → treat as new user
+        // Not registered → genuinely new user
 
         // Genuinely new wallet — no profile found and not in leaderboard.
         // DO NOT save here: the profile is created on the first real action.
@@ -578,27 +562,13 @@ exports.handler = async function(event, context) {
         // Blobs is having a bad moment — return 503 so the client retries
         // rather than wiping a real profile.
         if (action !== "reset") {
-          const index = await getIndex(store);
-          if (Array.isArray(index) && index.includes(wallet)) {
-            // Wallet confirmed in index → has a real profile Blobs is hiding → 503
-            console.warn("POST action", action, ": wallet in index but profile null — returning 503");
+          // Check if wallet is registered (its own key — single fast read, no fragile list).
+          // If registered, it has a real profile that Blobs is temporarily hiding → 503.
+          // If not registered, it's a genuine new user → safe to create fresh profile.
+          const registered = await isWalletRegistered(store, wallet);
+          if (registered) {
+            console.warn("POST action", action, ": wallet registered but profile null — returning 503");
             return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
-          }
-          if (index === null) {
-            // Index unreadable (cold start) — check sentinel to decide whether
-            // real data exists. If it does, refuse to write (protect existing profiles).
-            // If no sentinel, this is a fresh deployment → safe to create new profile.
-            try {
-              const sentinel = await store.get(LB_SENTINEL_KEY);
-              if (sentinel) {
-                console.warn("POST action", action, ": index null but sentinel exists — Blobs cold start, returning 503");
-                return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
-              }
-              console.log("POST action", action, ": index null, no sentinel — fresh deployment, proceeding");
-            } catch(e) {
-              console.warn("POST: sentinel check failed, returning 503 to be safe:", e.message);
-              return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
-            }
           }
         }
         profile = {
