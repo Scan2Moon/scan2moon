@@ -437,8 +437,13 @@ exports.handler = async function(event, context) {
           }
         }
 
-        // Sort by risk-adjusted return (highest first)
-        entries.sort((a, b) => b.adjReturn - a.adjReturn);
+        // Sort by period-appropriate metric
+        if (period === "alltime") {
+          entries.sort((a, b) => b.adjReturn - a.adjReturn);
+        } else {
+          const pnlKey = period === "daily" ? "dailyPnL" : period === "weekly" ? "weeklyPnL" : "monthlyPnL";
+          entries.sort((a, b) => (b[pnlKey] || 0) - (a[pnlKey] || 0));
+        }
         entries.forEach((e, i) => {
           e.rank = i + 1;
           e.sol2moonReward = _lbCalcSol2MoonReward(i + 1, e.adjReturn);

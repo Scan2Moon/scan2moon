@@ -319,7 +319,11 @@ function renderTable(entries) {
     const isYou   = connectedWallet && e.wallet === connectedWallet;
     const adjR    = e.adjReturn ?? 0;
     const sign    = adjR >= 0 ? "+" : "";
-    const pnl     = e.totalPnL ?? 0;
+    // Show period-specific P/L in the table column
+    const pnl     = currentPeriod === "alltime"  ? (e.totalPnL   ?? 0)
+                  : currentPeriod === "daily"     ? (e.dailyPnL   ?? 0)
+                  : currentPeriod === "weekly"    ? (e.weeklyPnL  ?? 0)
+                  :                                 (e.monthlyPnL ?? 0);
     const pnlSign = pnl >= 0 ? "+" : "";
     const shortW  = e.wallet ? e.wallet.slice(0, 4) + "…" + e.wallet.slice(-4) : "";
 
@@ -405,7 +409,7 @@ function renderTable(entries) {
           <th>Trader</th>
           <th>Badges</th>
           <th>Adj. Return ↕</th>
-          <th>All Time P/L</th>
+          <th>${currentPeriod === "alltime" ? "All Time P/L" : currentPeriod === "daily" ? "Today's P/L" : currentPeriod === "weekly" ? "Weekly P/L" : "Monthly P/L"}</th>
           <th>Avg Risk</th>
           <th>Trades</th>
           <th>Last Active</th>
