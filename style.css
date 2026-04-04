@@ -1673,6 +1673,16 @@ a {
   border-color: rgba(255,255,255,0.18);
 }
 
+/* Contact / Email */
+.s2m-footer-link--email {
+  background: rgba(44,255,201,0.04);
+  border-color: rgba(44,255,201,0.12);
+}
+.s2m-footer-link--email:hover {
+  background: rgba(44,255,201,0.10);
+  border-color: rgba(44,255,201,0.30);
+}
+
 .s2m-footer-link-icon {
   font-size: 18px;
   flex-shrink: 0;

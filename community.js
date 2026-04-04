@@ -123,6 +123,15 @@ function renderCommunityPanel() {
             <span class="s2m-footer-link-arrow">↗</span>
           </a>
 
+          <a href="mailto:team@scan2moon.com" class="s2m-footer-link s2m-footer-link--email">
+            <span class="s2m-footer-link-icon">✉️</span>
+            <div class="s2m-footer-link-text">
+              <div class="s2m-footer-link-name">Contact Us</div>
+              <div class="s2m-footer-link-sub">team@scan2moon.com</div>
+            </div>
+            <span class="s2m-footer-link-arrow">↗</span>
+          </a>
+
         </div>
       </div>
 
