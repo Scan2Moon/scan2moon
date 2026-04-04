@@ -867,17 +867,15 @@ exports.handler = async function(event, context) {
     }
 
     // ── REGISTER (leaderboard registration without requiring a trade) ──
-    // Called by leaderboard-app.js on page load so any connected wallet
-    // appears in the leaderboard index that THIS function owns.
-    // If the wallet already has a profile, it's registered and its adj. return
-    // is returned so the leaderboard page can show a quick score preview.
-    // If no profile yet, the wallet is still added to the index so it shows up
-    // as soon as the profile is created.
+    // Called by leaderboard-app.js on page load / connect / Submit Score button.
+    // IMPORTANT: only adds to __lb_index__ if the wallet actually has a saved profile.
+    // Adding profileless wallets to the index breaks the 503 guard — the GET handler
+    // would see the wallet in the index, assume a real profile exists, and block forever.
     if (action === "register") {
-      await registerInLeaderboard(store, wallet);
-      // Return adj. return if profile exists so Submit Score can show a preview
       const existingRaw = await store.get(wallet);
       if (existingRaw) {
+        // Profile exists — register in index and return score preview
+        await registerInLeaderboard(store, wallet);
         const existingProfile = JSON.parse(existingRaw);
         const adjReturn = _lbComputeRiskAdjReturn(existingProfile);
         const badges    = existingProfile.badges || [];
@@ -886,8 +884,11 @@ exports.handler = async function(event, context) {
           message: "Registered in leaderboard"
         })};
       }
+      // No profile yet — do NOT add to index. The wallet will be added automatically
+      // when its first real action (buy/sell/daily_login) is saved.
       return { statusCode: 200, headers, body: JSON.stringify({
-        success: true, registered: true, message: "Registered in leaderboard (no profile yet)"
+        success: true, registered: false,
+        message: "No profile yet — will register on first simulator action"
       })};
     }
 
