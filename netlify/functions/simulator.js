@@ -315,19 +315,43 @@ function _lbCalcSol2MoonReward(rank, adjReturn) {
 // The leaderboard GET enumerates registrations via store.listKeys("__reg_").
 // Profile-existence guard uses store.get("__reg_<wallet>") — a single fast read.
 //
-const REG_PREFIX = "__reg_";
+const REG_PREFIX      = "__reg_";
+const REG_SENTINEL_KEY = "__reg_sentinel__"; // written whenever any wallet registers;
+                                              // lets us detect list() returning [] on cold start
+                                              // (store.list() is eventually-consistent — it can
+                                              //  temporarily return [] even when keys exist)
 
-// Returns all registered wallet addresses, or null if listing is unavailable.
+// Returns all registered wallet addresses, or null if listing is unavailable/unreliable.
 async function getRegisteredWallets(store) {
   const keys = await store.listKeys(REG_PREFIX);
-  if (keys === null) return null; // unavailable (store.list() failed)
+  if (keys === null) return null; // list() threw → 503
+
+  if (keys.length === 0) {
+    // list() returned empty — could be a cold-start eventual-consistency false-negative
+    // OR genuinely no registrations. Check the sentinel (strong-consistency GET).
+    try {
+      const sentinel = await store.get(REG_SENTINEL_KEY, { consistency: "strong" });
+      if (sentinel) {
+        // Sentinel exists → registrations definitely exist → list() is lying due to cold-start
+        console.warn("LB: list() returned [] but sentinel exists — cold-start false-negative, returning null for 503");
+        return null; // signals caller to return 503 so client retries
+      }
+    } catch {
+      // Can't verify sentinel → be safe, 503
+      return null;
+    }
+    // No sentinel → genuinely no registrations yet (fresh deployment)
+    console.log("LB: no sentinel and empty list — fresh deployment, empty leaderboard");
+    return [];
+  }
+
   return keys.map(k => k.slice(REG_PREFIX.length)).filter(w => w.length >= 32);
 }
 
 // Returns true if this wallet has ever been registered (pure GET — no list needed).
 async function isWalletRegistered(store, wallet) {
   try {
-    const v = await store.get(REG_PREFIX + wallet);
+    const v = await store.get(REG_PREFIX + wallet, { consistency: "strong" });
     return !!v;
   } catch { return false; }
 }
@@ -336,6 +360,8 @@ async function isWalletRegistered(store, wallet) {
 async function registerInLeaderboard(store, wallet) {
   try {
     await store.set(REG_PREFIX + wallet, new Date().toISOString());
+    // Also write the sentinel — this is what protects list() cold-start false-negatives
+    try { await store.set(REG_SENTINEL_KEY, "1"); } catch {}
     console.log("registerInLeaderboard: registered", wallet.slice(0, 8));
   } catch(e) {
     console.warn("Could not register in leaderboard:", e.message);
@@ -375,13 +401,19 @@ exports.handler = async function(event, context) {
       const callerWallet = (event.queryStringParameters && event.queryStringParameters.wallet_caller) || null;
 
       try {
-        // getRegisteredWallets uses store.listKeys("__reg_") — each wallet has its
-        // own key, so there is nothing to "wipe". Returns null if list() fails.
-        const regWallets = await getRegisteredWallets(store);
+        // getRegisteredWallets: list() is eventually-consistent, so retry up to 3×
+        // with delays so cold-start false-negatives resolve before we give up.
+        let regWallets = null;
+        for (let attempt = 0; attempt <= 2; attempt++) {
+          if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 600));
+          regWallets = await getRegisteredWallets(store);
+          if (regWallets !== null) break;
+          console.warn(`LB: getRegisteredWallets returned null, attempt ${attempt + 1}/3`);
+        }
         console.log(`LB: registered wallets = ${regWallets === null ? "unavailable" : regWallets.length}`);
 
         if (regWallets === null) {
-          // store.list() failed — return 503 so the client retries
+          // list() still failing after retries — return 503 so the client retries
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Leaderboard temporarily unavailable, please retry" }) };
         }
 
