@@ -304,65 +304,143 @@ function _lbCalcSol2MoonReward(rank, adjReturn) {
   return 0;
 }
 
-// ── Leaderboard registration — per-wallet keys ──
+// ── Leaderboard index — single JSON key, strong-consistency GET ──
 //
-// OLD approach: one __lb_index__ JSON array.  Problem: read-then-write meant a
-// cold-start null read would wipe the whole array when we wrote back just one wallet.
+// store.list() is EVENTUALLY CONSISTENT and can return [] at any time,
+// not just on cold start. It cannot be relied upon for the leaderboard.
 //
-// NEW approach: each wallet gets its own key  "__reg_<wallet>" = ISO timestamp.
-// Registration is a PURE WRITE — no read needed, no overwrite risk, impossible
-// to accidentally wipe everyone else's registration.
-// The leaderboard GET enumerates registrations via store.listKeys("__reg_").
-// Profile-existence guard uses store.get("__reg_<wallet>") — a single fast read.
+// Instead we maintain ONE index key: __lb_index__ = JSON array of wallets.
+// Reading it uses { consistency: "strong" } — a single-key GET is orders
+// of magnitude more reliable than a list() call on Netlify Blobs.
 //
-const REG_PREFIX      = "__reg_";
-const REG_SENTINEL_KEY = "__reg_sentinel__"; // written whenever any wallet registers;
-                                              // lets us detect list() returning [] on cold start
-                                              // (store.list() is eventually-consistent — it can
-                                              //  temporarily return [] even when keys exist)
+// Writing uses a safe read-modify-write with:
+//   • 5 retries (300ms–1500ms) before concluding null is real
+//   • Sentinel check: if index is null but sentinel exists → Blobs is
+//     struggling → skip write rather than overwriting real data with []
+//   • We ALSO keep per-wallet __reg_<wallet> keys as pure-write backups;
+//     getLbIndex() migrates from them if the index key is somehow gone.
+//
+const LB_INDEX_KEY   = "__lb_index__";   // primary: JSON string[] of registered wallets
+const REG_PREFIX     = "__reg_";          // backup: per-wallet timestamp keys
+const REG_SENTINEL_KEY = "__reg_sentinel__"; // exists once any wallet has registered
 
-// Returns all registered wallet addresses, or null if listing is unavailable/unreliable.
-async function getRegisteredWallets(store) {
-  const keys = await store.listKeys(REG_PREFIX);
-  if (keys === null) return null; // list() threw → 503
+// ── READ the leaderboard wallet list ──────────────────────────────────────
+// Returns string[] (may be empty on genuine fresh deploy) or null (unavailable → 503).
+async function getLbIndex(store) {
+  // Try reading the single index key with strong consistency — up to 3 attempts.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) await new Promise(r => setTimeout(r, 600));
+      const raw = await store.get(LB_INDEX_KEY, { consistency: "strong" });
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        console.log("LB: index read OK —", parsed.length, "wallets");
+        return Array.isArray(parsed) ? parsed : [];
+      }
+    } catch(e) {
+      console.warn("getLbIndex attempt", attempt, "error:", e.message);
+    }
+  }
 
-  if (keys.length === 0) {
-    // list() returned empty — could be a cold-start eventual-consistency false-negative
-    // OR genuinely no registrations. Check the sentinel (strong-consistency GET).
+  // Index not found after retries — could be fresh deploy or severe Blobs outage.
+  // Try one migration pass from per-wallet __reg_ keys via list().
+  console.warn("LB: __lb_index__ not found — attempting migration from __reg_ keys");
+  try {
+    const listed = await store.listKeys(REG_PREFIX);
+    if (listed && listed.length > 0) {
+      const wallets = listed.map(k => k.slice(REG_PREFIX.length)).filter(w => w.length >= 32);
+      if (wallets.length > 0) {
+        console.log("LB: migrating", wallets.length, "wallets into __lb_index__");
+        try { await store.set(LB_INDEX_KEY, JSON.stringify(wallets)); } catch {}
+        return wallets;
+      }
+    }
+  } catch(e) {
+    console.warn("LB: migration list() failed:", e.message);
+  }
+
+  // Check sentinel: if it exists we KNOW wallets are registered even though we can't find them.
+  // Return null → caller returns 503 → client retries.
+  try {
+    const sentinel = await store.get(REG_SENTINEL_KEY, { consistency: "strong" });
+    if (sentinel) {
+      console.warn("LB: sentinel exists but index+list both failed → 503");
+      return null;
+    }
+  } catch {}
+
+  // No sentinel → genuinely fresh deployment → empty is correct.
+  console.log("LB: no index, no sentinel — fresh deployment, empty leaderboard");
+  return [];
+}
+
+// ── WRITE a wallet into the index ─────────────────────────────────────────
+// Safe read-modify-write: retries + sentinel guard prevent data wipe.
+async function addToLbIndex(store, wallet) {
+  // Read with strong consistency, retry up to 5× with growing delays.
+  let raw = null;
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      raw = await store.get(LB_INDEX_KEY, { consistency: "strong" });
+      if (raw !== null) break;
+    } catch(e) {
+      console.warn("addToLbIndex read err attempt", attempt, ":", e.message);
+    }
+    if (attempt < 4) await new Promise(r => setTimeout(r, 300 * (attempt + 1)));
+  }
+
+  if (raw === null) {
+    // Still null after 5 attempts — sentinel tells us whether this is safe to create fresh.
     try {
       const sentinel = await store.get(REG_SENTINEL_KEY, { consistency: "strong" });
       if (sentinel) {
-        // Sentinel exists → registrations definitely exist → list() is lying due to cold-start
-        console.warn("LB: list() returned [] but sentinel exists — cold-start false-negative, returning null for 503");
-        return null; // signals caller to return 503 so client retries
+        // Sentinel present → real data exists somewhere → Blobs is struggling.
+        // Do NOT write an empty index — would wipe all existing wallets.
+        console.warn("addToLbIndex: null+sentinel → skipping write to protect existing data");
+        return;
       }
-    } catch {
-      // Can't verify sentinel → be safe, 503
-      return null;
-    }
-    // No sentinel → genuinely no registrations yet (fresh deployment)
-    console.log("LB: no sentinel and empty list — fresh deployment, empty leaderboard");
-    return [];
+    } catch {}
+    // No sentinel → fresh deployment → safe to start a new index.
+    console.log("addToLbIndex: null+no sentinel → creating fresh index");
   }
 
-  return keys.map(k => k.slice(REG_PREFIX.length)).filter(w => w.length >= 32);
+  const index = raw ? JSON.parse(raw) : [];
+  if (!Array.isArray(index)) return;
+  if (!index.includes(wallet)) {
+    index.push(wallet);
+    await store.set(LB_INDEX_KEY, JSON.stringify(index));
+    console.log("addToLbIndex: wrote", index.length, "wallets (added", wallet.slice(0, 8), ")");
+  } else {
+    console.log("addToLbIndex:", wallet.slice(0, 8), "already in index");
+  }
 }
 
-// Returns true if this wallet has ever been registered (pure GET — no list needed).
+// ── CHECK if a wallet is registered ───────────────────────────────────────
 async function isWalletRegistered(store, wallet) {
   try {
+    // Check per-wallet key (strong) — fastest single-key read.
     const v = await store.get(REG_PREFIX + wallet, { consistency: "strong" });
-    return !!v;
+    if (v) return true;
+    // Also check the index as a fallback (in case __reg_ key is missing).
+    const raw = await store.get(LB_INDEX_KEY, { consistency: "strong" });
+    if (raw) {
+      const index = JSON.parse(raw);
+      return Array.isArray(index) && index.includes(wallet);
+    }
+    return false;
   } catch { return false; }
 }
 
-// Register a wallet — pure write, never reads the existing list, never wipes anyone.
+// ── REGISTER a wallet ──────────────────────────────────────────────────────
 async function registerInLeaderboard(store, wallet) {
   try {
+    // 1. Per-wallet key — pure write, safe, used as migration source.
     await store.set(REG_PREFIX + wallet, new Date().toISOString());
-    // Also write the sentinel — this is what protects list() cold-start false-negatives
+    // 2. Sentinel — written once, lives forever, protects against wipe.
     try { await store.set(REG_SENTINEL_KEY, "1"); } catch {}
-    console.log("registerInLeaderboard: registered", wallet.slice(0, 8));
+    // 3. Add to the primary index (safe read-modify-write with null protection).
+    await addToLbIndex(store, wallet);
+    console.log("registerInLeaderboard: done for", wallet.slice(0, 8));
   } catch(e) {
     console.warn("Could not register in leaderboard:", e.message);
   }
@@ -401,24 +479,18 @@ exports.handler = async function(event, context) {
       const callerWallet = (event.queryStringParameters && event.queryStringParameters.wallet_caller) || null;
 
       try {
-        // getRegisteredWallets: list() is eventually-consistent, so retry up to 3×
-        // with delays so cold-start false-negatives resolve before we give up.
-        let regWallets = null;
-        for (let attempt = 0; attempt <= 2; attempt++) {
-          if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 600));
-          regWallets = await getRegisteredWallets(store);
-          if (regWallets !== null) break;
-          console.warn(`LB: getRegisteredWallets returned null, attempt ${attempt + 1}/3`);
-        }
-        console.log(`LB: registered wallets = ${regWallets === null ? "unavailable" : regWallets.length}`);
+        // getLbIndex: reads __lb_index__ with strong-consistency GET — far more
+        // reliable than store.list() which is eventually-consistent and can return
+        // [] at any time. Falls back to list() migration if the index is missing.
+        const regWallets = await getLbIndex(store);
+        console.log(`LB: index wallets = ${regWallets === null ? "unavailable" : regWallets.length}`);
 
         if (regWallets === null) {
-          // list() still failing after retries — return 503 so the client retries
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Leaderboard temporarily unavailable, please retry" }) };
         }
 
-        // Always include the caller's wallet directly — covers the brief window
-        // between registration write and store.list() eventual-consistency catch-up.
+        // Always include the caller's wallet — ensures they see themselves even
+        // before their index write has propagated (registration is async).
         const merged = new Set(regWallets);
         if (callerWallet) merged.add(callerWallet);
         const wallets = Array.from(merged);
@@ -427,12 +499,12 @@ exports.handler = async function(event, context) {
         for (const w of wallets) {
           if (w === "__lb_index__") continue;
           try {
-            // Retry profile read for the caller's own wallet — strong-consistency get()
-            // can still return null occasionally on cold start. One extra retry is enough.
-            let raw = await store.get(w);
+            // Always read profiles with strong consistency so we get the latest write.
+            // Retry once for the caller's own wallet to handle brief cold-start nulls.
+            let raw = await store.get(w, { consistency: "strong" });
             if (!raw && w === callerWallet) {
               await new Promise(r => setTimeout(r, 500));
-              raw = await store.get(w);
+              raw = await store.get(w, { consistency: "strong" });
             }
             if (!raw) continue;
             const profile = JSON.parse(raw);
