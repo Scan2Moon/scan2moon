@@ -502,17 +502,17 @@ exports.handler = async function(event, context) {
       }
 
       if (!raw) {
-        // Still null after 3 attempts. Safety check: if this wallet is already
-        // in the leaderboard index, it HAS a profile — Blobs is having a bad
-        // moment. Return 503 so the client can retry instead of accepting a
-        // stale "new user" state that could wipe the real profile on next action.
+        // Still null after 3 attempts.
+        // Only block with 503 if the wallet is CONFIRMED in the index.
+        // If the index itself is null (cold start), let the user in as isNew — the
+        // POST guard (which checks the sentinel) will stop data being overwritten
+        // if they take an action. Being too aggressive here locks out new users.
         const index = await getIndex(store);
-        // index === null means Blobs is uncertain (cold start) — treat as 503.
-        // index.includes(wallet) means wallet has a real profile that Blobs is hiding — also 503.
-        if (index === null || index.includes(wallet)) {
-          console.warn("GET: profile null and index uncertain/match after 3 retries — returning 503");
+        if (Array.isArray(index) && index.includes(wallet)) {
+          console.warn("GET: wallet confirmed in index but profile null — returning 503");
           return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
         }
+        // index === null (uncertain) or wallet not in index → treat as new user
 
         // Genuinely new wallet — no profile found and not in leaderboard.
         // DO NOT save here: the profile is created on the first real action.
@@ -579,11 +579,26 @@ exports.handler = async function(event, context) {
         // rather than wiping a real profile.
         if (action !== "reset") {
           const index = await getIndex(store);
-          // index === null means Blobs is uncertain (cold start) — treat as 503.
-          // index.includes(wallet) means wallet has a real profile Blobs is hiding — also 503.
-          if (index === null || index.includes(wallet)) {
-            console.warn("POST action", action, ": profile null and index uncertain/match — returning 503");
+          if (Array.isArray(index) && index.includes(wallet)) {
+            // Wallet confirmed in index → has a real profile Blobs is hiding → 503
+            console.warn("POST action", action, ": wallet in index but profile null — returning 503");
             return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+          }
+          if (index === null) {
+            // Index unreadable (cold start) — check sentinel to decide whether
+            // real data exists. If it does, refuse to write (protect existing profiles).
+            // If no sentinel, this is a fresh deployment → safe to create new profile.
+            try {
+              const sentinel = await store.get(LB_SENTINEL_KEY);
+              if (sentinel) {
+                console.warn("POST action", action, ": index null but sentinel exists — Blobs cold start, returning 503");
+                return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+              }
+              console.log("POST action", action, ": index null, no sentinel — fresh deployment, proceeding");
+            } catch(e) {
+              console.warn("POST: sentinel check failed, returning 503 to be safe:", e.message);
+              return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+            }
           }
         }
         profile = {
