@@ -362,6 +362,10 @@ export class CandleChart {
       const prev = this.liveCandle ? this.liveCandle.close : price;
       this.liveCandle = { time: ts_sec, open: prev, high: price, low: price, close: price };
       this._volData[ts_sec] = volume || 0;
+      /* Re-apply markers now that the live candle bar exists — markers placed
+         at the current period during loadCandles() had no bar to attach to yet,
+         causing them to snap to the wrong (last historical) candle. */
+      if (this._markers.length) this._applyMarkers();
     } else {
       this.liveCandle.high  = Math.max(this.liveCandle.high, price);
       this.liveCandle.low   = Math.min(this.liveCandle.low,  price);

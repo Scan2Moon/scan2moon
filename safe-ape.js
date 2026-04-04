@@ -796,33 +796,60 @@ async function fetchOhlcv(pairAddress, tf, currentPrice = 0) {
 
   const cfg = TF_GECKO[tf] || TF_GECKO["5m"];
 
-  /* ── Fire both sources in parallel ── */
-  const proxyPromise = (tf !== "max")
-    ? fetch(
+  /* ── First-valid-wins: fire both sources in parallel, resolve as soon
+     as either returns good data, then cancel the other via AbortController.
+     This eliminates the "wait for the slower source" lag — switching TF
+     now resolves in ~400-800ms (whichever API responds first) instead of
+     always waiting for both to complete (up to 8s). ── */
+  return new Promise((resolve) => {
+    let settled = false;
+    const proxyAbort = new AbortController();
+    const geckoAbort = new AbortController();
+
+    function finish(result) {
+      if (settled) return;
+      settled = true;
+      proxyAbort.abort();
+      geckoAbort.abort();
+      resolve(result);
+    }
+
+    // Overall deadline — never hang the chart more than 9s
+    const deadline = setTimeout(() => finish(null), 9000);
+
+    // Track completion so we resolve(null) once both are done
+    let done = 0;
+    function onDone() { if (++done === 2) { clearTimeout(deadline); finish(null); } }
+
+    /* DexScreener proxy — preferred, exact pairAddress, always trusted */
+    if (tf !== "max") {
+      fetch(
         `${CHART_PROXY}?pairAddress=${encodeURIComponent(pairAddress)}&tf=${encodeURIComponent(tf)}`,
-        { signal: AbortSignal.timeout(6000) }
-      ).then(r => r.ok ? r.json() : null).catch(() => null)
-    : Promise.resolve(null);  // MAX TF skips DexScreener (no "max" resolution)
+        { signal: proxyAbort.signal }
+      )
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data?.ohlcv?.length > 3) { clearTimeout(deadline); finish(data.ohlcv); }
+          else onDone();
+        })
+        .catch(() => onDone());
+    } else {
+      onDone(); // MAX TF skips DexScreener
+    }
 
-  const geckoPromise = fetch(
-    `${GECKO_API}${pairAddress}/ohlcv/${cfg.path}?aggregate=${cfg.agg}&limit=${cfg.limit}&token=base`,
-    { headers: { "Accept": "application/json;version=20230302" }, signal: AbortSignal.timeout(8000) }
-  ).then(r => r.ok ? r.json() : null).catch(() => null);
-
-  const [proxyData, geckoData] = await Promise.all([proxyPromise, geckoPromise]);
-
-  /* Prefer DexScreener proxy — always trusted, exact pairAddress match */
-  if (proxyData?.ohlcv?.length > 3) {
-    return proxyData.ohlcv;
-  }
-
-  /* Fall back to GeckoTerminal — sanity-checked for wrong-pool only */
-  const list = geckoData?.data?.attributes?.ohlcv_list || null;
-  if (list?.length > 0 && geckoOk(list)) {
-    return list;
-  }
-
-  return null;
+    /* GeckoTerminal — fallback, sanity-checked for wrong-pool */
+    fetch(
+      `${GECKO_API}${pairAddress}/ohlcv/${cfg.path}?aggregate=${cfg.agg}&limit=${cfg.limit}&token=base`,
+      { headers: { "Accept": "application/json;version=20230302" }, signal: geckoAbort.signal }
+    )
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const list = data?.data?.attributes?.ohlcv_list || null;
+        if (list?.length > 0 && geckoOk(list)) { clearTimeout(deadline); finish(list); }
+        else onDone();
+      })
+      .catch(() => onDone());
+  });
 }
 
 /* ============================================================
