@@ -866,6 +866,31 @@ exports.handler = async function(event, context) {
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };
     }
 
+    // ── REGISTER (leaderboard registration without requiring a trade) ──
+    // Called by leaderboard-app.js on page load so any connected wallet
+    // appears in the leaderboard index that THIS function owns.
+    // If the wallet already has a profile, it's registered and its adj. return
+    // is returned so the leaderboard page can show a quick score preview.
+    // If no profile yet, the wallet is still added to the index so it shows up
+    // as soon as the profile is created.
+    if (action === "register") {
+      await registerInLeaderboard(store, wallet);
+      // Return adj. return if profile exists so Submit Score can show a preview
+      const existingRaw = await store.get(wallet);
+      if (existingRaw) {
+        const existingProfile = JSON.parse(existingRaw);
+        const adjReturn = _lbComputeRiskAdjReturn(existingProfile);
+        const badges    = existingProfile.badges || [];
+        return { statusCode: 200, headers, body: JSON.stringify({
+          success: true, registered: true, adjReturn, badges,
+          message: "Registered in leaderboard"
+        })};
+      }
+      return { statusCode: 200, headers, body: JSON.stringify({
+        success: true, registered: true, message: "Registered in leaderboard (no profile yet)"
+      })};
+    }
+
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Unknown action: " + action }) };
   }
 

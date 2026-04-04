@@ -62,14 +62,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (saved) {
     connectedWallet = saved;
     updateConnectUI();
-    // AWAIT the registration so the wallet is in the index before loadLeaderboard()
-    // runs. Previously this was fire-and-forget, causing loadLeaderboard() to run
-    // before the POST completed, and the index read found 0 wallets.
+    // Register wallet in simulator.js's store (the same store the leaderboard GET reads from).
+    // Must be awaited so the wallet is in the index before loadLeaderboard() runs.
     try {
-      await fetch(LB_API, {
+      await fetch(SIM_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ wallet: saved })
+        body: JSON.stringify({ wallet: saved, action: "register" })
       });
     } catch (e) {
       console.warn("LB pre-registration failed (non-critical):", e.message);
@@ -119,11 +118,11 @@ async function connectWallet() {
     connectedWallet = resp.publicKey.toString();
     localStorage.setItem("sa_wallet", connectedWallet);
     updateConnectUI();
-    // Auto-register on connect so user appears in leaderboard immediately
-    fetch(LB_API, {
+    // Auto-register on connect — must go to SIM_API (same store the leaderboard GET reads)
+    fetch(SIM_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: connectedWallet })
+      body: JSON.stringify({ wallet: connectedWallet, action: "register" })
     }).catch(() => {});
     loadLeaderboard();
   } catch (e) {
@@ -477,14 +476,18 @@ async function submitScore() {
   if (btn) { btn.disabled = true; btn.textContent = "Submitting…"; }
 
   try {
-    const res  = await fetch(LB_API, {
+    // Must use SIM_API — leaderboard GET reads from simulator's store context.
+    // Posting to leaderboard.js would register in a different store and never appear.
+    const res  = await fetch(SIM_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet: connectedWallet })
+      body: JSON.stringify({ wallet: connectedWallet, action: "register" })
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
-    alert(`✅ Score submitted!\nRisk-Adjusted Return: ${data.adjReturn}%\nBadges earned: ${(data.badges || []).length}`);
+    const adjR = data.adjReturn !== undefined ? `\nRisk-Adjusted Return: ${data.adjReturn}%` : "";
+    const bdgs = data.badges ? `\nBadges earned: ${data.badges.length}` : "";
+    alert(`✅ Score submitted!${adjR}${bdgs}`);
     loadLeaderboard();
   } catch (e) {
     alert("⚠️ Submit failed: " + e.message);
