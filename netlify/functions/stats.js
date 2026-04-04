@@ -29,7 +29,7 @@ function respond(code, body) {
 
 // ── Upstash Redis helpers ──────────────────────────────────────────────────
 // Redis keys for each stat counter
-const RK = { visits: "s2m:visits", scans: "s2m:scans", shares: "s2m:shares", moon: "s2m:moon" };
+const RK = { visit: "s2m:visits", scan: "s2m:scans", share: "s2m:shares", moon: "s2m:moon" };
 
 async function redisPipeline(commands) {
   const url   = process.env.UPSTASH_REDIS_REST_URL;
