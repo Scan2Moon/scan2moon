@@ -667,11 +667,27 @@ exports.handler = async function(event, context) {
         // Check registration to distinguish existing vs new user.
         const registered = await isWalletRegistered(store, wallet);
         if (registered) {
-          // Wallet has a real profile in Blobs but Blobs token is expired.
-          // Redis cache is also empty (profile existed before caching was added).
-          // Return 503 — a fresh Lambda container (new Blobs token) will fix this.
-          console.warn("GET: registered wallet, Blobs null, Redis empty — returning 503");
-          return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+          // Wallet is registered but profile is null in both Blobs and Redis.
+          // Return a recovery profile so the simulator loads instead of hard-failing.
+          // _recovering: true tells the client this is temporary — POST actions will
+          // re-create the real profile on next login/trade.
+          console.warn("GET: registered wallet, Blobs+Redis null — returning recovery profile");
+          const recoveryProfile = {
+            wallet,
+            accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
+            createdAt:   new Date().toISOString(),
+            balance:         STARTING_BALANCE_SOL,
+            balanceCurrency: "sol",
+            holdings:    {},
+            trades:      [],
+            totalPnL:    0,
+            winCount:    0,
+            lossCount:   0,
+            lastLogin:   null,
+            loginStreak: 0,
+            _recovering: true,
+          };
+          return { statusCode: 200, headers, body: JSON.stringify({ profile: recoveryProfile, isNew: false, _recovering: true }) };
         }
         // Not registered → genuinely new user
 
@@ -744,8 +760,16 @@ exports.handler = async function(event, context) {
           // If not registered, it's a genuine new user → safe to create fresh profile.
           const registered = await isWalletRegistered(store, wallet);
           if (registered) {
-            console.warn("POST action", action, ": wallet registered but profile null — returning 503");
-            return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable, please retry" }) };
+            // Profile is null in Blobs. Check Redis cache before giving up.
+            const rCached = await redisGetCachedProfile(wallet);
+            if (rCached) {
+              console.log("POST: restoring profile from Redis cache");
+              raw = JSON.stringify(rCached);
+            } else {
+              // Both null — allow a fresh profile to be created so the user isn't stuck.
+              // This means trading history is lost, but the simulator becomes usable again.
+              console.warn("POST action", action, ": registered wallet, Blobs+Redis null — creating fresh profile");
+            }
           }
         }
         profile = {
