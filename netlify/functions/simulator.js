@@ -648,7 +648,7 @@ exports.handler = async function(event, context) {
       const redisCached = await redisGetCachedProfile(wallet);
       if (redisCached) {
         console.log("GET: profile loaded from Redis");
-        return { statusCode: 200, headers, body: JSON.stringify(redisCached) };
+        return { statusCode: 200, headers, body: JSON.stringify({ profile: redisCached, isNew: false }) };
       }
 
       // ── Step 2: Try Blobs (retry 3× for cold-start propagation lag) ──
