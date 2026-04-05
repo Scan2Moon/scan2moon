@@ -643,75 +643,66 @@ exports.handler = async function(event, context) {
     }
 
     try {
-      // ── Step 1: Try Redis first (never expires, immune to Blobs token issues) ──
-      let profile = null;
+      // ══════════════════════════════════════════════════════════════════
+      // PROFILE READ ORDER:
+      //   1. Blobs (source of truth — always try first)
+      //   2. Redis  (fallback — only when Blobs token is expired)
+      //
+      // CRITICAL: Redis is checked SECOND so that a stale/recovery profile
+      // cached in Redis never takes precedence over real Blobs data.
+      // Recovery profiles are NEVER written to Redis — they are transient.
+      // ══════════════════════════════════════════════════════════════════
+
+      // ── Step 1: Try Blobs (retry 3× for cold-start propagation lag) ──
+      let raw = await store.get(wallet);
+      if (!raw) { await new Promise(r => setTimeout(r, 500)); raw = await store.get(wallet); }
+      if (!raw) { await new Promise(r => setTimeout(r, 700)); raw = await store.get(wallet); }
+
+      if (raw) {
+        // Blobs returned real data — parse it and refresh Redis cache with the
+        // authoritative copy (overwrites any stale/recovery data in Redis).
+        const profile = JSON.parse(raw);
+        // Only cache genuinely real profiles (not recovery placeholders)
+        if (!profile._recovering) redisCacheProfile(wallet, profile);
+        await registerInLeaderboard(store, wallet);
+        return { statusCode: 200, headers, body: JSON.stringify({ profile, isNew: false }) };
+      }
+
+      // ── Step 2: Blobs returned null — check Redis as fallback ──
       const redisCached = await redisGetCachedProfile(wallet);
-      if (redisCached) {
-        console.log("GET: profile loaded from Redis");
+      if (redisCached && !redisCached._recovering) {
+        // Redis has a real (non-recovery) profile — Blobs token is probably expired.
+        console.log("GET: Blobs null, serving real profile from Redis fallback");
         return { statusCode: 200, headers, body: JSON.stringify({ profile: redisCached, isNew: false }) };
       }
 
-      // ── Step 2: Try Blobs (retry 3× for cold-start propagation lag) ──
-      let raw = await store.get(wallet);
-      if (!raw) {
-        await new Promise(r => setTimeout(r, 500));
-        raw = await store.get(wallet);
-      }
-      if (!raw) {
-        await new Promise(r => setTimeout(r, 700));
-        raw = await store.get(wallet);
+      // ── Step 3: Both null — distinguish existing vs new wallet ──
+      const registered = await isWalletRegistered(store, wallet);
+      if (registered) {
+        // Wallet has a real profile somewhere but neither store can serve it right now.
+        // Return 503 — client will show a friendly reconnecting UI and retry.
+        // NEVER return a fake recovery profile: it gets saved and corrupts real data.
+        console.warn("GET: registered wallet, Blobs+Redis both unavailable — returning 503");
+        return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable — reconnecting…" }) };
       }
 
-      if (!raw) {
-        // Blobs returned null after 3 attempts.
-        // Check registration to distinguish existing vs new user.
-        const registered = await isWalletRegistered(store, wallet);
-        if (registered) {
-          // Wallet is registered but profile is null in both Blobs and Redis.
-          // Return a recovery profile so the simulator loads instead of hard-failing.
-          // _recovering: true tells the client this is temporary — POST actions will
-          // re-create the real profile on next login/trade.
-          console.warn("GET: registered wallet, Blobs+Redis null — returning recovery profile");
-          const recoveryProfile = {
-            wallet,
-            accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
-            createdAt:   new Date().toISOString(),
-            balance:         STARTING_BALANCE_SOL,
-            balanceCurrency: "sol",
-            holdings:    {},
-            trades:      [],
-            totalPnL:    0,
-            winCount:    0,
-            lossCount:   0,
-            lastLogin:   null,
-            loginStreak: 0,
-            _recovering: true,
-          };
-          return { statusCode: 200, headers, body: JSON.stringify({ profile: recoveryProfile, isNew: false, _recovering: true }) };
-        }
-        // Not registered → genuinely new user
-
-        // Genuinely new wallet — no profile found and not in leaderboard.
-        // DO NOT save here: the profile is created on the first real action.
-        const profile = {
-          wallet,
-          accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
-          createdAt:   new Date().toISOString(),
-          balance:         STARTING_BALANCE_SOL,
-          balanceCurrency: "sol",
-          holdings:    {},
-          trades:      [],
-          totalPnL:    0,
-          winCount:    0,
-          lossCount:   0,
-          lastLogin:   null,
-          loginStreak: 0,
-        };
-        return { statusCode: 200, headers, body: JSON.stringify({ profile, isNew: true }) };
-      }
-      // Existing profile — ensure it is registered in leaderboard (catches old profiles)
-      await registerInLeaderboard(store, wallet);
-      return { statusCode: 200, headers, body: JSON.stringify({ profile: JSON.parse(raw), isNew: false }) };
+      // ── Step 4: Genuinely new wallet — return default profile ──
+      // DO NOT save here: profile is created on the first real action (login/buy/etc).
+      const newProfile = {
+        wallet,
+        accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
+        createdAt:   new Date().toISOString(),
+        balance:         STARTING_BALANCE_SOL,
+        balanceCurrency: "sol",
+        holdings:    {},
+        trades:      [],
+        totalPnL:    0,
+        winCount:    0,
+        lossCount:   0,
+        lastLogin:   null,
+        loginStreak: 0,
+      };
+      return { statusCode: 200, headers, body: JSON.stringify({ profile: newProfile, isNew: true }) };
     } catch (e) {
       console.error("GET error:", e);
       return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
@@ -760,15 +751,17 @@ exports.handler = async function(event, context) {
           // If not registered, it's a genuine new user → safe to create fresh profile.
           const registered = await isWalletRegistered(store, wallet);
           if (registered) {
-            // Profile is null in Blobs. Check Redis cache before giving up.
+            // Check Redis for a real (non-recovery) profile before giving up.
             const rCached = await redisGetCachedProfile(wallet);
-            if (rCached) {
-              console.log("POST: restoring profile from Redis cache");
+            if (rCached && !rCached._recovering) {
+              console.log("POST: restoring profile from Redis (non-recovery) cache");
               raw = JSON.stringify(rCached);
             } else {
-              // Both null — allow a fresh profile to be created so the user isn't stuck.
-              // This means trading history is lost, but the simulator becomes usable again.
-              console.warn("POST action", action, ": registered wallet, Blobs+Redis null — creating fresh profile");
+              // Both stores unavailable — return 503 to protect real data.
+              // NEVER create a fresh profile here: it would permanently wipe
+              // the real profile in Blobs when the token next refreshes.
+              console.warn("POST action", action, ": registered wallet, Blobs+Redis unavailable — returning 503");
+              return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable — reconnecting…" }) };
             }
           }
         }
@@ -819,7 +812,7 @@ exports.handler = async function(event, context) {
 
       const dayLabel = `Day ${streak}`;
       const newBadgesLogin = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile,
@@ -840,7 +833,7 @@ exports.handler = async function(event, context) {
       profile.balance            += WELCOME_GIFT_SOL;
       profile.welcomeGiftClaimed  = true;
       const newBadgesWelcome = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile,
@@ -935,7 +928,7 @@ exports.handler = async function(event, context) {
       if (profile.trades.length > 200) profile.trades = profile.trades.slice(0, 200);
 
       const newBadgesBuy = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile, trade, newBadges: newBadgesBuy }) };
     }
@@ -1021,7 +1014,7 @@ exports.handler = async function(event, context) {
       if (profile.trades.length > 200) profile.trades = profile.trades.slice(0, 200);
 
       const newBadgesSell = awardNewBadges(profile);
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile, trade, newBadges: newBadgesSell }) };
     }
@@ -1033,7 +1026,7 @@ exports.handler = async function(event, context) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid name (max 24 chars)" }) };
       }
       profile.accountName = accountName.trim();
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };
     }
 
@@ -1061,7 +1054,7 @@ exports.handler = async function(event, context) {
           h.avgCostSol   = h.amount > 0 ? h.totalCostSol / h.amount : 0;
         }
       }
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       return { statusCode: 200, headers, body: JSON.stringify({ profile, migrated: true, solPriceUsed: solPriceMig }) };
     }
 
@@ -1097,7 +1090,7 @@ exports.handler = async function(event, context) {
       bp.wallet   = wallet;
       bp.restoredAt = new Date().toISOString();
       console.log("restore_backup: saving backup for", wallet, "balance=", safeBalance);
-      await store.set(wallet, JSON.stringify(bp)); redisCacheProfile(wallet, bp);
+      try { await store.set(wallet, JSON.stringify(bp)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, bp);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
         profile: bp, restored: true, message: "Profile restored from local backup" }) };
@@ -1117,7 +1110,7 @@ exports.handler = async function(event, context) {
       profile.loginStreak         = 0;
       profile.welcomeGiftClaimed  = false; // ← allow re-claiming welcome gift after reset
       profile.updatedAt       = new Date().toISOString(); // ← leaderboard uses this for "Last Active"
-      await store.set(wallet, JSON.stringify(profile)); redisCacheProfile(wallet, profile);
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };
     }

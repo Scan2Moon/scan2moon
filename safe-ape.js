@@ -361,22 +361,39 @@ async function initSimulator() {
      cold-start glitches. Only after all retries exhaust do we accept isNew. */
   let data;
   let retryCount = 0;
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 4;
 
   while (retryCount <= MAX_RETRIES) {
     try {
       const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
 
-      // 503 = storage temporarily unavailable — retry
+      // 503 = Blobs token expired — server is reconnecting. Keep retrying with
+      // increasing delays. After MAX_RETRIES show a UI banner and schedule a
+      // background retry every 20s so the page recovers automatically.
       if (resp.status === 503) {
         if (retryCount < MAX_RETRIES) {
           retryCount++;
-          const delay = retryCount * 1500; // 1.5s, 3s, 4.5s
-          showToast(`⏳ Loading profile… (attempt ${retryCount + 1})`);
+          const delay = Math.min(retryCount * 2000, 8000); // 2s, 4s, 6s, 8s
+          showToast(`⏳ Connecting to profile… (attempt ${retryCount}/${MAX_RETRIES})`);
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        throw new Error("Profile server temporarily unavailable. Please refresh the page.");
+        // All retries exhausted — show reconnecting banner and keep trying in background
+        showToast("🔄 Profile storage reconnecting… will retry automatically");
+        const reconnectBanner = document.getElementById("saReconnectBanner");
+        if (reconnectBanner) reconnectBanner.style.display = "flex";
+        // Background retry every 20 seconds
+        const bgRetry = setInterval(async () => {
+          try {
+            const r = await fetch(`${SIM_API}?wallet=${wallet}`);
+            if (r.ok) {
+              clearInterval(bgRetry);
+              if (reconnectBanner) reconnectBanner.style.display = "none";
+              initSimulator(); // reload the full simulator
+            }
+          } catch {}
+        }, 20000);
+        return; // stop blocking — let user see the page
       }
 
       data = await resp.json();

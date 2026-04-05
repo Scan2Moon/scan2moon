@@ -212,7 +212,8 @@ function animateStat(id, target) {
    FETCH STATS  — with localStorage cache to prevent showing 0
    on cold-start or brief Blobs read failures.
    ============================================================ */
-const STATS_CACHE_KEY = "s2m_stats_cache";
+// v3: bumped to invalidate old per-stat-max cache that was blocking Redis updates
+const STATS_CACHE_KEY = "s2m_stats_v3";
 
 function loadCachedStats() {
   try {
@@ -242,18 +243,14 @@ async function fetchStats() {
 
   try {
     const data = await safeFetch(statsEndpoint);
-    // Always show the max of server and cached per individual stat.
-    // This handles Redis migration (fresh counters) gracefully while still
-    // protecting against any real server-side resets.
-    const display = {
-      visits: Math.max(data.visits || 0, cached?.visits || 0),
-      scans:  Math.max(data.scans  || 0, cached?.scans  || 0),
-      moon:   Math.max(data.moon   || 0, cached?.moon   || 0),
-    };
-    updateStatsUI(display);
-    saveCachedStats(display);
+    // Redis is the source of truth — trust server values directly.
+    // Only fall back to cache if server returns all zeros (likely a network error).
+    const allZero = !data.visits && !data.scans && !data.moon;
+    if (!allZero) {
+      updateStatsUI(data);
+      saveCachedStats(data);
+    }
   } catch (err) {
-    // 503 or network error — cached display stays
     console.warn("Stats fetch failed (cached values retained):", err.message);
   }
 }
@@ -268,15 +265,12 @@ async function incrementGlobalStat(type) {
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ type })
     });
-    // Always show the max of server and cached per individual stat.
-    const cached2 = loadCachedStats();
-    const display2 = {
-      visits: Math.max(result.visits || 0, cached2?.visits || 0),
-      scans:  Math.max(result.scans  || 0, cached2?.scans  || 0),
-      moon:   Math.max(result.moon   || 0, cached2?.moon   || 0),
-    };
-    updateStatsUI(display2);
-    saveCachedStats(display2);
+    // Trust Redis INCR result directly — it's atomic and reliable.
+    const allZero = !result.visits && !result.scans && !result.moon;
+    if (!allZero) {
+      updateStatsUI(result);
+      saveCachedStats(result);
+    }
   } catch (err) {
     // 503 (Blobs protecting data) or network error — just show cached values
     console.warn("Stat increment skipped (Blobs busy or network error):", err.message);
