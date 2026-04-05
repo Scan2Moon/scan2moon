@@ -97,14 +97,17 @@ async function getStore() {
     return {
       // consistency:"strong" ensures we always read the latest write,
       // even if the previous Lambda invocation just wrote it milliseconds ago.
+      // IMPORTANT: returns null on ANY error (token expiry, network, etc).
+      // Callers should NOT rely on throws — the GET handler's retry + Redis
+      // fallback logic depends on receiving null, not an exception.
       async get(key) {
         try {
           const v = await store.get(key, { consistency: "strong" });
           console.log("Blobs GET", key.slice(0,8), "→", v ? "found" : "null");
           return v;
         } catch(e) {
-          console.error("Blobs GET failed:", key.slice(0,8), e.message);
-          throw e;
+          console.error("Blobs GET failed (returning null):", key.slice(0,8), e.message);
+          return null; // ← null triggers retry logic + Redis fallback, not a 500
         }
       },
       async set(key, val) {
@@ -555,14 +558,43 @@ exports.handler = async function(event, context) {
         for (const w of wallets) {
           if (w === "__lb_index__") continue;
           try {
-            // Always read profiles with strong consistency so we get the latest write.
-            // Retry once for the caller's own wallet to handle brief cold-start nulls.
-            let raw = await store.get(w, { consistency: "strong" });
+            // Read profile: Blobs first, Redis cache as fallback.
+            // This ensures the leaderboard still shows users even when
+            // the Blobs token is temporarily expired.
+            let raw = await store.get(w);
             if (!raw && w === callerWallet) {
               await new Promise(r => setTimeout(r, 500));
-              raw = await store.get(w, { consistency: "strong" });
+              raw = await store.get(w);
             }
-            if (!raw) continue;
+            if (!raw) {
+              // Blobs unavailable — try Redis profile cache
+              const rCached = await redisGetCachedProfile(w);
+              if (rCached && !rCached._recovering) {
+                // Serve from Redis cache
+                const profile = rCached;
+                const adjReturn  = _lbComputeRiskAdjReturn(profile);
+                const dailyPnL   = parseFloat(_lbGetPeriodPnL(profile, "daily").toFixed(2));
+                const weeklyPnL  = parseFloat(_lbGetPeriodPnL(profile, "weekly").toFixed(2));
+                const monthlyPnL = parseFloat(_lbGetPeriodPnL(profile, "monthly").toFixed(2));
+                const periodPnL  = parseFloat(_lbGetPeriodPnL(profile, period).toFixed(2));
+                const badges     = profile.badges || [];
+                const trades     = profile.trades || [];
+                const sells      = trades.filter(t => t.type === "sell");
+                const avgRisk    = parseFloat(_lbAvgRiskScore(trades).toFixed(1));
+                const lastTrade  = trades.length > 0 ? trades[0].timestamp : (profile.updatedAt || profile.createdAt);
+                entries.push({
+                  wallet: profile.wallet || w, accountName: profile.accountName || "Ape",
+                  adjReturn, periodPnL, dailyPnL, weeklyPnL, monthlyPnL,
+                  totalPnL: parseFloat((profile.totalPnL || 0).toFixed(2)),
+                  balance: parseFloat((profile.balance || 10).toFixed(4)),
+                  winCount: profile.winCount || 0, lossCount: profile.lossCount || 0,
+                  tradeCount: sells.length, avgRiskScore: avgRisk, badges,
+                  lastActive: _lbTimeAgo(lastTrade), lastTradeTs: lastTrade,
+                  loginStreak: profile.loginStreak || 0,
+                });
+              }
+              continue; // skip the Blobs parse below
+            }
             const profile = JSON.parse(raw);
             // Skip future-dated profiles (anti-cheat)
             if (profile.createdAt && new Date(profile.createdAt) > new Date(Date.now() + 60000)) continue;

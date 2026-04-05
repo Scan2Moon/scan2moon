@@ -45,6 +45,16 @@
     </div>
   </div>
 
+  <!-- RECONNECT BANNER (shown when profile storage is temporarily unavailable) -->
+  <div id="profileReconnectBanner" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px 20px;background:rgba(255,165,0,0.12);border:1px solid rgba(255,165,0,0.35);border-radius:8px;margin:8px 16px;font-size:13px;color:rgba(255,200,80,0.9);">
+    <span>🔄 Profile storage reconnecting — retrying automatically every 20s…</span>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+      <button onclick="location.reload()" style="background:rgba(255,165,0,0.2);border:1px solid rgba(255,165,0,0.4);color:#ffa040;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">🔃 Refresh now</button>
+      <button onclick="profileStartFresh()" style="background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.4);color:#ff8080;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">🆕 Start fresh (new profile)</button>
+      <button onclick="profileDisconnect()" style="background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.35);color:#aaa;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">⏏ Disconnect wallet</button>
+    </div>
+  </div>
+
   <!-- PROFILE APP -->
   <div id="profileApp" style="display:none;">
 

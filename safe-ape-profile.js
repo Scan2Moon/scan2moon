@@ -189,30 +189,46 @@ async function loadProfile(viewOnly = false) {
     await fetchSolPrice();
     setInterval(fetchSolPrice, 60_000);
 
-    // Resilient profile fetch: retry up to 3 times on 503 or isNew
+    // Resilient profile fetch: retry up to 4 times on 503
     let data;
     let retryCount = 0;
-    const MAX_RETRIES = 3;
+    const MAX_RETRIES = 4;
     while (retryCount <= MAX_RETRIES) {
       const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
       if (resp.status === 503) {
         if (retryCount < MAX_RETRIES) {
           retryCount++;
-          showToast(`⏳ Loading profile… (attempt ${retryCount + 1})`);
-          await new Promise(r => setTimeout(r, retryCount * 1500));
+          const delay = Math.min(retryCount * 2000, 8000);
+          showToast(`⏳ Loading profile… (attempt ${retryCount}/${MAX_RETRIES})`);
+          await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        throw new Error("Profile server temporarily unavailable. Please refresh.");
+        // All retries exhausted — show reconnect banner with escape options
+        // instead of crashing with an alert.
+        showToast("🔄 Profile storage reconnecting… retrying automatically");
+        const banner = document.getElementById("profileReconnectBanner");
+        if (banner) banner.style.display = "flex";
+        // Background retry every 20 seconds
+        const bgRetry = setInterval(async () => {
+          try {
+            const r = await fetch(`${SIM_API}?wallet=${wallet}`);
+            if (r.ok) {
+              clearInterval(bgRetry);
+              if (banner) banner.style.display = "none";
+              await loadProfile(viewOnly);
+            }
+          } catch {}
+        }, 20000);
+        return; // stop blocking — user sees banner with options
       }
       data = await resp.json();
       if (data.error) throw new Error(data.error);
-      // If server says isNew, try retrying before accepting
+      // If server says isNew, retry before accepting (guards against Blobs cold-start)
       if (data.isNew && !viewOnly && retryCount < MAX_RETRIES) {
         const backup = localStorage.getItem("sa_backup_" + wallet);
         if (!backup) {
-          // No local backup — retry GET to guard against Blobs cold-start glitch
           retryCount++;
-          showToast(`⏳ Verifying profile… (attempt ${retryCount + 1})`);
+          showToast(`⏳ Verifying profile… (attempt ${retryCount}/${MAX_RETRIES})`);
           await new Promise(r => setTimeout(r, retryCount * 1500));
           continue;
         }
@@ -236,15 +252,19 @@ async function loadProfile(viewOnly = false) {
       if (!viewOnly) saveProfileBackup(profile);
     }
 
+    // Hide reconnect banner if it was shown during a previous retry
+    const banner = document.getElementById("profileReconnectBanner");
+    if (banner) banner.style.display = "none";
+
     document.getElementById("profileGate").style.display = "none";
     document.getElementById("profileApp").style.display  = "block";
 
     // View-only: hide edit controls, show view-only banner
     if (viewOnly) {
-      const banner = document.createElement("div");
-      banner.style.cssText = "background:rgba(255,180,50,0.1);border:1px solid rgba(255,180,50,0.3);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;color:#ffb432;margin-bottom:16px;text-align:center;";
-      banner.textContent = "👀 Viewing shared profile — read only";
-      document.getElementById("profileApp").prepend(banner);
+      const voBanner = document.createElement("div");
+      voBanner.style.cssText = "background:rgba(255,180,50,0.1);border:1px solid rgba(255,180,50,0.3);border-radius:10px;padding:10px 18px;font-size:13px;font-weight:600;color:#ffb432;margin-bottom:16px;text-align:center;";
+      voBanner.textContent = "👀 Viewing shared profile — read only";
+      document.getElementById("profileApp").prepend(voBanner);
       // Hide reset/disconnect buttons for view-only
       const resetBtn = document.getElementById("resetAccountBtn");
       const discBtn  = document.getElementById("profileDisconnectBtn");
@@ -268,7 +288,46 @@ async function loadProfile(viewOnly = false) {
     }
   } catch (e) {
     console.error("Profile load failed:", e);
-    alert("Failed to load profile. Make sure netlify dev is running.");
+    // Show a friendly inline error instead of a jarring alert
+    showToast("❌ Could not load profile — please refresh the page.");
+  }
+}
+
+/* ─────────────────────────────────────
+   RECONNECT BANNER ACTIONS
+   Called by inline onclick in safe-ape-profile.html
+───────────────────────────────────── */
+function profileDisconnect() {
+  const banner = document.getElementById("profileReconnectBanner");
+  if (banner) banner.style.display = "none";
+  disconnect();
+}
+
+async function profileStartFresh() {
+  if (!wallet) { profileDisconnect(); return; }
+  const confirmed = window.confirm(
+    "⚠️ Start fresh?\n\nThis will create a brand-new profile with 10 SOL.\n" +
+    "Any previous balance or trade history will be gone.\n\nContinue?"
+  );
+  if (!confirmed) return;
+
+  showToast("🆕 Creating fresh profile…");
+  try {
+    const resp = await fetch(SIM_API, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ wallet, action: "reset" }),
+    });
+    if (!resp.ok) { showToast("❌ Failed — please refresh and try again."); return; }
+    const data = await resp.json();
+    profile = data.profile;
+    try { localStorage.removeItem("sa_backup_" + wallet); } catch {}
+    const banner = document.getElementById("profileReconnectBanner");
+    if (banner) banner.style.display = "none";
+    showToast("✅ Fresh profile created! Starting with 10 SOL.");
+    await loadProfile();
+  } catch(e) {
+    showToast("❌ Network error — please refresh and try again.");
   }
 }
 
