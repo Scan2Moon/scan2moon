@@ -505,6 +505,20 @@ async function registerInLeaderboard(store, wallet) {
   }
 }
 
+// ── Rate limiter (Redis-backed, per IP per minute) ────────────────────────
+// Allows up to RATE_LIMIT_MAX POST actions per IP per 60-second window.
+// GET requests (profile loads, leaderboard) are not rate-limited.
+const RATE_LIMIT_MAX = 30; // max POST actions per minute per IP
+async function checkRateLimit(ip) {
+  if (!_redisAvailable() || !ip) return false; // can't limit → allow
+  try {
+    const key = `s2m:rl:sim:${ip}:${Math.floor(Date.now() / 60000)}`;
+    const count = await _redisCmd("INCR", key);
+    if (count === 1) await _redisCmd("EXPIRE", key, 90); // TTL a bit over 1 min
+    return count > RATE_LIMIT_MAX;
+  } catch { return false; } // Redis error → allow through
+}
+
 exports.handler = async function(event, context) {
   const headers = {
     "Content-Type": "application/json",
@@ -517,12 +531,26 @@ exports.handler = async function(event, context) {
     return { statusCode: 200, headers, body: "" };
   }
 
+  // Rate limit POST actions (not GETs — profile reads should not be blocked)
+  if (event.httpMethod === "POST") {
+    const clientIp = (event.headers && (
+      event.headers["x-nf-client-connection-ip"] ||
+      event.headers["x-forwarded-for"] ||
+      event.headers["client-ip"] || ""
+    )).split(",")[0].trim();
+    const limited = await checkRateLimit(clientIp);
+    if (limited) {
+      return { statusCode: 429, headers, body: JSON.stringify({ error: "Too many requests — please slow down." }) };
+    }
+  }
+
   let store;
   try {
     store = await getStore();
   } catch(storeErr) {
     console.error("getStore() failed:", storeErr.message);
-    return { statusCode: 503, headers, body: JSON.stringify({ error: storeErr.message || "Storage unavailable" }) };
+    console.error("getStore() failed:", storeErr.message);
+    return { statusCode: 503, headers, body: JSON.stringify({ error: "Storage temporarily unavailable — please retry." }) };
   }
 
   // ── GET: load user profile OR serve leaderboard data ──
@@ -666,7 +694,7 @@ exports.handler = async function(event, context) {
         })};
       } catch(e) {
         console.error("LB GET (from simulator) error:", e);
-        return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
+        return { statusCode: 500, headers, body: JSON.stringify({ error: "Internal server error — please retry." }) };
       }
     }
 
@@ -1042,7 +1070,7 @@ exports.handler = async function(event, context) {
         costBasis: soldUsdCost,            // USD cost basis for display
         pnl:    pnlSol,                    // ← now in SOL
         pnlUsd: totalReceivedUsd - soldUsdCost,
-        pnlPct: costBasisSol > 0 ? ((pnlSol / costBasisSol) * 100).toFixed(2) : "0",
+        pnlPct: costBasisSol > 0 ? parseFloat(((pnlSol / costBasisSol) * 100).toFixed(4)) : 0,
         solPriceAtTrade: solPriceForTrade,
         slippage: slip,
         riskScore: riskScore || holding.riskScore || null,
@@ -1075,8 +1103,9 @@ exports.handler = async function(event, context) {
       if (profile.balanceCurrency === "sol") {
         return { statusCode: 200, headers, body: JSON.stringify({ profile, alreadyMigrated: true }) };
       }
-      const clientSolPrice = parseFloat(body.solPrice);
-      const solPriceMig = clientSolPrice > 0 ? clientSolPrice : await fetchSolPriceServer();
+      // Always fetch SOL price server-side — never trust client-submitted price
+      // (a client could send solPrice:0.001 to inflate balance 150×).
+      const solPriceMig = await fetchSolPriceServer();
 
       profile.balance      = parseFloat((profile.balance / solPriceMig).toFixed(6));
       profile.totalPnL     = parseFloat(((profile.totalPnL || 0) / solPriceMig).toFixed(6));

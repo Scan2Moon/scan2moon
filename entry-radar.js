@@ -4,6 +4,16 @@ import "./community.js";
 import { computeRiskScore } from "./scanSignals.js";
 import { callRpc }          from "./rpc.js";
 
+/* ── Security helpers ── */
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function safeMint(mint) {
+  return String(mint ?? "").replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
+}
+
 /* ===== CONFIG ===== */
 const DEXSCREENER_NEW    = "https://api.dexscreener.com/token-profiles/latest/v1";
 const DEXSCREENER_TOKENS = "https://api.dexscreener.com/latest/dex/tokens/";
@@ -337,7 +347,7 @@ function renderRadarPage() {
         <td><span class="entry-badge ${t.entry.class}">${t.entry.status}</span></td>
         <td class="safe-entry-cell">${safeVal}</td>
         <td onclick="event.stopPropagation()">
-          <button class="radar-trade-btn" onclick="radarTradeOnSafeApe('${t.mint}')">
+          <button class="radar-trade-btn" onclick="radarTradeOnSafeApe('${safeMint(t.mint)}')">
             <img src="/sol2moon-token.png" style="width:12px;height:12px;object-fit:contain;vertical-align:middle;margin-right:3px;">Trade
           </button>
         </td>
@@ -652,16 +662,16 @@ window.openTokenDetail = function(index) {
   document.getElementById("modalTokenInfo").innerHTML = `
     <img class="modal-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/52x52'" referrerpolicy="no-referrer" />
     <div>
-      <div class="modal-name">${t.name} <span style="opacity:0.5;font-size:14px">(${t.symbol})</span></div>
+      <div class="modal-name">${esc(t.name)} <span style="opacity:0.5;font-size:14px">(${esc(t.symbol)})</span></div>
       <div class="modal-symbol">Age: ${t.age.text}
         &nbsp;|&nbsp;
         Risk Score: <strong style="color:${scoreColor}">${t.score}/100 — ${riskLabel}</strong>
       </div>
       <div style="font-size:10px;opacity:0.5;margin-top:3px;">
         ${holderNote}same scoring as Risk Scanner ·
-        <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${t.mint}')" style="color:#2cffc9;" target="_blank">Full Scan →</a>
+        <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${safeMint(t.mint)}')" style="color:#2cffc9;" target="_blank">Full Scan →</a>
       </div>
-      <div class="modal-mint-link">${t.mint}</div>
+      <div class="modal-mint-link">${esc(safeMint(t.mint))}</div>
     </div>
   `;
 

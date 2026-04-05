@@ -67,6 +67,25 @@ function writeLocalDB(db) {
 }
 
 // ── Handler ───────────────────────────────────────────────────────────────
+// ── Rate limiter: max 20 stat increments per IP per minute ────────────────
+const STATS_RATE_LIMIT = 20;
+async function statsRateCheck(ip, hasRedis) {
+  if (!hasRedis || !ip) return false;
+  try {
+    const url   = process.env.UPSTASH_REDIS_REST_URL;
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const key   = `s2m:rl:stats:${ip}:${Math.floor(Date.now() / 60000)}`;
+    const res   = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify([["INCR", key], ["EXPIRE", key, 90]]),
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return (data[0]?.result || 0) > STATS_RATE_LIMIT;
+  } catch { return false; }
+}
+
 exports.handler = async function (event) {
   if (event.httpMethod === "OPTIONS") return respond(200, {});
 
@@ -77,6 +96,15 @@ exports.handler = async function (event) {
 
   const isProduction  = !!process.env.NETLIFY_BLOBS_CONTEXT;
   const hasRedis      = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+
+  // Rate limit stat increments (not GET reads)
+  if (event.httpMethod === "POST") {
+    const ip = ((event.headers || {})["x-nf-client-connection-ip"] ||
+                (event.headers || {})["x-forwarded-for"] || "").split(",")[0].trim();
+    if (await statsRateCheck(ip, hasRedis)) {
+      return respond(429, { error: "Too many requests." });
+    }
+  }
 
   // ══════════════════════════════════════════════════════════════════════════
   // PATH 1 — Upstash Redis  (primary, most reliable)

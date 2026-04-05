@@ -19,6 +19,24 @@ const DEX_API     = "https://api.dexscreener.com/latest/dex/tokens/";
 const SIM_API     = "/.netlify/functions/simulator";
 const LB_API      = "/.netlify/functions/leaderboard";
 const GECKO_API   = "https://api.geckoterminal.com/api/v2/networks/solana/pools/";
+
+/* ── Security helpers ───────────────────────────────────────────────────
+   esc()      – HTML-escapes any string before injecting into innerHTML.
+   safeMint() – Strips non-base58 characters from mint addresses used in
+                onclick attributes, preventing any injection via crafted
+                API responses. Valid Solana mints are [1-9A-HJ-NP-Za-km-z].
+   -------------------------------------------------------------------- */
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+function safeMint(mint) {
+  return String(mint ?? "").replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
+}
 const CHART_PROXY = "/.netlify/functions/chartProxy";
 
 /* ── Leaderboard auto-registration ─────────────────────────────────────
@@ -1253,19 +1271,20 @@ window._saToggleWl = toggleWatchlistFromApe; /* expose for inline onclick */
 
 function renderTokenHeader(t) {
   const logoUrl = t.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}` : "https://placehold.co/52x52";
+  const sm = safeMint(t.mint);
   document.getElementById("saTokenHeader").innerHTML = `
     <img class="sa-token-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/52x52'" />
     <div style="flex:1;min-width:0;">
-      <div class="sa-token-name">${t.name} <span style="opacity:0.5;font-size:14px">(${t.symbol})</span></div>
+      <div class="sa-token-name">${esc(t.name)} <span style="opacity:0.5;font-size:14px">(${esc(t.symbol)})</span></div>
       <div class="sa-token-symbol">Risk Score: <strong style="color:${t.riskScore>=65?'#2cffc9':t.riskScore>=45?'#ffd166':'#ff4d6d'}">${t.riskScore}/100</strong>
         <span style="font-size:9px;opacity:0.35;font-weight:400;letter-spacing:1px;margin-left:8px;">⬤ LIVE · 1.5s</span>
       </div>
-      <div class="sa-token-mint">${t.mint}</div>
+      <div class="sa-token-mint">${esc(sm)}</div>
     </div>
     <div class="sa-token-header-right">
-      <a href="https://dexscreener.com/solana/${t.mint}" target="_blank" rel="noopener noreferrer" class="sa-token-link">📊 DexScreener</a>
-      <a href="https://solscan.io/token/${t.mint}" target="_blank" rel="noopener noreferrer" class="sa-token-link">🔎 Solscan</a>
-      <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${t.mint}')" class="sa-token-link">🛡️ Full Scan</a>
+      <a href="https://dexscreener.com/solana/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">📊 DexScreener</a>
+      <a href="https://solscan.io/token/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">🔎 Solscan</a>
+      <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${sm}')" class="sa-token-link">🛡️ Full Scan</a>
       <button id="saWlBtn" class="sa-token-link sa-wl-btn ${isOnWatchlist(t.mint) ? 'sa-wl-active' : ''}" onclick="window._saToggleWl()">
         ${isOnWatchlist(t.mint) ? "⭐ Watchlisted" : "☆ Watchlist"}
       </button>
@@ -1653,8 +1672,9 @@ function renderPortfolio() {
     const pnlPct=pnlSol!==null&&costSol>0?(pnlSol/costSol)*100:null;
     const sign=pnlSol!==null?(pnlSol>=0?"+":""):"";
     const pnlCls=pnlSol!==null?(pnlSol>=0?"pnl-pos":"pnl-neg"):"";
-    return `<div class="sa-holding-card" onclick="document.getElementById('saTokenInput').value='${mint}';window.searchToken()">
-      <div class="sa-holding-card-top"><img class="sa-holding-logo" src="${logo}" onerror="this.src='https://placehold.co/36x36'" /><div><div class="sa-holding-name">${h.name}</div><div class="sa-holding-symbol">${h.symbol}</div></div></div>
+    const sm2 = safeMint(mint);
+    return `<div class="sa-holding-card" onclick="document.getElementById('saTokenInput').value='${sm2}';window.searchToken()">
+      <div class="sa-holding-card-top"><img class="sa-holding-logo" src="${logo}" onerror="this.src='https://placehold.co/36x36'" /><div><div class="sa-holding-name">${esc(h.name)}</div><div class="sa-holding-symbol">${esc(h.symbol)}</div></div></div>
       <div class="sa-holding-card-stats">
         <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">Current Value</div><div class="sa-holding-card-stat-val" id="sa-cur-val-${mint}">${curValSol!==null?formatSol(curValSol):formatSol(costSol)}</div></div>
         <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">Cost Basis</div><div class="sa-holding-card-stat-val">${formatSol(costSol)}</div></div>
@@ -1680,7 +1700,7 @@ function renderRecentTrades() {
       :(t.totalReceivedSol||(solPrice>0?t.totalReceived/solPrice:null));
     const amountFmt=amountSol!==null?formatSol(amountSol):(isBuy?formatUsd(t.totalCost):formatUsd(t.totalReceived));
     const pnlHtml=!isBuy&&t.pnl!==undefined?`<span style="color:${t.pnl>=0?'#2cffc9':'#ff4d6d'};font-weight:700">${t.pnl>=0?'+':''}${formatSol(t.pnl)}</span>`:`<span style="opacity:0.45">—</span>`;
-    return `<div class="sa-trade-row"><div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?'BUY':'SELL'}</span></div><div class="sa-trade-token-cell"><img class="sa-trade-token-logo" src="${logo}" onerror="this.src='https://placehold.co/28x28'" /><div><div class="sa-trade-token-name">${t.name||t.symbol}</div><div class="sa-trade-token-symbol">${t.symbol}</div></div></div><div>${amountFmt}</div><div class="sa-trade-pnl">${pnlHtml}</div><div class="sa-trade-time">${new Date(t.timestamp).toLocaleString()}</div></div>`;
+    return `<div class="sa-trade-row"><div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?'BUY':'SELL'}</span></div><div class="sa-trade-token-cell"><img class="sa-trade-token-logo" src="${logo}" onerror="this.src='https://placehold.co/28x28'" /><div><div class="sa-trade-token-name">${esc(t.name||t.symbol)}</div><div class="sa-trade-token-symbol">${esc(t.symbol)}</div></div></div><div>${amountFmt}</div><div class="sa-trade-pnl">${pnlHtml}</div><div class="sa-trade-time">${new Date(t.timestamp).toLocaleString()}</div></div>`;
   }).join("");
 }
 

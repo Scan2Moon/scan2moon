@@ -9,6 +9,20 @@ import "./community.js";
 const SIM_API = "/.netlify/functions/simulator";
 const DEX_API = "https://api.dexscreener.com/latest/dex/tokens/";
 
+/* ── Security helpers (mirrors safe-ape.js) ─────────────────────────── */
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+function safeMint(mint) {
+  return String(mint ?? "").replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
+}
+/* Validate Solana wallet address: base58, 32-44 chars */
+function isValidSolanaAddress(addr) {
+  return typeof addr === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr);
+}
+
 /* ─────────────────────────────────────
    TRADE HISTORY PAGINATION
 ───────────────────────────────────── */
@@ -92,12 +106,16 @@ document.addEventListener("DOMContentLoaded", () => {
   const urlParams = new URLSearchParams(window.location.search);
   const sharedWallet = urlParams.get("wallet");
   const saved = localStorage.getItem("sa_wallet");
-  if (sharedWallet) {
+  if (sharedWallet && isValidSolanaAddress(sharedWallet)) {
     wallet = sharedWallet;
     loadProfile(true); // view-only mode
-  } else if (saved) {
+  } else if (saved && isValidSolanaAddress(saved)) {
     wallet = saved;
     loadProfile();
+  } else if (sharedWallet || saved) {
+    // Invalid address format in URL/storage — clear and show connect gate
+    localStorage.removeItem("sa_wallet");
+    console.warn("Invalid wallet address in URL/storage — cleared.");
   }
 
   document.getElementById("profileConnectBtn").addEventListener("click", connectWallet);
@@ -472,7 +490,7 @@ function renderProfileCard() {
       <!-- Avatar block -->
       <div style="width:140px;background:rgba(0,0,0,0.35);border:1px solid rgba(255,180,50,0.2);border-radius:14px;padding:20px 16px;text-align:center;flex-shrink:0;">
         <div style="font-size:52px;margin-bottom:10px;filter:drop-shadow(0 0 12px rgba(255,180,50,0.4))">🦍</div>
-        <div style="font-size:15px;font-weight:800;color:#ffb432;margin-bottom:6px;">${profile.accountName}</div>
+        <div style="font-size:15px;font-weight:800;color:#ffb432;margin-bottom:6px;">${esc(profile.accountName)}</div>
         <div style="font-size:12px;font-weight:700;color:${rankColor};margin-bottom:4px;">${rank}</div>
         <div style="font-size:10px;opacity:0.4;">🔥 ${profile.loginStreak || 0} day streak</div>
       </div>
@@ -716,8 +734,8 @@ function renderHoldings() {
         <div style="display:flex;align-items:center;gap:10px;">
           <img src="${logo}" onerror="this.src='https://placehold.co/36x36'" style="width:36px;height:36px;border-radius:50%;border:1px solid rgba(44,255,201,0.2);object-fit:cover;" />
           <div>
-            <div style="font-weight:600;color:#cffff4;">${h.name}</div>
-            <div style="font-size:11px;opacity:0.5;">${h.symbol}</div>
+            <div style="font-weight:600;color:#cffff4;">${esc(h.name)}</div>
+            <div style="font-size:11px;opacity:0.5;">${esc(h.symbol)}</div>
           </div>
         </div>
         <div>
@@ -733,7 +751,7 @@ function renderHoldings() {
           <div id="prof-dot-${mint}" style="font-size:10px;opacity:0.4;margin-top:2px;">⬤ LIVE · 20s</div>
         </div>
         <div>
-          <a href="safe-ape.html" onclick="localStorage.setItem('sa_prefill_mint','${mint}')" style="padding:6px 12px;background:linear-gradient(135deg,#ffb432,#ff8c00);border:none;border-radius:7px;color:#1a0a00;font-size:11px;font-weight:700;text-decoration:none;display:inline-block;">Trade →</a>
+          <a href="safe-ape.html" onclick="localStorage.setItem('sa_prefill_mint','${safeMint(mint)}')" style="padding:6px 12px;background:linear-gradient(135deg,#ffb432,#ff8c00);border:none;border-radius:7px;color:#1a0a00;font-size:11px;font-weight:700;text-decoration:none;display:inline-block;">Trade →</a>
         </div>
       </div>`;
   }).join("");
@@ -786,8 +804,8 @@ function renderTrades() {
         <div style="display:flex;align-items:center;gap:8px;">
           <img src="${logo}" onerror="this.src='https://placehold.co/28x28'" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(44,255,201,0.2);object-fit:cover;" />
           <div>
-            <div style="font-weight:600;color:#cffff4;">${t.name || t.symbol}</div>
-            <div style="font-size:10px;opacity:0.5;">${t.symbol}</div>
+            <div style="font-weight:600;color:#cffff4;">${esc(t.name || t.symbol)}</div>
+            <div style="font-size:10px;opacity:0.5;">${esc(t.symbol)}</div>
           </div>
         </div>
         <div style="font-weight:600;color:#7fffe1;">${amountFmt}</div>
