@@ -817,6 +817,11 @@ function renderTrades() {
     </div>`;
 }
 
+// Expose reconnect-banner button handlers as window globals
+// (safe-ape-profile.js is a module so inline onclick can't reach local functions)
+window.profileStartFresh = profileStartFresh;
+window.profileDisconnect = profileDisconnect;
+
 window.tradesPrevPage = function() {
   if (tradesCurrentPage > 0) { tradesCurrentPage--; renderTrades(); }
 };
