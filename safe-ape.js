@@ -291,6 +291,8 @@ async function connectWallet() {
 }
 
 function disconnectWallet() {
+  const reconnectBanner = document.getElementById("saReconnectBanner");
+  if (reconnectBanner) reconnectBanner.style.display = "none";
   wallet = null; profile = null;
   stopAllTimers();
   if (candleChart) { candleChart.destroy(); candleChart = null; }
@@ -298,6 +300,43 @@ function disconnectWallet() {
   document.getElementById("connectGate").style.display  = "block";
   document.getElementById("simulatorApp").style.display = "none";
   try { window.solana?.disconnect(); } catch {}
+}
+
+/* ============================================================
+   START FRESH — escape hatch for wallets stuck in 503 loop
+   Called from the reconnect banner when profile is genuinely
+   lost. POSTs action=reset which bypasses the registered-wallet
+   503 guard server-side, creating a clean 10 SOL profile.
+   ============================================================ */
+async function saStartFresh() {
+  if (!wallet) { disconnectWallet(); return; }
+  const confirmed = window.confirm(
+    "⚠️ Start fresh?\n\nThis will create a brand-new profile with 10 SOL.\n" +
+    "Any previous balance or trade history will be gone.\n\nContinue?"
+  );
+  if (!confirmed) return;
+
+  showToast("🆕 Creating fresh profile…");
+  try {
+    const resp = await fetch(SIM_API, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ wallet, action: "reset" }),
+    });
+    if (!resp.ok) {
+      showToast("❌ Failed to create profile — please try again.");
+      return;
+    }
+    const data = await resp.json();
+    profile = data.profile;
+    // Hide reconnect banner and reload the simulator normally
+    const reconnectBanner = document.getElementById("saReconnectBanner");
+    if (reconnectBanner) reconnectBanner.style.display = "none";
+    showToast("✅ Fresh profile created! Starting with 10 SOL.");
+    await initSimulator();
+  } catch(e) {
+    showToast("❌ Network error — please refresh and try again.");
+  }
 }
 
 /* ============================================================
@@ -1555,7 +1594,9 @@ window.executeSell = async function() {
 /* ============================================================
    DEBRIEF
    ============================================================ */
-window.closeDebrief = () => { document.getElementById("debriefModal").style.display="none"; };
+window.closeDebrief    = () => { document.getElementById("debriefModal").style.display="none"; };
+window.disconnectWallet = disconnectWallet;
+window.saStartFresh     = saStartFresh;
 
 function showDebrief(trade,type,score) {
   document.getElementById("debriefModal").style.display="flex";
