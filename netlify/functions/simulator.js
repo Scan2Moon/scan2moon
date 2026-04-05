@@ -788,6 +788,7 @@ exports.handler = async function(event, context) {
             if (rCached && !rCached._recovering) {
               console.log("POST: restoring profile from Redis (non-recovery) cache");
               raw = JSON.stringify(rCached);
+              // raw is now set — fall through to profile = JSON.parse(raw) below
             } else {
               // Both stores unavailable — return 503 to protect real data.
               // NEVER create a fresh profile here: it would permanently wipe
@@ -797,20 +798,25 @@ exports.handler = async function(event, context) {
             }
           }
         }
-        profile = {
-          wallet,
-          accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
-          createdAt:   new Date().toISOString(),
-          balance:         STARTING_BALANCE_SOL,
-          balanceCurrency: "sol",
-          holdings:    {},
-          trades:      [],
-          totalPnL:    0,
-          winCount:    0,
-          lossCount:   0,
-          lastLogin:   null,
-          loginStreak: 0,
-        };
+        // raw may have been populated from Redis above — only create fresh if still null
+        if (!raw) {
+          profile = {
+            wallet,
+            accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
+            createdAt:   new Date().toISOString(),
+            balance:         STARTING_BALANCE_SOL,
+            balanceCurrency: "sol",
+            holdings:    {},
+            trades:      [],
+            totalPnL:    0,
+            winCount:    0,
+            lossCount:   0,
+            lastLogin:   null,
+            loginStreak: 0,
+          };
+        } else {
+          profile = JSON.parse(raw);
+        }
       } else {
         profile = JSON.parse(raw);
       }
