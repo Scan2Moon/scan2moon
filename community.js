@@ -213,7 +213,8 @@ function animateStat(id, target) {
    on cold-start or brief Blobs read failures.
    ============================================================ */
 // v3: bumped to invalidate old per-stat-max cache that was blocking Redis updates
-const STATS_CACHE_KEY = "s2m_stats_v3";
+// v4: bump to bust cached zeros caused by RK.visits/scans bug in stats.js
+const STATS_CACHE_KEY = "s2m_stats_v4";
 
 function loadCachedStats() {
   try {

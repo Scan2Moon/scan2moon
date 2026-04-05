@@ -88,9 +88,9 @@ exports.handler = async function (event) {
         // Atomic increment: read + write in one command, zero race condition risk.
         const results = await redisPipeline([
           ["INCR", RK[body.type]],
-          ["GET",  RK.visits],
-          ["GET",  RK.scans],
-          ["GET",  RK.shares],
+          ["GET",  RK.visit],
+          ["GET",  RK.scan],
+          ["GET",  RK.share],
           ["GET",  RK.moon],
         ]);
         // results[0] is the new value of the incremented key; [1-4] are current values.
@@ -110,9 +110,9 @@ exports.handler = async function (event) {
       } else {
         // GET: fetch all four counters in one pipeline call.
         const results = await redisPipeline([
-          ["GET", RK.visits],
-          ["GET", RK.scans],
-          ["GET", RK.shares],
+          ["GET", RK.visit],
+          ["GET", RK.scan],
+          ["GET", RK.share],
           ["GET", RK.moon],
         ]);
         const stats = {
