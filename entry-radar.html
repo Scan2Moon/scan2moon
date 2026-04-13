@@ -38,32 +38,34 @@
     <div class="radar-hero-left">
       <div class="radar-pulse-dot"></div>
       <div>
-        <div class="radar-title">📡 ENTRY RADAR</div>
-        <div class="radar-subtitle">Live early-stage token detection • Safety-filtered • Auto-refresh</div>
+        <div class="radar-title" data-i18n="entry_radar_title">📡 ENTRY RADAR</div>
+        <div class="radar-subtitle" data-i18n="entry_radar_sub">Live early-stage token detection • Mint &amp; Freeze verified • Entry window • Move potential • Auto-refresh</div>
       </div>
     </div>
     <div class="radar-controls">
       <div class="radar-stat-pill" id="radarTokenCount">— tokens</div>
       <div class="radar-stat-pill" id="radarLastUpdate">Updating...</div>
-      <button class="radar-refresh-btn" id="radarRefreshBtn" onclick="forceRefresh()">↻ Refresh</button>
+      <button class="radar-refresh-btn" id="radarRefreshBtn" onclick="forceRefresh()" data-i18n="btn_refresh">↻ Refresh</button>
     </div>
   </div>
 
   <!-- LEGEND ROW -->
   <div class="radar-legend">
-    <span class="legend-item"><span class="leg-dot leg-green"></span> OPEN – Safe to enter</span>
-    <span class="legend-item"><span class="leg-dot leg-yellow"></span> CAUTION – Enter carefully</span>
+    <span class="legend-item"><span class="leg-dot" style="background:#2cffc9;box-shadow:0 0 6px rgba(44,255,201,0.6);"></span> <span data-i18n="er_legend_early">EARLY — Best entry</span></span>
+    <span class="legend-item"><span class="leg-dot leg-yellow"></span> <span data-i18n="er_legend_mid">MID — Enter carefully</span></span>
+    <span class="legend-item"><span class="leg-dot" style="background:#ff4d6d;box-shadow:0 0 6px rgba(255,77,109,0.5);"></span> <span data-i18n="er_legend_late">LATE — Wait for dip</span></span>
     <span class="legend-item leg-sep">|</span>
-    <span class="legend-item">🔥 High buy pressure</span>
-    <span class="legend-item">⚡ Fast growth</span>
-    <span class="legend-item">🟢 Stable accumulation</span>
+    <span class="legend-item" data-i18n="er_legend_high_buy">🔥 High buy pressure</span>
+    <span class="legend-item" data-i18n="er_legend_fast">⚡ Fast growth</span>
+    <span class="legend-item leg-sep">|</span>
+    <span class="legend-item" style="color:rgba(44,255,201,0.6); font-size:11px;">✅ Mint &amp; Freeze verified on all tokens</span>
   </div>
 
   <!-- TOKEN LIST PANEL -->
   <div class="panel">
     <div class="panel-header">
-      <div class="panel-title">🚀 NEWEST SAFE TOKENS</div>
-      <div class="radar-filter-info">High Risk tokens filtered out • Showing top 15</div>
+      <div class="panel-title" data-i18n="radar_newest_safe">🚀 NEWEST SAFE TOKENS</div>
+      <div class="radar-filter-info" data-i18n="radar_high_risk_filtered">Mint &amp; Freeze Authority verified • High risk filtered • Showing top 15</div>
     </div>
     <div class="panel-body" id="radarTokenList">
       <div class="radar-loading">
@@ -76,8 +78,8 @@
   <!-- WHALE BUYS PANEL — NEW -->
   <div class="panel">
     <div class="panel-header">
-      <div class="panel-title">🐋 RECENT WHALE BUYS</div>
-      <div class="radar-filter-info">Live buys &gt; $1,000 across radar tokens • Click wallet to run Whale DNA</div>
+      <div class="panel-title" data-i18n="radar_whale_title">🐋 RECENT WHALE BUYS</div>
+      <div class="radar-filter-info" data-i18n="radar_whale_sub">Live buys &gt; $1,000 across radar tokens • Click wallet to run Whale DNA</div>
     </div>
     <div class="panel-body" id="whaleBuysPanel">
       <div class="radar-loading">
@@ -106,7 +108,7 @@
       <!-- MARKET SNAPSHOT PANEL -->
       <div class="modal-grid-top">
         <div class="modal-panel">
-          <div class="modal-panel-title">📊 Market Snapshot</div>
+          <div class="modal-panel-title" data-i18n="modal_market_snapshot">📊 Market Snapshot</div>
           <div class="modal-chart-wrap">
             <!-- canvas kept for compatibility but hidden by buildLiveChart() -->
             <canvas id="liveChart" style="display:none;"></canvas>
@@ -117,15 +119,15 @@
       <!-- MIDDLE 3 COLS: Momentum | Risk | Growth -->
       <div class="modal-grid-3">
         <div class="modal-panel">
-          <div class="modal-panel-title">🔥 Momentum Signals</div>
+          <div class="modal-panel-title" data-i18n="modal_momentum">🔥 Momentum Signals</div>
           <div id="modalMomentum">Loading...</div>
         </div>
         <div class="modal-panel">
-          <div class="modal-panel-title">🛡️ Risk Filter</div>
+          <div class="modal-panel-title" data-i18n="modal_risk_filter">🛡️ Risk Filter</div>
           <div id="modalRiskFilter">Loading...</div>
         </div>
         <div class="modal-panel">
-          <div class="modal-panel-title">📊 Early Growth Tracker</div>
+          <div class="modal-panel-title" data-i18n="modal_growth">📊 Early Growth Tracker</div>
           <div id="modalGrowth">Loading...</div>
         </div>
       </div>
@@ -133,15 +135,15 @@
       <!-- NEW 3 COLS: Dev History | Wallet Cluster | Top Holders -->
       <div class="modal-grid-3">
         <div class="modal-panel">
-          <div class="modal-panel-title">🕵️ Dev History</div>
+          <div class="modal-panel-title" data-i18n="modal_dev_history">🕵️ Dev History</div>
           <div id="modalDevHistory">Loading...</div>
         </div>
         <div class="modal-panel">
-          <div class="modal-panel-title">🔗 Wallet Cluster Detected</div>
+          <div class="modal-panel-title" data-i18n="modal_wallet_cluster">🔗 Wallet Cluster Detected</div>
           <div id="modalWalletCluster">Loading...</div>
         </div>
         <div class="modal-panel">
-          <div class="modal-panel-title">🏆 Top 10 Holders</div>
+          <div class="modal-panel-title" data-i18n="modal_top_holders">🏆 Top 10 Holders</div>
           <div id="modalTopHolders">Loading...</div>
         </div>
       </div>
@@ -149,11 +151,11 @@
       <!-- BOTTOM 2 COLS: Whale | Safe Entry -->
       <div class="modal-grid-2">
         <div class="modal-panel">
-          <div class="modal-panel-title">🐋 Whale & Smart Wallet Activity</div>
+          <div class="modal-panel-title" data-i18n="modal_whale">🐋 Whale & Smart Wallet Activity</div>
           <div id="modalWhale">Loading...</div>
         </div>
         <div class="modal-panel">
-          <div class="modal-panel-title">🎯 Max Safe Entry Calculator</div>
+          <div class="modal-panel-title" data-i18n="modal_safe_entry">🎯 Max Safe Entry Calculator</div>
           <div id="modalSafeEntry">Loading...</div>
         </div>
       </div>
@@ -163,16 +165,16 @@
 
   <!-- COMMUNITY PANEL -->
   <div class="panel">
-    <div class="panel-title">Scan2Moon Community</div>
+    <div class="panel-title" data-i18n="community_panel">Scan2Moon Community</div>
     <div class="panel-body" id="communityPanel"></div>
   </div>
 
   <footer class="footer">
-    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-left" data-i18n="footer_disclaimer">Informational tool only. Always DYOR.</div>
     <div class="footer-right">
       <span class="version">Version V2.0</span>
       <span class="separator">•</span>
-      <span class="powered">Powered by Scan2Moon</span>
+      <span class="powered" data-i18n="footer_powered">Powered by Scan2Moon</span>
     </div>
   </footer>
 

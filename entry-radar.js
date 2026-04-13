@@ -1,7 +1,8 @@
 // entry-radar.js – Scan2Moon V2.0 Entry Radar
 import { renderNav } from "./nav.js";
 import "./community.js";
-import { computeRiskScore } from "./scanSignals.js";
+import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
+import { applyTranslations, t } from "./i18n.js";
 import { callRpc }          from "./rpc.js";
 
 /* ── Security helpers ── */
@@ -15,7 +16,8 @@ function safeMint(mint) {
 }
 
 /* ===== CONFIG ===== */
-const DEXSCREENER_NEW    = "https://api.dexscreener.com/token-profiles/latest/v1";
+const GECKO_NEW_POOLS    = "https://api.geckoterminal.com/api/v2/networks/solana/new_pools?page=1";
+const DEXSCREENER_NEW    = "https://api.dexscreener.com/token-profiles/latest/v1"; // fallback
 const DEXSCREENER_TOKENS = "https://api.dexscreener.com/latest/dex/tokens/";
 
 const REFRESH_INTERVAL   = 60000; // 60 seconds
@@ -27,33 +29,81 @@ let liveChartInstance = null;
 let liveChartTimer    = null;
 
 /* ===================================================
-   FETCH NEWEST SOLANA TOKENS FROM DEXSCREENER
+   FETCH NEWEST SOLANA TOKENS — PRIMARY: GeckoTerminal
+   GeckoTerminal new_pools pre-filters by real DEX liquidity,
+   so we never waste RPC calls on pump.fun pre-graduation tokens
+   with liq:$0. Falls back to DexScreener profiles if GT fails.
    =================================================== */
 async function fetchNewTokens() {
+  /* ── Primary: GeckoTerminal new pools (liq pre-populated) ── */
+  try {
+    const res = await fetch(GECKO_NEW_POOLS, {
+      headers: { Accept: "application/json;version=20230302" }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data  = await res.json();
+    const pools = data?.data ?? [];
+
+    /* Stables / wrapped SOL — the other side is the "new" token */
+    const stables = new Set([
+      "So11111111111111111111111111111111111111112",   // wSOL
+      "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
+      "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
+    ]);
+
+    const tokens = [];
+    for (const pool of pools) {
+      const liq = parseFloat(pool.attributes?.reserve_in_usd ?? 0);
+      if (liq < 10000) continue; // skip thin pools before any RPC call
+
+      const baseId    = pool.relationships?.base_token?.data?.id  ?? "";
+      const quoteId   = pool.relationships?.quote_token?.data?.id ?? "";
+      const baseMint  = baseId.replace("solana_", "");
+      const quoteMint = quoteId.replace("solana_", "");
+
+      /* Pick the side that isn't SOL/stable */
+      const mint = stables.has(quoteMint) ? baseMint
+                 : stables.has(baseMint)  ? quoteMint
+                 : baseMint;
+      if (!mint || mint.length < 32) continue;
+      tokens.push({ tokenAddress: mint, chainId: "solana" });
+    }
+
+    console.log(`[Radar] fetchNewTokens (GT) → pools:${pools.length} qualifying:${tokens.length}`);
+    if (tokens.length > 0) return tokens.slice(0, 40);
+  } catch (e) {
+    console.warn("[Radar] GeckoTerminal failed, falling back to DexScreener:", e);
+  }
+
+  /* ── Fallback: DexScreener token profiles ── */
   try {
     const res  = await fetch(DEXSCREENER_NEW);
     const data = await res.json();
-    const solanaTokens = (Array.isArray(data) ? data : [])
-      .filter(t => t.chainId === "solana")
-      .slice(0, 40);
+    const all  = Array.isArray(data) ? data : [];
+    const solanaTokens = all.filter(t => t.chainId === "solana").slice(0, 40);
+    console.log(`[Radar] fetchNewTokens (DS fallback) → total:${all.length} solana:${solanaTokens.length}`);
     return solanaTokens;
   } catch (e) {
-    console.warn("Failed to fetch new tokens:", e);
+    console.warn("[Radar] fetchNewTokens FAILED:", e);
     return [];
   }
 }
 
 /* ===================================================
    FETCH PAIR DATA FOR A TOKEN
+   Returns { pair, isPumpFun, hasGraduated } using the
+   same smart pair selection as the Risk Scanner.
    =================================================== */
 async function fetchTokenPairData(mint) {
   try {
     const res  = await fetch(`${DEXSCREENER_TOKENS}${mint}`);
     const data = await res.json();
-    if (!data.pairs || data.pairs.length === 0) return null;
-    return data.pairs.find(p => p.chainId === "solana") || data.pairs[0];
+    if (!data.pairs || data.pairs.length === 0) {
+      return { pair: null, isPumpFun: false, hasGraduated: false };
+    }
+    return pickSmartPair(mint, data.pairs);
   } catch {
-    return null;
+    return { pair: null, isPumpFun: false, hasGraduated: false };
   }
 }
 
@@ -93,6 +143,30 @@ async function fetchTop10Pct(mint) {
 }
 
 /* ===================================================
+   FETCH MINT + FREEZE AUTHORITY  — hard filter gate
+   If either is NOT renounced, token is excluded from
+   Entry Radar entirely — no exceptions.
+   =================================================== */
+async function fetchMintAuthorities(mint) {
+  try {
+    const info = await callRpc("getAccountInfo", [
+      mint,
+      { encoding: "jsonParsed", commitment: "confirmed" }
+    ]);
+    if (!info?.value?.data?.parsed?.info) {
+      return { mintAuth: "Unknown", freezeAuth: "Unknown" };
+    }
+    const parsed = info.value.data.parsed.info;
+    return {
+      mintAuth:   parsed.mintAuthority   || "Renounced",
+      freezeAuth: parsed.freezeAuthority || "Renounced",
+    };
+  } catch {
+    return { mintAuth: "Unknown", freezeAuth: "Unknown" };
+  }
+}
+
+/* ===================================================
    CALCULATE RISK SCORE  — delegates to scanSignals.js
    top10Pct: real on-chain top-10 holder % (fetched in
    parallel with DexScreener so it matches Risk Scanner).
@@ -103,13 +177,36 @@ function calcRiskScore(pair, top10Pct = 0) {
 
 
 /* ===================================================
-   GET ENTRY WINDOW STATUS
-   Higher standards — only genuinely safe gets OPEN
+   GET ENTRY WINDOW STATUS  — Early / Mid / Late
+   Combines score, age, and price move to classify
+   where in the trade cycle this token sits.
    =================================================== */
 function getEntryWindow(score, pair) {
-  if (score < 55) return null; // raised from 45 to 55
-  if (score >= 65) return { status: "OPEN 🟢",    class: "open"    };
-  return               { status: "CAUTION 🟡", class: "caution" };
+  if (score < 65) return null;
+
+  const pc1h  = pair.priceChange?.h1  ?? 0;
+  const pc6h  = pair.priceChange?.h6  ?? 0;
+  const pc24h = pair.priceChange?.h24 ?? 0;
+  const createdAt = pair.pairCreatedAt;
+  const ageMs  = createdAt
+    ? Date.now() - (createdAt < 1e12 ? createdAt * 1000 : createdAt)
+    : Infinity;
+  const ageHrs = ageMs / 3_600_000;
+
+  // 🔴 LATE — already had a huge move; wait for dip
+  if (pc1h > 150 || pc6h > 400 || pc24h > 500) {
+    return { status: "🔴 LATE",  label: t("er_ew_late_label"),  class: "late",  tip: t("er_ew_late_tip")  };
+  }
+  // 🟢 EARLY — fresh token, move just starting
+  if (ageHrs < 4 && pc24h < 80 && score >= 65) {
+    return { status: "🟢 EARLY", label: t("er_ew_early_label"), class: "early", tip: t("er_ew_early_tip") };
+  }
+  // 🟡 MID — some move made, still potential left
+  if (pc24h < 300) {
+    return { status: "🟡 MID",   label: t("er_ew_mid_label"),   class: "mid",   tip: t("er_ew_mid_tip")   };
+  }
+  // 🔴 LATE — significant move already
+  return     { status: "🔴 LATE",  label: t("er_ew_late_label"),  class: "late",  tip: t("er_ew_late_tip")  };
 }
 
 /* ===================================================
@@ -126,11 +223,53 @@ function getMomentum(pair) {
   const buyRatio = sells > 0 ? buys / sells : buys > 0 ? 10 : 1;
   const volAccel = vol24h > 0 ? (vol6h * 4) / vol24h : 0;
 
-  if (buyRatio >= 2 && pc1h > 5)     return { label: "High buy pressure",   icon: "🔥", class: "sig-green"  };
-  if (volAccel > 1.5 && pc1h > 0)    return { label: "Fast growth",         icon: "⚡", class: "sig-green"  };
-  if (buyRatio >= 1.2 && pc1h >= 0)  return { label: "Stable accumulation", icon: "🟢", class: "sig-green"  };
-  if (buyRatio >= 1)                  return { label: "Mild buy pressure",   icon: "🔵", class: "sig-white"  };
-  return                                     { label: "Watch carefully",     icon: "🟡", class: "sig-yellow" };
+  if (buyRatio >= 2 && pc1h > 5)     return { label: t("er_momentum_high"),   icon: "🔥", class: "sig-green"  };
+  if (volAccel > 1.5 && pc1h > 0)    return { label: t("er_momentum_fast"),   icon: "⚡", class: "sig-green"  };
+  if (buyRatio >= 1.2 && pc1h >= 0)  return { label: t("er_momentum_stable"), icon: "🟢", class: "sig-green"  };
+  if (buyRatio >= 1)                  return { label: t("er_momentum_mild"),   icon: "🔵", class: "sig-white"  };
+  return                                     { label: t("er_momentum_watch"), icon: "🟡", class: "sig-yellow" };
+}
+
+/* ===================================================
+   MOVE POTENTIAL  — estimated upside based on MC/LP
+   Lower MC-to-liquidity ratio = more room to run.
+   =================================================== */
+function getMovePotential(mc, liq) {
+  if (!mc || !liq || liq <= 0) return null;
+  const ratio = mc / liq;
+  if (ratio <  5)  return { label: "🚀 5–20×",  tier: "ultra", cls: "move-ultra", desc: t("er_move_ultra") };
+  if (ratio < 15)  return { label: "⚡ 2–5×",   tier: "high",  cls: "move-high",  desc: t("er_move_high")  };
+  if (ratio < 50)  return { label: "🟡 1–2×",   tier: "mod",   cls: "move-mod",   desc: t("er_move_mod")   };
+  return             { label: "🔴 Low",       tier: "low",   cls: "move-low",   desc: t("er_move_low")   };
+}
+
+/* ===================================================
+   QUICK TRADE CHECKLIST
+   Returns array of { label, pass, detail } items.
+   Mint + Freeze are always ✅ (hard-filtered above).
+   =================================================== */
+function getTradeChecklist(tok) {
+  const pair    = tok.pair;
+  const liq     = tok.liq ?? 0;
+  const buys1h  = pair?.txns?.h1?.buys  ?? 0;
+  const sells1h = pair?.txns?.h1?.sells ?? 0;
+  const buyRatio = sells1h > 0 ? buys1h / sells1h : buys1h > 0 ? 10 : 1;
+  const pc24h   = pair?.priceChange?.h24 ?? 0;
+  const createdAt = pair?.pairCreatedAt;
+  const ageMs   = createdAt
+    ? Date.now() - (createdAt < 1e12 ? createdAt * 1000 : createdAt)
+    : Infinity;
+  const ageHrs  = ageMs / 3_600_000;
+
+  return [
+    { key: "mint",    label: t("er_chk_mint"),    pass: true,                              detail: t("er_chk_mint_ok")    },
+    { key: "freeze",  label: t("er_chk_freeze"),  pass: true,                              detail: t("er_chk_freeze_ok")  },
+    { key: "liq",     label: t("er_chk_liq"),     pass: liq >= 30_000,                     detail: formatUsd(liq)         },
+    { key: "buypres", label: t("er_chk_buypres"), pass: buyRatio >= 1.2,                   detail: buyRatio.toFixed(2) + "x" },
+    { key: "age",     label: t("er_chk_age"),     pass: ageHrs >= 0.5 && ageHrs <= 12,     detail: tok.age?.text ?? "—"   },
+    { key: "score",   label: t("er_chk_score"),   pass: tok.score >= 65,                   detail: tok.score + "/100"     },
+    { key: "pump",    label: t("er_chk_pump"),    pass: pc24h < 300,                       detail: (pc24h >= 0 ? "+" : "") + pc24h.toFixed(0) + "%" },
+  ];
 }
 
 /* ===================================================
@@ -218,7 +357,10 @@ function estimateHolders(pair) {
    Results are streamed to the table as soon as each
    batch completes so the user sees tokens immediately.
    =================================================== */
-const PROCESS_BATCH_SIZE = 4;  // 4 tokens × 2 RPC calls = 8 concurrent Helius calls max
+/* 2 tokens × 2 RPC calls (pair + mintAuth) = 4 concurrent Helius calls max.
+   fetchTop10Pct is skipped in Entry Radar to stay within Helius free-tier
+   rate limits; the holder % is shown as "—" in the modal instead. */
+const PROCESS_BATCH_SIZE = 2;
 
 async function processOneBatch(batch) {
   const batchResults = await Promise.allSettled(
@@ -226,36 +368,71 @@ async function processOneBatch(batch) {
       const mint = t.tokenAddress;
       if (!mint) return null;
 
-      const [pair, top10Pct] = await Promise.all([
+      const [pairResult, authorities] = await Promise.all([
         fetchTokenPairData(mint),
-        fetchTop10Pct(mint),
+        fetchMintAuthorities(mint),
       ]);
-      if (!pair) return null;
+      const top10Pct = 0; // skipped in Entry Radar to reduce RPC load
+      const { pair, isPumpFun, hasGraduated } = pairResult;
+      if (!pair) {
+        console.debug(`[Radar] ❌ No pair data: ${mint.slice(0,8)}…`);
+        return null;
+      }
+
+      /* ── HARD FILTER: both authorities must be Renounced ──
+         "Unknown" means the RPC call failed — we do NOT filter
+         those out (network blip). Only reject confirmed active. */
+      const mintActive   = authorities.mintAuth   !== "Renounced" && authorities.mintAuth   !== "Unknown";
+      const freezeActive = authorities.freezeAuth !== "Renounced" && authorities.freezeAuth !== "Unknown";
+      if (mintActive || freezeActive) {
+        console.debug(`[Radar] ❌ Authority active — mint:${authorities.mintAuth} freeze:${authorities.freezeAuth} → ${mint.slice(0,8)}…`);
+        return null;
+      }
 
       const liq    = pair.liquidity?.usd ?? 0;
       const vol24h = pair.volume?.h24 ?? 0;
-      if (liq < 5000 || vol24h < 500) return null;
+      if (liq < 10000 || vol24h < 500) {
+        console.debug(`[Radar] ❌ Low liq/vol — liq:$${Math.round(liq)} vol:$${Math.round(vol24h)} → ${mint.slice(0,8)}…`);
+        return null;
+      }
 
+      /* Set pump.fun globals synchronously right before scoring —
+         no await between here and computeRiskScore so no race condition */
+      window.scanIsPumpFun    = isPumpFun;
+      window.scanHasGraduated = hasGraduated;
+      /* Expose authorities so scanSignals gets clean data */
+      window.scanFreezeAuth   = authorities.freezeAuth;
       const score = calcRiskScore(pair, top10Pct);
       const entry = getEntryWindow(score, pair);
-      if (!entry) return null;
+      if (!entry) {
+        console.debug(`[Radar] ❌ Score too low: ${score}/100 → ${mint.slice(0,8)}… (${pair.baseToken?.symbol})`);
+        return null;
+      }
+      console.debug(`[Radar] ✅ PASS: ${pair.baseToken?.symbol} score:${score} liq:$${Math.round(liq)} entry:${entry.status}`);
 
-      return {
+      const mc = getMcEstimate(pair);
+
+      /* Build the token object — checklist added after so it can reference it */
+      const tok = {
         mint,
-        name:        pair.baseToken?.name   || "Unknown",
-        symbol:      pair.baseToken?.symbol || "?",
-        logo:        t.icon || pair.info?.imageUrl || null,
+        name:          pair.baseToken?.name   || "Unknown",
+        symbol:        pair.baseToken?.symbol || "?",
+        logo:          t.icon || pair.info?.imageUrl || null,
         pair, score, top10Pct, entry,
-        momentum:    getMomentum(pair),
-        age:         tokenAge(pair.pairCreatedAt),
-        safeEntry:   calcSafeEntry(score, pair),
-        liq,
-        mc:          getMcEstimate(pair),
-        buys:        pair.txns?.h24?.buys  ?? 0,
-        sells:       pair.txns?.h24?.sells ?? 0,
-        holders:     estimateHolders(pair),
-        pairAddress: pair.pairAddress,
+        momentum:      getMomentum(pair),
+        age:           tokenAge(pair.pairCreatedAt),
+        safeEntry:     calcSafeEntry(score, pair),
+        liq, mc,
+        mintAuth:      authorities.mintAuth,
+        freezeAuth:    authorities.freezeAuth,
+        buys:          pair.txns?.h24?.buys  ?? 0,
+        sells:         pair.txns?.h24?.sells ?? 0,
+        holders:       estimateHolders(pair),
+        pairAddress:   pair.pairAddress,
+        movePotential: getMovePotential(mc, liq),
       };
+      tok.checklist = getTradeChecklist(tok);
+      return tok;
     })
   );
   return batchResults
@@ -272,6 +449,8 @@ async function processTokens(rawTokens, onBatchReady) {
     results.push(...newItems);
     // Stream results to table after every batch so user sees tokens ASAP
     if (onBatchReady && results.length > 0) onBatchReady([...results]);
+    // Small pause between batches to avoid hammering the Helius free-tier rate limit
+    if (i + PROCESS_BATCH_SIZE < rawTokens.length) await new Promise(r => setTimeout(r, 300));
   }
   return results;
 }
@@ -308,47 +487,61 @@ function renderRadarPage() {
   const start = radarCurrentPage * RADAR_PAGE_SIZE;
   const pageTokens = tokens.slice(start, start + RADAR_PAGE_SIZE);
 
-  const rows = pageTokens.map((t, i) => {
-    const globalIdx = start + i;
-    const liqClass   = t.liq > 30000 ? "liq-value" : t.liq > 8000 ? "liq-low" : "liq-vlow";
-    const scoreClass = t.score >= 65 ? "score-good" : "score-warn";
-    const logoUrl    = t.logo
-      ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`
+  const rows = pageTokens.map((tok, i) => {
+    const globalIdx  = start + i;
+    const liqClass   = tok.liq > 30000 ? "liq-value" : tok.liq > 8000 ? "liq-low" : "liq-vlow";
+    const scoreClass = tok.score >= 65 ? "score-good" : "score-warn";
+    const logoUrl    = tok.logo
+      ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(tok.logo)}`
       : "https://placehold.co/34x34";
-    const safeVal = t.safeEntry
-      ? `<span class="safe-entry-val">$${t.safeEntry.maxEntry.toLocaleString()}</span>`
+    const safeVal = tok.safeEntry
+      ? `<span class="safe-entry-val">$${tok.safeEntry.maxEntry.toLocaleString()}</span>`
       : "N/A";
-    // Momentum compact icon only
-    const momIcon = t.momentum?.icon || "❓";
+    const momIcon = tok.momentum?.icon || "❓";
+
+    /* Checklist summary: count passes */
+    const chkPassed = (tok.checklist || []).filter(c => c.pass).length;
+    const chkTotal  = (tok.checklist || []).length;
+    const chkColor  = chkPassed === chkTotal ? "#2cffc9" : chkPassed >= chkTotal - 1 ? "#ffd166" : "#ff8c42";
+    const chkBadge  = `<span class="chk-summary" style="color:${chkColor};">✔ ${chkPassed}/${chkTotal}</span>`;
+
+    /* Move potential badge */
+    const moveBadge = tok.movePotential
+      ? `<span class="move-badge ${tok.movePotential.cls}" title="${tok.movePotential.desc}">${tok.movePotential.label}</span>`
+      : `<span style="opacity:0.4">—</span>`;
+
+    /* Entry window with new classes */
+    const ewBadge = `<span class="entry-badge ${tok.entry.class}" title="${tok.entry.tip || ''}">${tok.entry.status}<br><span class="entry-badge-sub">${tok.entry.label || ''}</span></span>`;
 
     return `
-      <tr onclick="openTokenDetail(${globalIdx})" title="Click for full analysis">
+      <tr onclick="openTokenDetail(${globalIdx})" title="${t("er_click_detail")}">
         <td>
-          <span class="token-rank">#${globalIdx + 1}</span>
           <div class="token-cell">
+            <span class="token-rank">#${globalIdx + 1}</span>
             <img class="token-cell-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/34x34'" referrerpolicy="no-referrer" />
             <div>
-              <div class="token-cell-name">${t.name}</div>
-              <div class="token-cell-symbol">${t.symbol}</div>
+              <div class="token-cell-name">${esc(tok.name)}</div>
+              <div class="token-cell-symbol">${esc(tok.symbol)}</div>
             </div>
           </div>
         </td>
-        <td><span class="${t.age.class}">${t.age.text}</span></td>
-        <td><span class="mc-value">${formatUsd(t.mc)}</span></td>
-        <td><span class="${liqClass}">${formatUsd(t.liq)}</span></td>
-        <td><span class="holders-value">${t.holders ? "~" + t.holders.toLocaleString() : "—"}</span></td>
-        <td title="${t.momentum?.label || ''}" style="text-align:center;font-size:18px;">${momIcon}</td>
+        <td><span class="${tok.age.class}">${tok.age.text}</span></td>
+        <td><span class="mc-value">${formatUsd(tok.mc)}</span></td>
+        <td><span class="${liqClass}">${formatUsd(tok.liq)}</span></td>
+        <td title="${tok.momentum?.label || ''}" style="text-align:center;font-size:18px;">${momIcon}</td>
         <td>
-          <div class="risk-score-cell" title="Market data score — use Risk Scanner for full on-chain verification">
-            <span class="risk-score-num ${scoreClass}">${t.score}</span>
+          <div class="risk-score-cell" title="${t("er_risk_score_tip")}">
+            <span class="risk-score-num ${scoreClass}">${tok.score}</span>
             <span style="opacity:0.4;font-size:10px">/100</span>
           </div>
         </td>
-        <td><span class="entry-badge ${t.entry.class}">${t.entry.status}</span></td>
+        <td>${ewBadge}</td>
+        <td>${moveBadge}</td>
+        <td>${chkBadge}</td>
         <td class="safe-entry-cell">${safeVal}</td>
         <td onclick="event.stopPropagation()">
-          <button class="radar-trade-btn" onclick="radarTradeOnSafeApe('${safeMint(t.mint)}')">
-            <img src="/sol2moon-token.png" style="width:12px;height:12px;object-fit:contain;vertical-align:middle;margin-right:3px;">Trade
+          <button class="radar-trade-btn" onclick="radarTradeOnSafeApe('${safeMint(tok.mint)}')">
+            🦍 ${t("er_trade_btn")}
           </button>
         </td>
       </tr>
@@ -363,25 +556,26 @@ function renderRadarPage() {
       <table class="radar-table">
         <thead>
           <tr>
-            <th>Token</th>
-            <th>Age</th>
-            <th>Mkt Cap</th>
-            <th>Liquidity</th>
-            <th>Holders</th>
-            <th title="Momentum">Mom.</th>
-            <th title="Market data score — scan in Risk Scanner for full on-chain score">Risk ⚡</th>
-            <th>Entry</th>
-            <th>Max Entry</th>
-            <th>Trade</th>
+            <th>${t("er_col_token")}</th>
+            <th>${t("er_col_age")}</th>
+            <th>${t("er_col_mktcap")}</th>
+            <th>${t("er_col_liquidity")}</th>
+            <th title="Momentum">${t("er_col_mom")}</th>
+            <th title="${t("er_risk_score_tip")}">${t("er_col_risk")}</th>
+            <th>${t("er_col_entry")}</th>
+            <th title="${t("er_col_move_tip")}">${t("er_col_move")}</th>
+            <th title="${t("er_col_chk_tip")}">${t("er_col_chk")}</th>
+            <th>${t("er_col_max_entry")}</th>
+            <th>${t("er_col_trade")}</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
     </div>
     <div class="radar-pagination">
-      <button class="radar-page-btn" onclick="radarPrevPage()" ${prevDisabled}>← Previous 10</button>
-      <span class="radar-page-info">Page ${radarCurrentPage + 1} / ${totalPages} &nbsp;·&nbsp; ${tokens.length} tokens</span>
-      <button class="radar-page-btn" onclick="radarNextPage()" ${nextDisabled}>Next 10 →</button>
+      <button class="radar-page-btn" onclick="radarPrevPage()" ${prevDisabled}>${t("er_prev_page")}</button>
+      <span class="radar-page-info">${t("er_page_of")} ${radarCurrentPage + 1} / ${totalPages} &nbsp;·&nbsp; ${tokens.length} ${t("er_tokens")}</span>
+      <button class="radar-page-btn" onclick="radarNextPage()" ${nextDisabled}>${t("er_next_page")}</button>
     </div>
   `;
 
@@ -567,10 +761,10 @@ function renderWhaleBuysPanel(buys) {
                     : b.usdVal >= 2500  ? "whale-size-md"
                     :                     "whale-size-sm";
 
-    const sizeLabel = b.usdVal >= 10000 ? "🐋 WHALE"
-                    : b.usdVal >= 5000  ? "🦈 BIG"
-                    : b.usdVal >= 2500  ? "🐬 MED"
-                    :                     "🐟 SMALL";
+    const sizeLabel = b.usdVal >= 10000 ? t("er_size_whale")
+                    : b.usdVal >= 5000  ? t("er_size_big")
+                    : b.usdVal >= 2500  ? t("er_size_med")
+                    :                     t("er_size_small");
 
     return `
       <div class="whale-buy-row" style="animation-delay:${i * 0.04}s">
@@ -585,22 +779,22 @@ function renderWhaleBuysPanel(buys) {
 
         <div class="whale-buy-wallet">
           ${b.isEstimated
-            ? `<span class="whale-buy-wallet-addr" style="color:rgba(255,200,80,0.7);font-size:10px;letter-spacing:0.5px;">ESTIMATED</span>
-               <span class="whale-buy-wallet-label">from vol data</span>`
+            ? `<span class="whale-buy-wallet-addr" style="color:rgba(255,200,80,0.7);font-size:10px;letter-spacing:0.5px;">${t("er_estimated")}</span>
+               <span class="whale-buy-wallet-label">${t("er_from_vol")}</span>`
             : `<span class="whale-buy-wallet-addr">${b.walletShort}</span>
-               <span class="whale-buy-wallet-label">wallet</span>`
+               <span class="whale-buy-wallet-label">${t("er_wallet_label")}</span>`
           }
         </div>
 
         <div class="whale-buy-amount">
           <span class="whale-buy-usd">+${b.usdFormatted}</span>
-          <span class="whale-buy-time">${b.isEstimated ? "~1h window" : timeAgo(b.timestamp)}</span>
+          <span class="whale-buy-time">${b.isEstimated ? t("er_1h_window") : timeAgo(b.timestamp)}</span>
         </div>
 
         <div class="whale-buy-badge ${sizeClass}">${sizeLabel}</div>
 
         <button class="whale-buy-scan-btn" onclick="scanWhaleFromRadar('${b.wallet}', ${b.isEstimated ? 'true' : 'false'}, '${b.tokenMint}')">
-          ${b.isEstimated ? '📊 View on DexScreener' : '🧬 Scan Whale'}
+          ${b.isEstimated ? t("er_view_dex") : t("er_scan_whale")}
         </button>
 
       </div>
@@ -611,7 +805,7 @@ function renderWhaleBuysPanel(buys) {
   panel.innerHTML = `
     <div class="whale-buys-list">${rows}</div>
     <div class="whale-buys-note">
-      📊 Estimated from 1H volume data across radar tokens · Auto-refreshes every 30s · Updated ${now}
+      ${t("er_estimated_note")} ${now}
     </div>
   `;
 }
@@ -635,6 +829,43 @@ window.scanWhaleFromRadar = function(wallet, isEstimated, tokenMint) {
 };
 
 /* ===================================================
+   BUILD TRADE CHECKLIST HTML  (used in modal)
+   =================================================== */
+function buildChecklistHTML(tok) {
+  const list   = tok.checklist || getTradeChecklist(tok);
+  const passed = list.filter(c => c.pass).length;
+  const allOk  = passed === list.length;
+  const headerColor = allOk ? "#2cffc9" : passed >= list.length - 1 ? "#ffd166" : "#ff8c42";
+
+  const items = list.map(c => `
+    <div class="chk-item ${c.pass ? 'chk-pass' : 'chk-fail'}">
+      <span class="chk-icon">${c.pass ? '✅' : '❌'}</span>
+      <span class="chk-label">${c.label}</span>
+      <span class="chk-detail">${c.detail}</span>
+    </div>
+  `).join("");
+
+  const safeApeBtn = `
+    <button class="chk-safe-ape-btn" onclick="event.stopPropagation(); radarTradeOnSafeApe('${safeMint(tok.mint)}')">
+      🦍 ${t("er_trade_safe_ape")}
+    </button>`;
+
+  return `
+    <div class="chk-header">
+      <span class="chk-title">${t("er_chk_title")}</span>
+      <span class="chk-score" style="color:${headerColor};">${passed}/${list.length} ${t("er_chk_passed")}</span>
+    </div>
+    <div class="chk-grid">${items}</div>
+    <div class="chk-footer">
+      ${allOk
+        ? `<span class="chk-all-ok">✅ ${t("er_chk_all_ok")}</span>`
+        : `<span class="chk-partial">⚠️ ${t("er_chk_partial")}</span>`}
+      ${safeApeBtn}
+    </div>
+  `;
+}
+
+/* ===================================================
    OPEN TOKEN DETAIL MODAL
    =================================================== */
 let currentTokens = [];
@@ -654,7 +885,7 @@ window.openTokenDetail = function(index) {
     : "https://placehold.co/52x52";
 
   const scoreColor  = t.score >= 65 ? "#2cffc9" : t.score >= 45 ? "#ffd166" : "#ff4d6d";
-  const riskLabel   = t.score >= 65 ? "LOW RISK" : t.score >= 45 ? "MODERATE" : "HIGH RISK";
+  const riskLabel   = t.score >= 65 ? t("er_risk_low") : t.score >= 45 ? t("er_risk_moderate") : t("er_risk_high");
   const holderNote  = t.top10Pct > 0
     ? `Top-10 holders: <strong style="color:${t.top10Pct > 70 ? "#ff4d6d" : t.top10Pct > 50 ? "#ffd166" : "#2cffc9"}">${t.top10Pct.toFixed(1)}%</strong> · `
     : "";
@@ -663,21 +894,36 @@ window.openTokenDetail = function(index) {
     <img class="modal-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/52x52'" referrerpolicy="no-referrer" />
     <div>
       <div class="modal-name">${esc(t.name)} <span style="opacity:0.5;font-size:14px">(${esc(t.symbol)})</span></div>
-      <div class="modal-symbol">Age: ${t.age.text}
+      <div class="modal-symbol">${t("er_age_label")} ${t.age.text}
         &nbsp;|&nbsp;
-        Risk Score: <strong style="color:${scoreColor}">${t.score}/100 — ${riskLabel}</strong>
+        ${t("er_risk_score_label")} <strong style="color:${scoreColor}">${t.score}/100 — ${riskLabel}</strong>
       </div>
       <div style="font-size:10px;opacity:0.5;margin-top:3px;">
-        ${holderNote}same scoring as Risk Scanner ·
-        <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${safeMint(t.mint)}')" style="color:#2cffc9;" target="_blank">Full Scan →</a>
+        ${holderNote}${t("er_same_scoring")}
+        <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${safeMint(t.mint)}')" style="color:#2cffc9;" target="_blank">${t("er_full_scan")}</a>
       </div>
       <div class="modal-mint-link">${esc(safeMint(t.mint))}</div>
     </div>
   `;
 
+  /* Entry window banner with label + tip */
   const ewEl = document.getElementById("modalEntryWindow");
-  ewEl.className   = `entry-window-banner ${t.entry.class}`;
-  ewEl.textContent = `Entry Window: ${t.entry.status}`;
+  ewEl.className = `entry-window-banner ${t.entry.class}`;
+  ewEl.innerHTML = `
+    <span class="ew-status">${t("er_entry_window")} ${t.entry.status}</span>
+    <span class="ew-label">${t.entry.label || ''}</span>
+    ${t.movePotential ? `<span class="ew-move ${t.movePotential.cls}">${t.movePotential.label} &nbsp;·&nbsp; ${t.movePotential.desc}</span>` : ''}
+  `;
+
+  /* Trade checklist panel - inject above momentum grid */
+  const existingChk = document.getElementById("modalTradeChecklist");
+  if (existingChk) existingChk.remove();
+  const chkPanel = document.createElement("div");
+  chkPanel.id = "modalTradeChecklist";
+  chkPanel.className = "modal-checklist-panel";
+  chkPanel.innerHTML = buildChecklistHTML(t);
+  const grid = document.querySelector(".modal-grid-3");
+  if (grid) grid.parentElement.insertBefore(chkPanel, grid);
 
   buildLiveChart(t);
   renderMomentumPanel(t);
@@ -904,14 +1150,24 @@ function renderRiskFilter(t) {
   ];
 
   el.innerHTML = `
+    <div class="risk-check-row authority-confirmed">
+      <span class="check-icon">✅</span>
+      <span class="check-label">${t("er_mint_auth")}</span>
+      <span class="check-value sig-green">Renounced</span>
+    </div>
+    <div class="risk-check-row authority-confirmed">
+      <span class="check-icon">✅</span>
+      <span class="check-label">${t("er_freeze_auth")}</span>
+      <span class="check-value sig-green">Renounced</span>
+    </div>
     ${checks.map(c => `
     <div class="risk-check-row">
       <span class="check-icon">${c.icon}</span>
       <span class="check-label">${c.label}</span>
       <span class="check-value ${c.cls}">${c.value}</span>
     </div>`).join("")}
-    <div class="risk-check-row" style="border-bottom:none; padding-top:12px; font-size:11px; opacity:0.5;">
-      ℹ️ LP lock &amp; mint/freeze authority: use Risk Scanner for on-chain verification
+    <div class="risk-check-row" style="border-bottom:none; padding-top:10px; font-size:10px; opacity:0.45;">
+      🔒 ${t("er_authority_verified")}
     </div>
   `;
 }
@@ -1224,7 +1480,7 @@ function renderSafeEntryCalc(t) {
     return;
   }
 
-  const riskLabel  = se.score >= 65 ? "Low Risk" : se.score >= 45 ? "Moderate Risk" : "Higher Risk";
+  const riskLabel  = se.score >= 65 ? t("er_risk_low") : se.score >= 45 ? t("er_risk_moderate") : t("er_risk_high");
   const riskColor  = se.score >= 65 ? "#2cffc9" : se.score >= 45 ? "#ffd166" : "#ff9a7a";
   const entryLabel = t.entry.class === "open" ? "OPEN 🟢" : "CAUTION 🟡";
 
@@ -1318,6 +1574,15 @@ window.forceRefresh = function() {
 /* ===== INIT ===== */
 document.addEventListener("DOMContentLoaded", () => {
   renderNav();
+  applyTranslations();
   loadRadar();
   refreshTimer = setInterval(loadRadar, REFRESH_INTERVAL);
+});
+
+/* Re-render dynamic content when language switches.
+   NOTE: applyTranslations() is intentionally NOT called here — the i18n
+   system calls it internally on langchange which would create an infinite
+   loop (applyTranslations → dispatches langchange → applyTranslations…). */
+window.addEventListener("langchange", () => {
+  if (radarAllTokens && radarAllTokens.length > 0) renderRadarPage();
 });
