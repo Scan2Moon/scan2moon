@@ -3,6 +3,8 @@
    Professional footer community panel
    ============================================================ */
 
+import { t } from "./i18n.js";
+
 const statsEndpoint = "/.netlify/functions/stats";
 
 /* ============================================================
@@ -43,27 +45,26 @@ function renderCommunityPanel() {
           <span class="s2m-footer-version">V2.0</span>
         </div>
         <div class="s2m-footer-tagline">
-          On-chain Solana intelligence.<br/>Scan smarter. Trade safer.
+          ${t("comm_tagline")}
         </div>
         <div class="s2m-footer-chain-pill">
           <span class="s2m-footer-chain-dot"></span>
-          Built on Solana
+          ${t("comm_built_solana")}
         </div>
         <div class="s2m-footer-disclaimer">
-          Informational tool only. Always DYOR.<br/>
-          Not financial advice.
+          ${t("comm_disclaimer")}
         </div>
       </div>
 
       <!-- COL 2: LIVE STATS -->
       <div class="s2m-footer-stats-col">
-        <div class="s2m-footer-section-title">📡 Live Stats</div>
+        <div class="s2m-footer-section-title">${t("comm_live_stats")}</div>
         <div class="s2m-footer-stats-list">
 
           <div class="s2m-footer-stat-row">
             <div class="s2m-footer-stat-left">
               <span class="s2m-footer-stat-icon">👁️</span>
-              <span class="s2m-footer-stat-label">Site Visits</span>
+              <span class="s2m-footer-stat-label">${t("comm_stat_visits")}</span>
             </div>
             <strong class="s2m-footer-stat-val" id="statVisits">—</strong>
           </div>
@@ -71,7 +72,7 @@ function renderCommunityPanel() {
           <div class="s2m-footer-stat-row">
             <div class="s2m-footer-stat-left">
               <span class="s2m-footer-stat-icon">🔍</span>
-              <span class="s2m-footer-stat-label">Risk Scans Run</span>
+              <span class="s2m-footer-stat-label">${t("comm_stat_scans")}</span>
             </div>
             <strong class="s2m-footer-stat-val" id="statScans">—</strong>
           </div>
@@ -79,13 +80,13 @@ function renderCommunityPanel() {
           <div class="s2m-footer-stat-row s2m-footer-stat-moon">
             <div class="s2m-footer-stat-left">
               <span class="s2m-footer-stat-icon"><img src="/sol2moon-token.png" class="s2m-token-icon s2m-token-icon--footer"></span>
-              <span class="s2m-footer-stat-label">Moon Coins Detected</span>
+              <span class="s2m-footer-stat-label">${t("comm_stat_moon")}</span>
             </div>
             <strong class="s2m-footer-stat-val s2m-footer-stat-val--moon" id="statMoon">—</strong>
           </div>
 
           <div class="s2m-footer-stat-note">
-            Moon Coins = Risk Score ≥ 80/100
+            ${t("comm_stat_note")}
           </div>
 
         </div>
@@ -93,13 +94,13 @@ function renderCommunityPanel() {
 
       <!-- COL 3: COMMUNITY LINKS -->
       <div class="s2m-footer-links-col">
-        <div class="s2m-footer-section-title">🌐 Community</div>
+        <div class="s2m-footer-section-title">${t("comm_community")}</div>
         <div class="s2m-footer-links-list">
 
           <a href="https://x.com/Scan2Moon" target="_blank" rel="noopener noreferrer" class="s2m-footer-link s2m-footer-link--x">
             <span class="s2m-footer-link-icon">𝕏</span>
             <div class="s2m-footer-link-text">
-              <div class="s2m-footer-link-name">Follow on X</div>
+              <div class="s2m-footer-link-name">${t("comm_follow_x")}</div>
               <div class="s2m-footer-link-sub">@Scan2Moon</div>
             </div>
             <span class="s2m-footer-link-arrow">↗</span>
@@ -108,8 +109,8 @@ function renderCommunityPanel() {
           <a href="https://t.me/scan2moon" target="_blank" rel="noopener noreferrer" class="s2m-footer-link s2m-footer-link--tg">
             <span class="s2m-footer-link-icon">✈️</span>
             <div class="s2m-footer-link-text">
-              <div class="s2m-footer-link-name">Telegram</div>
-              <div class="s2m-footer-link-sub">Join community chat</div>
+              <div class="s2m-footer-link-name">${t("comm_tg_name")}</div>
+              <div class="s2m-footer-link-sub">${t("comm_tg_sub")}</div>
             </div>
             <span class="s2m-footer-link-arrow">↗</span>
           </a>
@@ -118,7 +119,7 @@ function renderCommunityPanel() {
             <span class="s2m-footer-link-icon">⌥</span>
             <div class="s2m-footer-link-text">
               <div class="s2m-footer-link-name">GitHub</div>
-              <div class="s2m-footer-link-sub">Open source</div>
+              <div class="s2m-footer-link-sub">${t("comm_gh_sub")}</div>
             </div>
             <span class="s2m-footer-link-arrow">↗</span>
           </a>
@@ -126,7 +127,7 @@ function renderCommunityPanel() {
           <a href="mailto:team@scan2moon.com" class="s2m-footer-link s2m-footer-link--email">
             <span class="s2m-footer-link-icon">✉️</span>
             <div class="s2m-footer-link-text">
-              <div class="s2m-footer-link-name">Contact Us</div>
+              <div class="s2m-footer-link-name">${t("comm_contact")}</div>
               <div class="s2m-footer-link-sub">team@scan2moon.com</div>
             </div>
             <span class="s2m-footer-link-arrow">↗</span>
@@ -137,22 +138,22 @@ function renderCommunityPanel() {
 
       <!-- COL 4: TOOLS -->
       <div class="s2m-footer-tools-col">
-        <div class="s2m-footer-section-title">🛠️ Tools</div>
+        <div class="s2m-footer-section-title">${t("comm_tools")}</div>
         <div class="s2m-footer-tools-list">
           <a href="risk-scanner.html" class="s2m-footer-tool">
-            <span>🛡️</span> Risk Scanner
+            <span>🛡️</span> ${t("comm_tool_risk")}
           </a>
           <a href="portfolio.html" class="s2m-footer-tool">
-            <span>💼</span> Portfolio Scanner
+            <span>💼</span> ${t("comm_tool_portfolio")}
           </a>
           <a href="whale-dna.html" class="s2m-footer-tool">
-            <span>🧬</span> Whale DNA
+            <span>🧬</span> ${t("comm_tool_whale")}
           </a>
           <a href="entry-radar.html" class="s2m-footer-tool">
-            <span>📡</span> Entry Radar
+            <span>📡</span> ${t("comm_tool_radar")}
           </a>
           <a href="watchlist.html" class="s2m-footer-tool">
-            <span>⭐</span> Watchlist
+            <span>⭐</span> ${t("comm_tool_watchlist")}
           </a>
         </div>
       </div>
@@ -161,10 +162,10 @@ function renderCommunityPanel() {
 
     <!-- BOTTOM BAR -->
     <div class="s2m-footer-bottom">
-      <span class="s2m-footer-bottom-left">© 2026 Scan2Moon · All rights reserved</span>
+      <span class="s2m-footer-bottom-left">${t("comm_copyright")}</span>
       <span class="s2m-footer-bottom-right">
         <span class="s2m-footer-live-dot"></span>
-        Live · Auto-refreshes every 60s
+        ${t("comm_live_auto")}
       </span>
     </div>
   `;
@@ -313,3 +314,11 @@ if (document.readyState === "loading") {
 }
 
 window.incrementGlobalStat = incrementGlobalStat;
+
+/* Re-render community panel on language switch */
+window.addEventListener("langchange", () => {
+  renderCommunityPanel();
+  // Re-fetch stats to repopulate the counters after re-render
+  const cached = loadCachedStats();
+  if (cached) updateStatsUI(cached);
+});

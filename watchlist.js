@@ -1,5 +1,6 @@
 // watchlist.js – Scan2Moon V2.0 Token Watchlist
 import { renderNav } from "./nav.js";
+import { applyTranslations } from "./i18n.js";
 import "./community.js";
 
 const WL_KEY    = "s2m_watchlist";
@@ -355,6 +356,7 @@ function injectPnlStrip(card, pnlSol, pnlPct) {
 /* ── Clear all ── */
 document.addEventListener("DOMContentLoaded", () => {
   renderNav();
+  applyTranslations();
   render();
   startLiveRefresh(); /* batch live refresh every 2s — prices + P/L */
 
@@ -365,3 +367,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+
+/* i18n handles data-i18n elements automatically on langchange — no manual call needed */
+window.addEventListener("langchange", () => { /* i18n system handles this */ });
