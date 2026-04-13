@@ -65,7 +65,7 @@ export function renderNav() {
               </a>
             </div>
           </div>
-          <div class="nav-dropdown ${isLearn ? 'active' : ''}" id="dd-learn">
+          <div class="nav-dropdown ${isLearn ? 'active' : ''}" id="dd-learn" style="display:none;">
             <button class="nav-link nav-drop-btn ${isLearn ? 'active' : ''}">
               <span class="nav-icon">🎓</span> <span data-i18n="nav_learn2moon">${t("nav_learn2moon")}</span> <span class="nav-chevron">▾</span>
             </button>
@@ -137,8 +137,8 @@ export function renderNav() {
           </div>
         </div>
 
-        <!-- ── Language Switcher ── -->
-        <div class="lang-switcher">
+        <!-- ── Language Switcher (hidden until NL translations are complete) ── -->
+        <div class="lang-switcher" style="display:none;">
           <button class="lang-flag-btn ${getCurrentLang() === 'en' ? 'lang-active' : ''}"
                   data-lang="en"
                   title="English"
