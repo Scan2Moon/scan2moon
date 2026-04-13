@@ -11,7 +11,8 @@
 import { renderNav }                    from "./nav.js";
 import { CandleChart }                  from "./candleChart.js";
 import "./community.js";
-import { computeRiskScore }             from "./scanSignals.js";
+import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
+import { applyTranslations } from "./i18n.js";
 import { callRpc }                      from "./rpc.js";
 import { addToWatchlist, isOnWatchlist } from "./watchlist.js";
 
@@ -57,10 +58,13 @@ function registerInLeaderboard(walletAddr) {
    Sorting by liquidity instead (old behaviour) often picked a different
    AMM pool (e.g. Raydium vs Meteora) whose price action looks totally
    different, making our candles not match DexScreener's chart at all. */
-function pickBestPair(pairs) {
-  return (pairs || [])
-    .filter(p => p.chainId === "solana")
-    .sort((a, b) => (b.volume?.h24 ?? 0) - (a.volume?.h24 ?? 0))[0] || null;
+/* Delegates to the shared smart picker so Safe Ape always matches Risk Scanner.
+   Also sets window.scanIsPumpFun / window.scanHasGraduated for computeRiskScore. */
+function pickBestPair(mint, pairs) {
+  const { pair, isPumpFun, hasGraduated } = pickSmartPair(mint, pairs);
+  window.scanIsPumpFun    = isPumpFun;
+  window.scanHasGraduated = hasGraduated;
+  return pair;
 }
 
 /* GeckoTerminal timeframe map: tf → { path, agg, limit }
@@ -179,6 +183,7 @@ function formatSol(n) {
    ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
   renderNav();
+  applyTranslations();
 
   const saved = localStorage.getItem("sa_wallet");
   if (saved) { wallet = saved; initSimulator(); }
@@ -614,7 +619,7 @@ async function pollActivePair(mint) {
   try {
     const res  = await fetch(`${DEX_API}${mint}`);
     const data = await res.json();
-    const pair = pickBestPair(data.pairs);
+    const pair = pickBestPair(mint, data.pairs);
     if (!pair) return;
 
     const rawPrice = parseFloat(pair.priceUsd || "0");
@@ -1177,7 +1182,7 @@ window.searchToken = async function() {
       fetchTop10Pct(mint)
     ]);
     const data = await res.json();
-    const pair = pickBestPair(data.pairs);
+    const pair = pickBestPair(mint, data.pairs);
     if (!pair) { showToast("⚠️ No market data found for this token."); return; }
     const price = parseFloat(pair.priceUsd || "0");
     if (price > 0) livePrices[mint] = price;
@@ -1452,21 +1457,42 @@ function updateLivePnl(price) {
 
 function updatePortfolioPnlCards() {
   if (!profile) return;
+  let totalCost = 0, totalVal = 0, wins = 0, losses = 0, pending = 0;
+
   for (const [mint,h] of Object.entries(profile.holdings||{})) {
     if (!h||h.amount<=0) continue;
-    const price = livePrices[mint]; if (!price) continue;
+    const price     = livePrices[mint];
     const costSol   = h.totalCostSol||0;
+    totalCost += costSol;
+
+    if (!price) { totalVal += costSol; pending++; continue; }
+
     // curValSol uses price ratio — immune to solPrice API errors
     const curValSol = (h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
     const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
-    // P/L = actual SOL value change
     const pnlSol    = curValSol - costSol;
     const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
     const sign      = pnlSol>=0?"+":"";
-    const pnlEl     = document.getElementById(`sa-atm-pnl-${mint}`);
-    const valEl     = document.getElementById(`sa-cur-val-${mint}`);
+    totalVal += curValSol;
+    if (pnlSol >= 0) wins++; else losses++;
+
+    const pnlEl = document.getElementById(`sa-atm-pnl-${mint}`);
+    const valEl = document.getElementById(`sa-cur-val-${mint}`);
     if (pnlEl) { pnlEl.textContent=`${sign}${formatSol(pnlSol)} (${sign}${pnlPct.toFixed(4)}%)`; pnlEl.className=`sa-card-atm-pnl ${pnlSol>=0?"pnl-pos":"pnl-neg"}`; }
     if (valEl)   valEl.textContent=`${formatSol(curValSol)}${solPrice>0?` ≈ ${formatUsd(curValUsd)}`:''}`;
+  }
+
+  /* Live-update the summary bar totals */
+  const totalPnlEl = document.getElementById("sa-total-pnl");
+  if (totalPnlEl && totalCost > 0) {
+    const pnlSol = totalVal - totalCost;
+    const pnlPct = (pnlSol / totalCost) * 100;
+    const pnlUsd = solPrice > 0 ? pnlSol * solPrice : null;
+    const sign   = pnlSol >= 0 ? "+" : "";
+    const cls    = pnlSol >= 0 ? "pnl-pos" : "pnl-neg";
+    totalPnlEl.className = `sa-summary-val ${cls}`;
+    totalPnlEl.innerHTML = `${sign}${formatSol(pnlSol)}${pnlUsd !== null ? ` <span style="opacity:0.6;font-size:11px;">≈ ${sign}${formatUsd(Math.abs(pnlUsd))}</span>` : ""}
+      <span style="opacity:0.7;font-size:11px;margin-left:4px;">(${sign}${pnlPct.toFixed(2)}%)</span>`;
   }
 }
 
@@ -1651,14 +1677,64 @@ window.exportDebrief = async function() {
 /* ============================================================
    PORTFOLIO
    ============================================================ */
+function renderPortfolioSummary(keys, holdings) {
+  const el = document.getElementById("saPortfolioSummary");
+  if (!el) return;
+  if (!keys || !keys.length) { el.innerHTML = ""; return; }
+
+  let totalCost = 0, totalVal = 0, wins = 0, losses = 0, pending = 0;
+  for (const mint of keys) {
+    const h = holdings[mint];
+    const price = livePrices[mint];
+    const costSol = h.totalCostSol || 0;
+    totalCost += costSol;
+    if (price && h.avgPrice > 0) {
+      const curVal = costSol * (price / h.avgPrice);
+      totalVal += curVal;
+      if (curVal >= costSol) wins++; else losses++;
+    } else {
+      totalVal += costSol; // neutral until price loads
+      pending++;
+    }
+  }
+
+  const pnlSol = totalVal - totalCost;
+  const pnlPct = totalCost > 0 ? (pnlSol / totalCost) * 100 : 0;
+  const pnlUsd = solPrice > 0 ? pnlSol * solPrice : null;
+  const sign   = pnlSol >= 0 ? "+" : "";
+  const pnlCls = pnlSol >= 0 ? "pnl-pos" : "pnl-neg";
+
+  el.innerHTML = `
+    <div class="sa-summary-bar">
+      <div class="sa-summary-item">
+        <div class="sa-summary-label">Total PNL</div>
+        <div class="sa-summary-val ${pnlCls}" id="sa-total-pnl">
+          ${sign}${formatSol(pnlSol)}${pnlUsd !== null ? ` <span style="opacity:0.6;font-size:11px;">≈ ${sign}${formatUsd(Math.abs(pnlUsd))}</span>` : ""}
+          <span style="opacity:0.7;font-size:11px;margin-left:4px;">(${sign}${pnlPct.toFixed(2)}%)</span>
+        </div>
+      </div>
+      <div class="sa-summary-divider"></div>
+      <div class="sa-summary-item">
+        <div class="sa-summary-label">Open Positions</div>
+        <div class="sa-summary-counts">
+          <span class="sa-summary-wins">▲ ${wins} Win${wins !== 1 ? "s" : ""}</span>
+          <span class="sa-summary-losses">▼ ${losses} Loss${losses !== 1 ? "es" : ""}</span>
+          ${pending ? `<span style="opacity:0.4;font-size:11px;">· ${pending} loading</span>` : ""}
+        </div>
+      </div>
+    </div>`;
+}
+
 function renderPortfolio() {
   const body=document.getElementById("saPortfolioBody");
   const holdings=profile?.holdings||{};
   const keys=Object.keys(holdings).filter(k=>holdings[k].amount>0);
   if (!keys.length) {
+    document.getElementById("saPortfolioSummary").innerHTML = "";
     body.innerHTML=`<div class="sa-empty-portfolio"><div style="font-size:36px;margin-bottom:10px;">🦍</div><div style="color:#7fffe1;font-weight:600;margin-bottom:6px;">No positions yet</div><div style="opacity:0.5;font-size:13px;">Search a token above and make your first simulated trade!</div></div>`;
     return;
   }
+  renderPortfolioSummary(keys, holdings);
   body.innerHTML=`<div class="sa-portfolio-grid">${keys.map(mint=>{
     const h=holdings[mint];
     const logo=h.logo?`/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}`:"https://placehold.co/36x36";
@@ -2004,3 +2080,6 @@ function formatAmount(n) {
   if (n>=1e3)  return (n/1e3).toFixed(2)+"K";
   return n.toLocaleString(undefined,{maximumFractionDigits:4});
 }
+
+/* i18n handles data-i18n elements automatically on langchange — no manual call needed */
+window.addEventListener("langchange", () => { /* i18n system handles this */ });

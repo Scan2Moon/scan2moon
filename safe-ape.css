@@ -906,6 +906,51 @@
 .sa-card-atm-pnl.pnl-pos { color: #2cffc9; text-shadow: 0 0 8px rgba(44,255,201,0.4); }
 .sa-card-atm-pnl.pnl-neg { color: #ff4d6d; text-shadow: 0 0 8px rgba(255,77,109,0.3); }
 
+/* ── Portfolio Summary Bar ────────────────────────────────────── */
+.sa-summary-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 10px 16px;
+  background: rgba(44,255,201,0.04);
+  border-bottom: 1px solid rgba(44,255,201,0.10);
+}
+.sa-summary-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sa-summary-divider {
+  width: 1px;
+  height: 36px;
+  background: rgba(44,255,201,0.15);
+  margin: 0 16px;
+}
+.sa-summary-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.45;
+  font-weight: 600;
+}
+.sa-summary-val {
+  font-size: 15px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+}
+.sa-summary-val.pnl-pos { color: #2cffc9; }
+.sa-summary-val.pnl-neg { color: #ff4d6d; }
+.sa-summary-counts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.sa-summary-wins   { color: #2cffc9; }
+.sa-summary-losses { color: #ff4d6d; }
+
 /* ═══════════════════════════════════════
    RECENT TRADES
 ═══════════════════════════════════════ */

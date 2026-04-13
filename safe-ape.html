@@ -38,7 +38,7 @@
   <div id="connectGate">
     <div class="sa-connect-hero">
       <div class="sa-connect-emoji">🦍</div>
-      <div class="sa-connect-title">SAFE APE SIMULATOR</div>
+      <div class="sa-connect-title" data-i18n="safe_ape_title_short">SAFE APE SIMULATOR</div>
       <div class="sa-connect-sub">Paper trading with real risk intelligence.<br/>Train good habits — not just fast clicks.</div>
       <div class="sa-connect-features">
         <div class="sa-connect-feat"><span>💰</span> 10 SOL starting balance</div>
@@ -76,8 +76,8 @@
       <div class="sa-hero-left">
         <div class="sa-pulse-dot"></div>
         <div>
-          <div class="sa-title">🦍 SAFE APE SIMULATOR</div>
-          <div class="sa-subtitle">Paper trading with real Scan2Moon risk intelligence</div>
+          <div class="sa-title" data-i18n="safe_ape_title">🦍 SAFE APE SIMULATOR</div>
+          <div class="sa-subtitle" data-i18n="safe_ape_sub">Paper trading with real Scan2Moon risk intelligence</div>
         </div>
       </div>
       <div class="sa-hero-right">
@@ -87,7 +87,7 @@
         </div>
         <div class="sa-streak-pill" id="heroStreak">🔥 Streak: 0</div>
         <a href="safe-ape-profile.html" class="sa-profile-btn">👤 Profile</a>
-        <button class="sa-disconnect-btn" id="disconnectBtn">Disconnect</button>
+        <button class="sa-disconnect-btn" id="disconnectBtn" data-i18n="sa_disconnect">Disconnect</button>
       </div>
     </div>
 
@@ -109,8 +109,8 @@
 
     <!-- SEARCH BAR -->
     <div class="sa-search-bar">
-      <input id="saTokenInput" type="text" placeholder="Paste token mint address to start trading…" autocomplete="off" spellcheck="false" />
-      <button id="saSearchBtn">🔍 Analyse Token</button>
+      <input id="saTokenInput" type="text" data-i18n="sa_token_placeholder" placeholder="Paste token mint address to start trading…" autocomplete="off" spellcheck="false" />
+      <button id="saSearchBtn" data-i18n="sa_analyse_btn">🔍 Analyse Token</button>
     </div>
 
     <!-- TOKEN TERMINAL -->
@@ -162,11 +162,11 @@
           <!-- MIDDLE: Risk + Signals -->
           <div class="sa-col-risk">
             <div class="panel">
-              <div class="panel-title">🛡️ SCAN2MOON RISK SCORE</div>
+              <div class="panel-title" data-i18n="sa_risk_score">🛡️ SCAN2MOON RISK SCORE</div>
               <div class="panel-body" id="saRiskPanel"></div>
             </div>
             <div class="panel">
-              <div class="panel-title">📊 MARKET SIGNALS</div>
+              <div class="panel-title" data-i18n="sa_market_signals">📊 MARKET SIGNALS</div>
               <div class="panel-body" id="saSignalsPanel"></div>
             </div>
           </div>
@@ -174,11 +174,11 @@
           <!-- RIGHT: Trade Box -->
           <div class="sa-col-trade">
             <div class="panel">
-              <div class="panel-title">⚡ TRADE</div>
+              <div class="panel-title" data-i18n="sa_trade_panel">⚡ TRADE</div>
               <div class="panel-body">
                 <div class="sa-trade-tabs">
-                  <button class="sa-trade-tab active" id="tabBuy" onclick="setTradeTab('buy')">BUY</button>
-                  <button class="sa-trade-tab" id="tabSell" onclick="setTradeTab('sell')">SELL</button>
+                  <button class="sa-trade-tab active" id="tabBuy" data-i18n="sa_buy_tab" onclick="setTradeTab('buy')">BUY</button>
+                  <button class="sa-trade-tab" id="tabSell" data-i18n="sa_sell_tab" onclick="setTradeTab('sell')">SELL</button>
                 </div>
 
                 <!-- BUY PANEL -->
@@ -195,7 +195,7 @@
                     <button onclick="setQuickBuy(100)">MAX</button>
                   </div>
                   <div class="sa-trade-info" id="buyInfo"></div>
-                  <button class="sa-buy-btn" id="saBuyBtn" onclick="executeBuy()">🦍 APE IN (BUY)</button>
+                  <button class="sa-buy-btn" id="saBuyBtn" data-i18n="sa_buy_btn" onclick="executeBuy()">🦍 APE IN (BUY)</button>
                 </div>
 
                 <!-- SELL PANEL -->
@@ -214,7 +214,7 @@
                     <button onclick="setQuickSell(100)">MAX</button>
                   </div>
                   <div class="sa-trade-info" id="sellInfo"></div>
-                  <button class="sa-sell-btn" id="saSellBtn" onclick="executeSell()">🔴 EXIT POSITION (SELL)</button>
+                  <button class="sa-sell-btn" id="saSellBtn" data-i18n="sa_sell_btn" onclick="executeSell()">🔴 EXIT POSITION (SELL)</button>
                 </div>
 
                 <!-- SLIPPAGE -->
@@ -232,7 +232,7 @@
 
             <!-- TOP HOLDERS -->
             <div class="panel">
-              <div class="panel-title">🏆 TOP HOLDERS</div>
+              <div class="panel-title" data-i18n="sa_top_holders">🏆 TOP HOLDERS</div>
               <div class="panel-body" id="saHoldersPanel"></div>
             </div>
           </div>
@@ -244,9 +244,10 @@
     <!-- PORTFOLIO MINI PANEL -->
     <div class="panel" id="saPortfolioPanel">
       <div class="panel-header">
-        <div class="panel-title">💼 YOUR HOLDINGS</div>
+        <div class="panel-title" data-i18n="sa_holdings">💼 YOUR HOLDINGS</div>
         <a href="safe-ape-profile.html" style="font-size:12px;color:#2cffc9;padding-right:14px;text-decoration:none;">View Full Profile →</a>
       </div>
+      <div id="saPortfolioSummary"></div>
       <div class="panel-body" id="saPortfolioBody">
         <div class="sa-empty-portfolio">
           <div style="font-size:36px;margin-bottom:10px;">🦍</div>
@@ -258,7 +259,7 @@
 
     <!-- RECENT TRADES PANEL -->
     <div class="panel" id="saTradesPanel">
-      <div class="panel-title">📋 RECENT TRADES</div>
+      <div class="panel-title" data-i18n="sa_recent_trades">📋 RECENT TRADES</div>
       <div class="panel-body" id="saTradesBody">
         <div style="text-align:center;opacity:0.5;padding:30px;">No trades yet — start trading above!</div>
       </div>
@@ -266,16 +267,16 @@
 
     <!-- COMMUNITY -->
     <div class="panel">
-      <div class="panel-title">Scan2Moon Community</div>
+      <div class="panel-title" data-i18n="community_panel">Scan2Moon Community</div>
       <div class="panel-body" id="communityPanel"></div>
     </div>
 
     <footer class="footer">
-      <div class="footer-left">Simulated trading only. Not financial advice. Always DYOR.</div>
+      <div class="footer-left" data-i18n="lb_footer_disclaimer">Simulated trading only. Not financial advice. Always DYOR.</div>
       <div class="footer-right">
         <span class="version">Version V2.0</span>
         <span class="separator">•</span>
-        <span class="powered">Powered by Scan2Moon</span>
+        <span class="powered" data-i18n="footer_powered">Powered by Scan2Moon</span>
       </div>
     </footer>
 
