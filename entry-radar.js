@@ -885,8 +885,8 @@ function buildChecklistHTML(tok) {
 let currentTokens = [];
 
 window.openTokenDetail = function(index) {
-  const t = currentTokens[index];
-  if (!t) return;
+  const tok = currentTokens[index];
+  if (!tok) return;
 
   const modal = document.getElementById("tokenDetailModal");
   if (!modal) return;
@@ -894,39 +894,39 @@ window.openTokenDetail = function(index) {
   modal.style.display    = "flex";
   document.body.style.overflow = "hidden";
 
-  const logoUrl = t.logo
-    ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`
+  const logoUrl = tok.logo
+    ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(tok.logo)}`
     : "https://placehold.co/52x52";
 
-  const scoreColor  = t.score >= 65 ? "#2cffc9" : t.score >= 45 ? "#ffd166" : "#ff4d6d";
-  const riskLabel   = t.score >= 65 ? t("er_risk_low") : t.score >= 45 ? t("er_risk_moderate") : t("er_risk_high");
-  const holderNote  = t.top10Pct > 0
-    ? `Top-10 holders: <strong style="color:${t.top10Pct > 70 ? "#ff4d6d" : t.top10Pct > 50 ? "#ffd166" : "#2cffc9"}">${t.top10Pct.toFixed(1)}%</strong> · `
+  const scoreColor  = tok.score >= 65 ? "#2cffc9" : tok.score >= 45 ? "#ffd166" : "#ff4d6d";
+  const riskLabel   = tok.score >= 65 ? t("er_risk_low") : tok.score >= 45 ? t("er_risk_moderate") : t("er_risk_high");
+  const holderNote  = tok.top10Pct > 0
+    ? `Top-10 holders: <strong style="color:${tok.top10Pct > 70 ? "#ff4d6d" : tok.top10Pct > 50 ? "#ffd166" : "#2cffc9"}">${tok.top10Pct.toFixed(1)}%</strong> · `
     : "";
 
   document.getElementById("modalTokenInfo").innerHTML = `
     <img class="modal-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/52x52'" referrerpolicy="no-referrer" />
     <div>
-      <div class="modal-name">${esc(t.name)} <span style="opacity:0.5;font-size:14px">(${esc(t.symbol)})</span></div>
-      <div class="modal-symbol">${t("er_age_label")} ${t.age.text}
+      <div class="modal-name">${esc(tok.name)} <span style="opacity:0.5;font-size:14px">(${esc(tok.symbol)})</span></div>
+      <div class="modal-symbol">${t("er_age_label")} ${tok.age.text}
         &nbsp;|&nbsp;
-        ${t("er_risk_score_label")} <strong style="color:${scoreColor}">${t.score}/100 — ${riskLabel}</strong>
+        ${t("er_risk_score_label")} <strong style="color:${scoreColor}">${tok.score}/100 — ${riskLabel}</strong>
       </div>
       <div style="font-size:10px;opacity:0.5;margin-top:3px;">
         ${holderNote}${t("er_same_scoring")}
-        <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${safeMint(t.mint)}')" style="color:#2cffc9;" target="_blank">${t("er_full_scan")}</a>
+        <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${safeMint(tok.mint)}')" style="color:#2cffc9;" target="_blank">${t("er_full_scan")}</a>
       </div>
-      <div class="modal-mint-link">${esc(safeMint(t.mint))}</div>
+      <div class="modal-mint-link">${esc(safeMint(tok.mint))}</div>
     </div>
   `;
 
   /* Entry window banner with label + tip */
   const ewEl = document.getElementById("modalEntryWindow");
-  ewEl.className = `entry-window-banner ${t.entry.class}`;
+  ewEl.className = `entry-window-banner ${tok.entry.class}`;
   ewEl.innerHTML = `
-    <span class="ew-status">${t("er_entry_window")} ${t.entry.status}</span>
-    <span class="ew-label">${t.entry.label || ''}</span>
-    ${t.movePotential ? `<span class="ew-move ${t.movePotential.cls}">${t.movePotential.label} &nbsp;·&nbsp; ${t.movePotential.desc}</span>` : ''}
+    <span class="ew-status">${t("er_entry_window")} ${tok.entry.status}</span>
+    <span class="ew-label">${tok.entry.label || ''}</span>
+    ${tok.movePotential ? `<span class="ew-move ${tok.movePotential.cls}">${tok.movePotential.label} &nbsp;·&nbsp; ${tok.movePotential.desc}</span>` : ''}
   `;
 
   /* Trade checklist panel - inject above momentum grid */
@@ -935,19 +935,19 @@ window.openTokenDetail = function(index) {
   const chkPanel = document.createElement("div");
   chkPanel.id = "modalTradeChecklist";
   chkPanel.className = "modal-checklist-panel";
-  chkPanel.innerHTML = buildChecklistHTML(t);
+  chkPanel.innerHTML = buildChecklistHTML(tok);
   const grid = document.querySelector(".modal-grid-3");
   if (grid) grid.parentElement.insertBefore(chkPanel, grid);
 
-  buildLiveChart(t);
-  renderMomentumPanel(t);
-  renderRiskFilter(t);
-  renderGrowthTracker(t);
-  renderDevHistory(t);
-  renderWalletCluster(t);
-  renderTopHolders(t);
-  renderWhaleActivity(t);
-  renderSafeEntryCalc(t);
+  buildLiveChart(tok);
+  renderMomentumPanel(tok);
+  renderRiskFilter(tok);
+  renderGrowthTracker(tok);
+  renderDevHistory(tok);
+  renderWalletCluster(tok);
+  renderTopHolders(tok);
+  renderWhaleActivity(tok);
+  renderSafeEntryCalc(tok);
 };
 
 /* ===== CLOSE MODAL ===== */
@@ -968,7 +968,7 @@ window.closeModalDirect = function() {
    Shows real DexScreener data — price, changes, volume,
    tx counts — all from the live pair object.
    =================================================== */
-function buildLiveChart(t) {
+function buildLiveChart(tok) {
   /* Clear any leftover timers/instances from previous modal */
   if (liveChartTimer)    { clearInterval(liveChartTimer);    liveChartTimer    = null; }
   if (liveChartInstance) { liveChartInstance.destroy();       liveChartInstance = null; }
@@ -987,7 +987,7 @@ function buildLiveChart(t) {
     canvas.parentElement.appendChild(snap);
   }
 
-  const pair    = t.pair;
+  const pair    = tok.pair;
   const price   = parseFloat(pair.priceUsd || "0");
   const pc1h    = pair.priceChange?.h1  ?? 0;
   const pc24h   = pair.priceChange?.h24 ?? 0;
@@ -1011,7 +1011,7 @@ function buildLiveChart(t) {
   function clr(v) { return v >= 0 ? "#2cffc9" : "#ff4d6d"; }
   function sgn(v) { return v >= 0 ? "+" : ""; }
 
-  const dexUrl = `https://dexscreener.com/solana/${t.mint}`;
+  const dexUrl = `https://dexscreener.com/solana/${tok.mint}`;
 
   snap.innerHTML = `
     <div class="er-snap-price-row">
@@ -1053,11 +1053,11 @@ function buildLiveChart(t) {
 /* ===================================================
    MOMENTUM PANEL
    =================================================== */
-function renderMomentumPanel(t) {
+function renderMomentumPanel(tok) {
   const el = document.getElementById("modalMomentum");
   if (!el) return;
 
-  const pair    = t.pair;
+  const pair    = tok.pair;
   const buys    = pair.txns?.h1?.buys  ?? 0;
   const sells   = pair.txns?.h1?.sells ?? 0;
   const buys24  = pair.txns?.h24?.buys  ?? 0;
@@ -1101,7 +1101,7 @@ function renderMomentumPanel(t) {
     </div>
     <div class="signal-metric-row">
       <span class="signal-metric-label">Overall Momentum</span>
-      <span class="signal-metric-value ${t.momentum.class}">${t.momentum.icon} ${t.momentum.label}</span>
+      <span class="signal-metric-value ${tok.momentum.class}">${tok.momentum.icon} ${tok.momentum.label}</span>
     </div>
   `;
 }
@@ -1109,11 +1109,11 @@ function renderMomentumPanel(t) {
 /* ===================================================
    RISK FILTER PANEL
    =================================================== */
-function renderRiskFilter(t) {
+function renderRiskFilter(tok) {
   const el = document.getElementById("modalRiskFilter");
   if (!el) return;
 
-  const pair   = t.pair;
+  const pair   = tok.pair;
   const liq    = pair.liquidity?.usd ?? 0;
   const pc24h  = pair.priceChange?.h24 ?? 0;
   const pc6h   = pair.priceChange?.h6  ?? pc24h;
@@ -1156,10 +1156,10 @@ function renderRiskFilter(t) {
       cls:   vol24h >= 10000 ? "sig-green" : vol24h >= 2000 ? "sig-yellow" : "sig-red",
     },
     {
-      icon:  t.score >= 65 ? "✅" : t.score >= 45 ? "⚠️" : "❌",
+      icon:  tok.score >= 65 ? "✅" : tok.score >= 45 ? "⚠️" : "❌",
       label: "Risk Score (market data)",
-      value: t.score + "/100",
-      cls:   t.score >= 65 ? "sig-green" : t.score >= 45 ? "sig-yellow" : "sig-red",
+      value: tok.score + "/100",
+      cls:   tok.score >= 65 ? "sig-green" : tok.score >= 45 ? "sig-yellow" : "sig-red",
     },
   ];
 
@@ -1189,11 +1189,11 @@ function renderRiskFilter(t) {
 /* ===================================================
    GROWTH TRACKER
    =================================================== */
-function renderGrowthTracker(t) {
+function renderGrowthTracker(tok) {
   const el = document.getElementById("modalGrowth");
   if (!el) return;
 
-  const pair         = t.pair;
+  const pair         = tok.pair;
   const mc           = getMcEstimate(pair);
   const pc1h         = pair.priceChange?.h1  ?? 0;
   const pc24h        = pair.priceChange?.h24 ?? 0;
@@ -1238,11 +1238,11 @@ function renderGrowthTracker(t) {
 /* ===================================================
    DEV HISTORY PANEL
    =================================================== */
-function renderDevHistory(t) {
+function renderDevHistory(tok) {
   const el = document.getElementById("modalDevHistory");
   if (!el) return;
 
-  const pair   = t.pair;
+  const pair   = tok.pair;
   const pc24h  = pair.priceChange?.h24 ?? 0;
   const pc1h   = pair.priceChange?.h1  ?? 0;
   const liq    = pair.liquidity?.usd   ?? 0;
@@ -1263,8 +1263,8 @@ function renderDevHistory(t) {
   else                                             { trustScore = 42; trustLabel = "Moderate";      trustClass = "sig-yellow"; }
 
   const trustBarColor = trustScore >= 65 ? "#2cffc9" : trustScore >= 40 ? "#ffd166" : "#ff4d6d";
-  const solscanUrl    = `https://solscan.io/token/${t.mint}`;
-  const dexUrl        = `https://dexscreener.com/solana/${t.mint}`;
+  const solscanUrl    = `https://solscan.io/token/${tok.mint}`;
+  const dexUrl        = `https://dexscreener.com/solana/${tok.mint}`;
 
   // Real signals derived from live data
   const signals = [
@@ -1306,11 +1306,11 @@ function renderDevHistory(t) {
 /* ===================================================
    WALLET CLUSTER PANEL
    =================================================== */
-function renderWalletCluster(t) {
+function renderWalletCluster(tok) {
   const el = document.getElementById("modalWalletCluster");
   if (!el) return;
 
-  const pair    = t.pair;
+  const pair    = tok.pair;
   const buys24  = pair.txns?.h24?.buys  ?? 0;
   const sells24 = pair.txns?.h24?.sells ?? 0;
   const buys1h  = pair.txns?.h1?.buys   ?? 0;
@@ -1338,7 +1338,7 @@ function renderWalletCluster(t) {
     pressureNote = "Normal buy/sell ratio — no obvious coordinated selling";
   }
 
-  const dexUrl = `https://dexscreener.com/solana/${t.mint}`;
+  const dexUrl = `https://dexscreener.com/solana/${tok.mint}`;
 
   el.innerHTML = `
     <div class="cluster-risk-row">
@@ -1380,13 +1380,13 @@ function renderWalletCluster(t) {
 /* ===================================================
    TOP HOLDERS PANEL
    =================================================== */
-function renderTopHolders(t) {
+function renderTopHolders(tok) {
   const el = document.getElementById("modalTopHolders");
   if (!el) return;
 
-  const pair       = t.pair;
+  const pair       = tok.pair;
   const liq        = pair.liquidity?.usd ?? 0;
-  const realTop10  = t.top10Pct ?? 0;   // real on-chain value fetched in processTokens
+  const realTop10  = tok.top10Pct ?? 0;   // real on-chain value fetched in processTokens
   const hasReal    = realTop10 > 0;
 
   /* Use real top-10 % as the anchor for the bar chart when available.
@@ -1411,7 +1411,7 @@ function renderTopHolders(t) {
   }
 
   const concClass = totalTop > 70 ? "sig-red" : totalTop > 50 ? "sig-yellow" : "sig-green";
-  const solscanUrl = `https://solscan.io/token/${t.mint}#holders`;
+  const solscanUrl = `https://solscan.io/token/${tok.mint}#holders`;
 
   const rows = holders.map((h, i) => {
     const barW = Math.min(100, (h.pct / (h1pct * 1.1)) * 100);
@@ -1445,11 +1445,11 @@ function renderTopHolders(t) {
 /* ===================================================
    WHALE ACTIVITY MODAL PANEL (inside token detail)
    =================================================== */
-function renderWhaleActivity(t) {
+function renderWhaleActivity(tok) {
   const el = document.getElementById("modalWhale");
   if (!el) return;
 
-  const pair      = t.pair;
+  const pair      = tok.pair;
   const buys      = pair.txns?.h1?.buys ?? 0;
   const vol1h     = pair.volume?.h1     ?? 0;
   const avgTxSize = buys > 0 ? vol1h / buys : 0;
@@ -1469,7 +1469,7 @@ function renderWhaleActivity(t) {
 
   const whaleVol  = whaleThreshold * whaleCount;
   const smartVol  = avgTxSize * 1.8 * smartCount;
-  const dexUrl    = `https://dexscreener.com/solana/${t.mint}`;
+  const dexUrl    = `https://dexscreener.com/solana/${tok.mint}`;
   const whaleClass = whaleCount > 3 ? "sig-green" : whaleCount > 0 ? "sig-yellow" : "sig-white";
 
   el.innerHTML = `
@@ -1484,11 +1484,11 @@ function renderWhaleActivity(t) {
 /* ===================================================
    SAFE ENTRY CALCULATOR
    =================================================== */
-function renderSafeEntryCalc(t) {
+function renderSafeEntryCalc(tok) {
   const el = document.getElementById("modalSafeEntry");
   if (!el) return;
 
-  const se = t.safeEntry;
+  const se = tok.safeEntry;
   if (!se) {
     el.innerHTML = `<div style="padding:20px;text-align:center;opacity:0.5;">Insufficient data to calculate safe entry</div>`;
     return;
@@ -1496,12 +1496,12 @@ function renderSafeEntryCalc(t) {
 
   const riskLabel  = se.score >= 65 ? t("er_risk_low") : se.score >= 45 ? t("er_risk_moderate") : t("er_risk_high");
   const riskColor  = se.score >= 65 ? "#2cffc9" : se.score >= 45 ? "#ffd166" : "#ff9a7a";
-  const entryLabel = t.entry.class === "open" ? "OPEN 🟢" : "CAUTION 🟡";
+  const entryLabel = tok.entry.class === "open" ? "OPEN 🟢" : "CAUTION 🟡";
 
   el.innerHTML = `
     <div class="safe-entry-calc">
       <div class="safe-entry-window-label">Entry Window</div>
-      <div class="entry-badge ${t.entry.class}" style="display:inline-flex;margin-bottom:12px;">${entryLabel}</div>
+      <div class="entry-badge ${tok.entry.class}" style="display:inline-flex;margin-bottom:12px;">${entryLabel}</div>
       <div class="safe-entry-window-label">Max Recommended Entry</div>
       <div class="safe-entry-big">$${se.maxEntry.toLocaleString()}</div>
       <div class="safe-entry-sub">Based on 2% slippage limit + risk score</div>
