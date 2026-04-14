@@ -404,7 +404,7 @@ const DICT = {
   er_chk_age:         { en: "Age: 30min – 12hrs",          nl: "Leeftijd: 30min – 12uur" },
   er_chk_score:       { en: "Risk Score ≥ 65",             nl: "Risico Score ≥ 65" },
   er_chk_pump:        { en: "Not pumped > 300%",           nl: "Niet > 300% gepompt" },
-  er_trade_btn:       { en: "Simulate Trade",              nl: "Simuleer Handel" },
+  er_trade_btn:       { en: "Simulate",                    nl: "Simuleer" },
   er_trade_safe_ape:  { en: "Simulate on Safe Ape",        nl: "Simuleer op Safe Ape" },
   er_mint_auth:       { en: "Mint Authority",              nl: "Mint Autoriteit" },
   er_freeze_auth:     { en: "Freeze Authority",            nl: "Freeze Autoriteit" },
