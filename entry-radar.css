@@ -317,6 +317,12 @@
 .radar-table-wrap {
   overflow-x: auto;
   width: 100%;
+  /* Hide scrollbar on all browsers — table still scrolls on small screens */
+  scrollbar-width: none;       /* Firefox */
+  -ms-overflow-style: none;    /* IE/Edge */
+}
+.radar-table-wrap::-webkit-scrollbar {
+  display: none;               /* Chrome/Safari */
 }
 
 /* PAGINATION */
@@ -1422,12 +1428,20 @@
   }
   .whale-buy-scan-btn { width: 100%; justify-content: center; }
 }
+/* Trade column — fixed width so it never pushes past the panel edge */
+.radar-table td:last-child {
+  width: 100px;
+  min-width: 100px;
+  max-width: 100px;
+  padding-right: 6px;
+}
+
 /* Trade on Safe Ape button — radar table */
 .radar-trade-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 10px;
+  gap: 3px;
+  padding: 5px 8px;
   border-radius: 8px;
   font-size: 11px;
   font-weight: 800;
@@ -1436,6 +1450,9 @@
   background: rgba(255,180,50,0.1);
   color: #ffb432;
   white-space: nowrap;
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 .radar-trade-btn:hover {
