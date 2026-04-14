@@ -56,6 +56,13 @@ async function fetchNewTokens() {
       const liq = parseFloat(pool.attributes?.reserve_in_usd ?? 0);
       if (liq < 10000) continue; // skip thin pools before any RPC call
 
+      /* Skip pump.fun bonding-curve pools — their reserve_in_usd reflects
+         the bonding curve SOL (can look like $10k+) but it's NOT real DEX
+         exit liquidity. These tokens score 28/100 due to the pump.fun cap
+         in computeRiskScore. We only want graduated (Raydium/Orca/Meteora) pools. */
+      const dexId = pool.relationships?.dex?.data?.id ?? "";
+      if (dexId.toLowerCase().includes("pump")) continue;
+
       const baseId    = pool.relationships?.base_token?.data?.id  ?? "";
       const quoteId   = pool.relationships?.quote_token?.data?.id ?? "";
       const baseMint  = baseId.replace("solana_", "");
@@ -386,6 +393,13 @@ async function processOneBatch(batch) {
       const freezeActive = authorities.freezeAuth !== "Renounced" && authorities.freezeAuth !== "Unknown";
       if (mintActive || freezeActive) {
         console.debug(`[Radar] ❌ Authority active — mint:${authorities.mintAuth} freeze:${authorities.freezeAuth} → ${mint.slice(0,8)}…`);
+        return null;
+      }
+
+      /* Reject pump.fun tokens that haven't graduated to a real DEX —
+         they score 28/100 due to the bonding-curve cap in computeRiskScore */
+      if (isPumpFun && !hasGraduated) {
+        console.debug(`[Radar] ❌ Pump.fun not graduated → ${mint.slice(0,8)}…`);
         return null;
       }
 
