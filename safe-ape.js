@@ -192,6 +192,20 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("disconnectBtn").addEventListener("click", disconnectWallet);
   document.getElementById("saSearchBtn").addEventListener("click", searchToken);
   document.getElementById("saTokenInput").addEventListener("keydown", e => { if (e.key === "Enter") searchToken(); });
+
+  /* ── Browser Back from token view → return to Your Holdings ──
+     When searchToken() pushes #token onto history, pressing Back fires
+     popstate with no saView state. We close the terminal and scroll the
+     user back to the holdings panel so they land exactly where they were. */
+  window.addEventListener("popstate", (e) => {
+    if (!e.state || e.state.saView !== "token") {
+      if (document.getElementById("saTerminal").style.display !== "none") {
+        clearTerminal();
+        const holdingsPanel = document.getElementById("saPortfolioPanel");
+        if (holdingsPanel) holdingsPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }
+  });
   document.getElementById("buyAmount").addEventListener("input", updateBuyInfo);
   document.getElementById("sellAmount").addEventListener("input", updateSellInfo);
   document.getElementById("dailyClaimBtn").addEventListener("click", claimDaily);
@@ -1193,6 +1207,8 @@ window.searchToken = async function() {
     if (riskScore < 45) showRiskGate(currentToken);
     else                showTradingContent(currentToken);
     startTokenPoll(mint);
+    /* Push a history entry so browser Back returns to Your Holdings, not another page */
+    history.pushState({ saView: "token", mint }, "", "#token");
   } catch { showToast("⚠️ Failed to load token. Check the mint address."); }
   finally { btn.disabled = false; btn.textContent = "🔍 Analyse Token"; }
 };
@@ -1204,6 +1220,8 @@ function clearTerminal() {
   document.getElementById("saRiskGate").style.display       = "none";
   document.getElementById("saTradingContent").style.display = "none";
   currentToken = null;
+  /* Clean up the #token hash from the URL without adding another history entry */
+  if (location.hash === "#token") history.replaceState(null, "", location.pathname + location.search);
 }
 window.clearTerminal = clearTerminal;
 
