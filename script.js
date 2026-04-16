@@ -7,6 +7,7 @@ import { renderFinalScore } from "./finalScore.js";
 import { renderTokenStats } from "./tokenStats.js";
 import { callRpc } from "./rpc.js";
 import { renderNav } from "./nav.js";
+import { askSentinel } from "./sentinel.js";
 import "./community.js";
 import bs58 from "https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm";
 
@@ -201,6 +202,29 @@ function renderTokenLinks(mint) {
   `;
 }
 
+/* ================================================
+   SENTINEL BUTTON — appears after scan completes
+   ================================================ */
+function renderSentinelButton() {
+  let wrap = document.getElementById("sentinelBtnWrap");
+  if (!wrap) {
+    wrap = document.createElement("div");
+    wrap.id = "sentinelBtnWrap";
+    wrap.className = "ask-sentinel-btn-wrap";
+    /* Insert after the final score panel */
+    const finalScoreEl = document.getElementById("finalScore");
+    if (finalScoreEl && finalScoreEl.parentElement) {
+      finalScoreEl.parentElement.insertBefore(wrap, finalScoreEl.nextSibling);
+    }
+  }
+  wrap.innerHTML = `
+    <button class="ask-sentinel-btn" onclick="window.askSentinel()">
+      <span class="ask-sentinel-btn-icon">🤖</span>
+      Ask Sentinel — AI Analysis
+    </button>
+  `;
+}
+
 /* ============================= */
 /* NAV + PREFILL ON LOAD         */
 /* ============================= */
@@ -245,6 +269,7 @@ document.getElementById("scanBtn").onclick = async () => {
     renderDevHistory();
     renderTokenLinks(mint);
     saveScanToHistory(mint);
+    renderSentinelButton();
 
     if (window.incrementGlobalStat) window.incrementGlobalStat("scan");
     if (window.scanResult?.totalScore >= 80 && window.incrementGlobalStat) window.incrementGlobalStat("moon");

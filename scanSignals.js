@@ -478,6 +478,13 @@ export async function renderSignals(mint) {
   };
   window.scanLiquidity = window.scanResult.liquidity;
 
+  /* Store individual signal scores for Sentinel AI */
+  window.scanSignalScores = {
+    ageTrust, integrity, pumpDanger, lpStrength, lpStability,
+    mcLiqRatio, sellPressure, volumeConsist, devBehavior,
+    volMcapRatio, pumpFunRisk, bundleScore,
+  };
+
   document.getElementById("scanSignals").innerHTML = `
     <div class="signals-table">
       ${signals.map(s => {
