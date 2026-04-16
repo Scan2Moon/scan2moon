@@ -8,6 +8,7 @@ import { renderTokenStats } from "./tokenStats.js";
 import { callRpc } from "./rpc.js";
 import { renderNav } from "./nav.js";
 import { askSentinel } from "./sentinel.js";
+import { renderBundlePanel } from "./bundle-panel.js";
 import "./community.js";
 import bs58 from "https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm";
 
@@ -270,6 +271,7 @@ document.getElementById("scanBtn").onclick = async () => {
     renderTokenLinks(mint);
     saveScanToHistory(mint);
     renderSentinelButton();
+    renderBundlePanel(mint);
 
     if (window.incrementGlobalStat) window.incrementGlobalStat("scan");
     if (window.scanResult?.totalScore >= 80 && window.incrementGlobalStat) window.incrementGlobalStat("moon");

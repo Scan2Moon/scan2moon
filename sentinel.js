@@ -34,6 +34,9 @@ export async function askSentinel() {
   const scanData = collectScanData();
   if (!scanData.mint || scanData.mint === "N/A") return;
 
+  /* Read active language — default EN */
+  const lang = localStorage.getItem("s2m_lang") || "en";
+
   showSentinelModal(scanData);
   setModalState("loading");
 
@@ -41,7 +44,7 @@ export async function askSentinel() {
     const res = await fetch("/.netlify/functions/sentinel", {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ scanData }),
+      body:    JSON.stringify({ scanData, lang }),
     });
 
     if (!res.ok) {
@@ -97,7 +100,7 @@ function showSentinelModal(scanData) {
         <div class="sentinel-token-bar" id="sentinelTokenBar"></div>
         <div class="sentinel-body" id="sentinelBody"></div>
         <div class="sentinel-footer">
-          <span>⚠️ Not financial advice. Always DYOR.</span>
+          <span>${(localStorage.getItem("s2m_lang") || "en") === "nl" ? "⚠️ Geen financieel advies. Doe altijd je eigen onderzoek." : "⚠️ Not financial advice. Always DYOR."}</span>
           <span class="sentinel-powered">Powered by Groq AI</span>
         </div>
       </div>

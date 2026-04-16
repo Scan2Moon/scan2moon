@@ -137,8 +137,8 @@ export function renderNav() {
           </div>
         </div>
 
-        <!-- ── Language Switcher (hidden until NL translations are complete) ── -->
-        <div class="lang-switcher" style="display:none;">
+        <!-- ── Language Switcher ── -->
+        <div class="lang-switcher">
           <button class="lang-flag-btn ${getCurrentLang() === 'en' ? 'lang-active' : ''}"
                   data-lang="en"
                   title="English"

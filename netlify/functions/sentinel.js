@@ -26,8 +26,8 @@ setInterval(() => {
   for (const [ip, e] of rateMap) if (e.start < cutoff) rateMap.delete(ip);
 }, 120000);
 
-/* ── Build the Gemini prompt ── */
-function buildPrompt(d) {
+/* ── Build the prompt ── */
+function buildPrompt(d, lang) {
   const signals = d.signalScores ? Object.entries(d.signalScores).map(([k, v]) => {
     const labels = {
       ageTrust:      "Token Age & Trust",
@@ -46,7 +46,14 @@ function buildPrompt(d) {
     return `  - ${labels[k] || k}: ${v}/100`;
   }).join("\n") : "  (not available)";
 
+  const isNL = lang === "nl";
+  const langInstruction = isNL
+    ? "BELANGRIJK: Schrijf je volledige antwoord in het NEDERLANDS. Alle tekst in het JSON-object moet in het Nederlands zijn."
+    : "Write your entire response in ENGLISH.";
+
   return `You are Sentinel, an AI crypto safety agent for Scan2Moon — a Solana token risk analysis platform. Your job is to explain scan results in a professional but beginner-friendly way.
+
+${langInstruction}
 
 Here are the scan results for ${d.name} (${d.symbol}):
 
@@ -73,22 +80,22 @@ ${signals}
 
 Respond ONLY with a valid JSON object in this exact format (no markdown, no code fences, just raw JSON):
 {
-  "verdict": "one of: SAFE TO APE | LOW RISK | MODERATE RISK | HIGH RISK | EXTREME DANGER",
+  "verdict": "${isNL ? "één van: VEILIG | LAAG RISICO | MATIG RISICO | HOOG RISICO | EXTREEM GEVAAR" : "one of: SAFE TO APE | LOW RISK | MODERATE RISK | HIGH RISK | EXTREME DANGER"}",
   "verdictEmoji": "one emoji matching the verdict",
-  "summary": "2-3 sentence plain-English summary of this token's overall safety. Speak directly to the user.",
+  "summary": "${isNL ? "2-3 zinnen samenvatting van de veiligheid van dit token. Spreek de gebruiker direct aan in het Nederlands." : "2-3 sentence plain-English summary of this token's overall safety. Speak directly to the user."}",
   "signalBreakdown": [
-    { "name": "signal name", "score": 0-100, "status": "good/warn/bad", "explanation": "1 sentence plain explanation of what this score means and why" }
+    { "name": "signal name", "score": 0-100, "status": "good/warn/bad", "explanation": "${isNL ? "1 zin in het Nederlands die uitlegt wat deze score betekent en waarom" : "1 sentence plain explanation of what this score means and why"}" }
   ],
-  "redFlags": ["list of specific risks found, max 5, each under 15 words"],
-  "greenFlags": ["list of positive signals found, max 5, each under 15 words"],
+  "redFlags": ["${isNL ? "lijst van specifieke risicos, max 5, elk onder 15 woorden, in het Nederlands" : "list of specific risks found, max 5, each under 15 words"}"],
+  "greenFlags": ["${isNL ? "lijst van positieve signalen, max 5, elk onder 15 woorden, in het Nederlands" : "list of positive signals found, max 5, each under 15 words"}"],
   "moonPotential": {
-    "rating": "one of: LOW | MEDIUM | HIGH | MOONSHOT",
+    "rating": "${isNL ? "één van: LAAG | GEMIDDELD | HOOG | MOONSHOT" : "one of: LOW | MEDIUM | HIGH | MOONSHOT"}",
     "emoji": "one emoji",
     "score": 0-100,
-    "reasoning": "2-3 sentences on moon potential based on the data"
+    "reasoning": "${isNL ? "2-3 zinnen over moon potentieel in het Nederlands" : "2-3 sentences on moon potential based on the data"}"
   },
-  "recommendation": "1-2 sentences on what a smart trader should do with this token right now",
-  "beginnerTip": "1 simple tip for a beginner about this specific token — keep it friendly and clear"
+  "recommendation": "${isNL ? "1-2 zinnen over wat een slimme trader nu moet doen, in het Nederlands" : "1-2 sentences on what a smart trader should do with this token right now"}",
+  "beginnerTip": "${isNL ? "1 simpele tip voor een beginner over dit specifieke token, in het Nederlands" : "1 simple tip for a beginner about this specific token — keep it friendly and clear"}"
 }`;
 }
 
@@ -109,8 +116,12 @@ exports.handler = async (event) => {
 
   if (!GROQ_API_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: "Sentinel not configured." }) };
 
-  let scanData;
-  try { scanData = JSON.parse(event.body || "{}").scanData; }
+  let scanData, lang;
+  try {
+    const body = JSON.parse(event.body || "{}");
+    scanData = body.scanData;
+    lang = ["en", "nl"].includes(body.lang) ? body.lang : "en";
+  }
   catch { return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid request body." }) }; }
 
   if (!scanData) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing scanData." }) };
@@ -124,7 +135,7 @@ exports.handler = async (event) => {
       },
       body: JSON.stringify({
         model:       "llama-3.1-8b-instant",
-        messages:    [{ role: "user", content: buildPrompt(scanData) }],
+        messages:    [{ role: "user", content: buildPrompt(scanData, lang) }],
         temperature: 0.6,
         max_tokens:  2000,
       }),
