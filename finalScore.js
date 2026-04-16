@@ -103,7 +103,7 @@ export async function renderFinalScore() {
         <div class="risk-badge-pro${r.totalScore >= 80 ? " risk-badge-moon" : ""}">${r.riskLevel ?? "UNKNOWN"}</div>
 
         <div class="score-sub-pro">
-          Calculated from on-chain and market behavior
+          ${t("calculated_from")}
         </div>
 
         <div class="signal-explainer-pro ${explainClass}">
@@ -137,13 +137,13 @@ export async function renderFinalScore() {
         ${mint ? `
         <div class="wl-btn-wrap">
           <button class="wl-add-btn ${alreadySaved ? 'wl-saved' : ''}" id="wlToggleBtn">
-            ${alreadySaved ? '⭐ Saved to Watchlist' : '☆ Add to Watchlist'}
+            ${alreadySaved ? t("saved_to_watchlist") : t("add_to_watchlist")}
           </button>
         </div>
         ` : ""}
 
         <div class="score-footer-pro">
-          VERIFIED • SCAN2MOON • scan2moon.com
+          ${t("verified_footer")}
         </div>
 
       </div>
@@ -188,7 +188,7 @@ export async function renderFinalScore() {
           };
 
           const added = toggleWatchlist(mint, entry);
-          wlBtn.textContent = added ? "⭐ Saved to Watchlist" : "☆ Add to Watchlist";
+          wlBtn.textContent = added ? t("saved_to_watchlist") : t("add_to_watchlist");
           wlBtn.classList.toggle("wl-saved", added);
 
           // Quick visual feedback

@@ -2,6 +2,7 @@
    Scan2Moon – Bundle Attack Panel  (frontend)
    Calls /.netlify/functions/bundle and renders the result panel.
    ================================================================ */
+import { t } from "./i18n.js";
 
 /* ── Security helpers ── */
 function esc(s) {
@@ -37,7 +38,7 @@ export async function renderBundlePanel(mint) {
   el.innerHTML = `
     <div class="bd-loading">
       <div class="bd-loading-dots"><span></span><span></span><span></span></div>
-      <div class="bd-loading-text">Scanning launch blocks for bundle activity…</div>
+      <div class="bd-loading-text">${t("bundle_scanning")}</div>
     </div>`;
 
   let data;
@@ -58,7 +59,7 @@ export async function renderBundlePanel(mint) {
     el.innerHTML = `
       <div class="bd-error">
         <span class="bd-error-icon">⚠️</span>
-        Bundle analysis unavailable — ${esc(e.message)}
+        ${t("bundle_error")} — ${esc(e.message)}
       </div>`;
     window.bundleData = null;
     return;
@@ -74,17 +75,17 @@ export async function renderBundlePanel(mint) {
         <div class="bd-score-row">
           <div class="bd-score-block">
             <div class="bd-score-num bd-warn">—</div>
-            <div class="bd-score-label">Bundle Safety Score</div>
+            <div class="bd-score-label">${t("bundle_safety_score")}</div>
           </div>
           <div class="bd-verdict-pill bd-verdict-warn">
             <span class="bd-verdict-icon">🔁</span>
-            <span class="bd-verdict-text">Pump.fun Token</span>
+            <span class="bd-verdict-text">${t("bundle_pump_token")}</span>
           </div>
         </div>
         <div class="bd-explanation bd-warn">
-          Pump.fun tokens route all buys through the bonding curve program — individual launch buyers cannot be isolated via standard Solana RPC. Bundle risk is assessed via the <strong>Pump.fun Launch Risk</strong> signal in the Scan Signals panel instead.
+          ${t("bundle_explain_pump")}
         </div>
-        <div class="bd-footer">⛓️ Check the Scan Signals panel for Pump.fun Launch Risk score</div>
+        <div class="bd-footer">⛓️ ${t("bundle_pump_footer")}</div>
       </div>`;
     return;
   }
@@ -101,11 +102,11 @@ export async function renderBundlePanel(mint) {
 
   /* ── Explanation copy ── */
   const explanations = {
-    CLEAN:      "Launch block activity looks normal. No signs of coordinated wallet bundling detected.",
-    SUSPICIOUS: "Some early concentration detected. Could be organic or early snipers. Monitor carefully.",
-    BUNDLED:    "Multiple wallets bought in the first blocks with signs of coordination. Classic bundle pattern.",
-    EXTREME:    "Heavy coordinated buying in launch blocks. High probability of a single entity controlling early supply.",
-    NO_DATA:    "Not enough transaction history to perform bundle analysis.",
+    CLEAN:      t("bundle_explain_clean"),
+    SUSPICIOUS: t("bundle_explain_sus"),
+    BUNDLED:    t("bundle_explain_bundled"),
+    EXTREME:    t("bundle_explain_extreme"),
+    NO_DATA:    t("bundle_explain_nodata"),
   };
   const explanation = explanations[data.verdict] || explanations.SUSPICIOUS;
 
@@ -120,13 +121,13 @@ export async function renderBundlePanel(mint) {
   const funderAlert = data.commonFunderDetected ? `
     <div class="bd-alert">
       🚨 <strong>${esc(String(data.commonFunderCount))} early buyer wallets</strong>
-      share the same SOL funding source — a classic multi-wallet bundle pattern.
+      ${t("bundle_funder_alert")}
     </div>` : "";
 
   /* ── Top buyers table ── */
   const buyersHtml = (data.topBuyers && data.topBuyers.length > 0) ? `
     <div class="bd-buyers">
-      <div class="bd-buyers-title">⏱️ Earliest buyers detected  <span class="bd-buyers-sub">(creation slot: ${esc(String(data.creationSlot))})</span></div>
+      <div class="bd-buyers-title">${t("bundle_earliest_buyers")}  <span class="bd-buyers-sub">(creation slot: ${esc(String(data.creationSlot))})</span></div>
       <div class="bd-buyers-table">
         ${data.topBuyers.map(b => `
           <div class="bd-buyer-row">
@@ -144,7 +145,7 @@ export async function renderBundlePanel(mint) {
       <div class="bd-score-row">
         <div class="bd-score-block">
           <div class="bd-score-num ${bundleScoreClass(data.bundleScore)}">${esc(String(data.bundleScore))}</div>
-          <div class="bd-score-label">Bundle Safety Score</div>
+          <div class="bd-score-label">${t("bundle_safety_score")}</div>
         </div>
         <div class="bd-verdict-pill ${v.bgCls}">
           <span class="bd-verdict-icon">${v.icon}</span>
@@ -166,23 +167,23 @@ export async function renderBundlePanel(mint) {
           <div class="bd-stat-val ${data.earlyPct > 20 ? "bd-bad" : data.earlyPct > 10 ? "bd-warn" : "bd-clean"}">
             ${esc(String(data.earlyPct))}%
           </div>
-          <div class="bd-stat-label">Supply bought in first ${esc(String(data.earlyWindow))} blocks</div>
+          <div class="bd-stat-label">${t("bundle_supply_pct")}</div>
         </div>
         <div class="bd-stat">
           <div class="bd-stat-val">${esc(String(data.uniqueWallets))}</div>
-          <div class="bd-stat-label">Early wallets detected</div>
+          <div class="bd-stat-label">${t("bundle_early_wallets")}</div>
         </div>
         <div class="bd-stat">
           <div class="bd-stat-val ${data.commonFunderDetected ? "bd-bad" : "bd-clean"}">
             ${data.commonFunderDetected ? "⚠️ Yes" : "✅ No"}
           </div>
-          <div class="bd-stat-label">Common funder detected</div>
+          <div class="bd-stat-label">${t("bundle_common_funder")}</div>
         </div>
         <div class="bd-stat">
           <div class="bd-stat-val ${data.estimatedControllers < data.uniqueWallets ? "bd-warn" : "bd-clean"}">
             ${esc(String(data.estimatedControllers))}
           </div>
-          <div class="bd-stat-label">Estimated real controllers</div>
+          <div class="bd-stat-label">${t("bundle_controllers")}</div>
         </div>
       </div>
 
@@ -190,13 +191,13 @@ export async function renderBundlePanel(mint) {
       ${buyersHtml}
 
       <div class="bd-footer">
-        ⛓️ Analyzed first ${esc(String(data.earlyWindow))} launch blocks on Solana
+        ⛓️ ${t("bundle_analyzed")}
         <span class="bd-footer-sep">•</span>
-        ${esc(String(data.uniqueWallets))} wallet${data.uniqueWallets !== 1 ? "s" : ""} examined
+        ${esc(String(data.uniqueWallets))} ${data.uniqueWallets !== 1 ? t("bundle_wallets_examined") : t("bundle_wallet_examined")}
       </div>
       ${data.pumpFunOrigin ? `
       <div class="bd-explanation bd-warn" style="margin-top:10px; font-size:0.82em;">
-        🎓 <strong>Pump.fun origin:</strong> This token launched on pump.fun. Early buys went through the bonding curve program — not the mint — so the score above reflects <em>post-graduation</em> activity only (always 100 if no post-graduation bundling occurred). See the <strong>Pump.fun Launch Risk</strong> signal in Scan Signals for launch-stage analysis.
+        🎓 ${t("bundle_explain_pump")}
       </div>` : ""}
 
     </div>

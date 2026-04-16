@@ -1111,6 +1111,7 @@ a {
     0 0 30px rgba(44,255,201,0.08),
     inset 0 1px 0 rgba(44,255,201,0.12);
   backdrop-filter: blur(10px);
+  overflow: visible;     /* never clip dropdown menus */
 }
 
 .nav-inner {
@@ -1119,7 +1120,6 @@ a {
   padding: 8px 16px;
   gap: 8px;
   flex-wrap: nowrap;
-  overflow: hidden;
 }
 
 .nav-logo {
@@ -1150,6 +1150,7 @@ a {
   align-items: center;
   gap: 2px;
   flex: 1;
+  min-width: 0;          /* allow shrinking so badge never wraps outside */
   justify-content: center;
 }
 
