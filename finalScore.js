@@ -47,6 +47,17 @@ export async function renderFinalScore() {
     const now       = new Date();
     const timestamp = now.toLocaleString();
 
+    /* ── Risk level translation map ── */
+    const RISK_LEVEL_KEYS = {
+      "🌕 MOON COIN":    "risk_moon",
+      "LOW RUG RISK":    "risk_low",
+      "MODERATE RISK":   "risk_moderate",
+      "HIGH RUG RISK":   "risk_high",
+      "EXTREME RISK 🚨": "risk_extreme",
+    };
+    const riskKey       = RISK_LEVEL_KEYS[r.riskLevel];
+    const riskLevelText = riskKey ? t(riskKey) : (r.riskLevel ?? "UNKNOWN");
+
     const scoreClass =
       r.totalScore >= 80 ? "score-moon" :
       r.totalScore >= 65 ? "score-good" :
@@ -90,7 +101,7 @@ export async function renderFinalScore() {
             </div>
           </div>
           <div class="scan-time">
-            Scan Time<br/>
+            ${t("scan_time_label")}<br/>
             <strong>${timestamp}</strong>
           </div>
         </div>
@@ -100,7 +111,7 @@ export async function renderFinalScore() {
           <span class="score-max-pro">/100</span>
         </div>
 
-        <div class="risk-badge-pro${r.totalScore >= 80 ? " risk-badge-moon" : ""}">${r.riskLevel ?? "UNKNOWN"}</div>
+        <div class="risk-badge-pro${r.totalScore >= 80 ? " risk-badge-moon" : ""}">${riskLevelText}</div>
 
         <div class="score-sub-pro">
           ${t("calculated_from")}
@@ -268,8 +279,8 @@ function waitForImageLoad(img) {
 }
 
 function generateRiskExplanation(r) {
-  if (r.totalScore >= 80) return "🌕 Strong on-chain health. Low rug risk, clean liquidity and healthy holder distribution.";
-  if (r.totalScore >= 65) return "Healthy structure. No critical sell pressure or liquidity abuse detected.";
-  if (r.totalScore >= 45) return "Mixed signals. Possible liquidity weakness or elevated sell pressure.";
-  return "High-risk behavior detected. Strong rug indicators present.";
+  if (r.totalScore >= 80) return t("explain_moon");
+  if (r.totalScore >= 65) return t("explain_low");
+  if (r.totalScore >= 45) return t("explain_moderate");
+  return t("explain_high");
 }

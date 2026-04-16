@@ -92,13 +92,14 @@ export async function renderBundlePanel(mint) {
 
   /* ── Verdict config ── */
   const verdictMap = {
-    CLEAN:      { icon: "✅", cls: "bd-clean", bgCls: "bd-verdict-clean" },
-    SUSPICIOUS: { icon: "⚠️", cls: "bd-warn",  bgCls: "bd-verdict-warn"  },
-    BUNDLED:    { icon: "🚨", cls: "bd-bad",   bgCls: "bd-verdict-bad"   },
-    EXTREME:    { icon: "💀", cls: "bd-bad",   bgCls: "bd-verdict-extreme"},
-    NO_DATA:    { icon: "❓", cls: "bd-warn",  bgCls: "bd-verdict-warn"  },
+    CLEAN:      { icon: "✅", cls: "bd-clean", bgCls: "bd-verdict-clean", labelKey: "bundle_no_bundle"  },
+    SUSPICIOUS: { icon: "⚠️", cls: "bd-warn",  bgCls: "bd-verdict-warn",  labelKey: "bundle_suspicious" },
+    BUNDLED:    { icon: "🚨", cls: "bd-bad",   bgCls: "bd-verdict-bad",   labelKey: "bundle_bundled"    },
+    EXTREME:    { icon: "💀", cls: "bd-bad",   bgCls: "bd-verdict-extreme",labelKey: "bundle_extreme"   },
+    NO_DATA:    { icon: "❓", cls: "bd-warn",  bgCls: "bd-verdict-warn",  labelKey: "bundle_no_data"   },
   };
   const v = verdictMap[data.verdict] || verdictMap.SUSPICIOUS;
+  const verdictLabel = t(v.labelKey);
 
   /* ── Explanation copy ── */
   const explanations = {
@@ -149,7 +150,7 @@ export async function renderBundlePanel(mint) {
         </div>
         <div class="bd-verdict-pill ${v.bgCls}">
           <span class="bd-verdict-icon">${v.icon}</span>
-          <span class="bd-verdict-text">${esc(data.label)}</span>
+          <span class="bd-verdict-text">${verdictLabel}</span>
         </div>
       </div>
 
