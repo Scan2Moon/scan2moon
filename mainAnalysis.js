@@ -23,7 +23,20 @@ async function fetchDexMetadata(mint) {
     const res = await fetch(`${DEXSCREENER_API}${mint}`);
     const data = await res.json();
     if (!data.pairs || data.pairs.length === 0) return null;
-    const pair = data.pairs.find(p => p.chainId === "solana") || data.pairs[0];
+    // For pump.fun tokens exclude the bonding-curve pair but KEEP PumpSwap
+    // (pump.fun's graduated AMM). Bonding curve has dexId "pump-fun"; PumpSwap is "pumpswap".
+    const isPump = String(mint).toLowerCase().endsWith("pump");
+    const solPairs = data.pairs.filter(p => p.chainId === "solana");
+    const BONDING_CURVE_IDS = ["pump-fun", "pumpfun"];
+    const realDexPairs = isPump
+      ? solPairs.filter(p => {
+          const dex = String(p.dexId || "").toLowerCase().replace(/-/g, "");
+          return !BONDING_CURVE_IDS.includes(dex);
+        })
+      : solPairs;
+    const pool = realDexPairs.length > 0 ? realDexPairs : solPairs;
+    const pair = pool.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0]
+              || data.pairs[0];
     const logo = resolveImage(pair.info?.imageUrl) || resolveImage(pair.baseToken?.logoURI) || resolveImage(pair.info?.openGraph?.image) || null;
     const marketCap = pair.marketCap || pair.fdv || null;
     return { name: pair.baseToken?.name || null, symbol: pair.baseToken?.symbol || null, logo, marketCap };

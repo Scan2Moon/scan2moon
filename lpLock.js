@@ -9,9 +9,21 @@ export async function detectLiquidity(mint) {
       return "No Liquidity Found";
     }
 
-    // Prefer Solana pairs
-    const pair =
-      data.pairs.find(p => p.chainId === "solana") || data.pairs[0];
+    // For pump.fun tokens (mint ends in "pump"), exclude the bonding-curve pair
+    // but KEEP PumpSwap (pump.fun's graduated AMM — dexId "pumpswap").
+    // Only the bonding-curve has dexId "pump-fun"; PumpSwap is a real graduated pool.
+    const isPump = mint.toLowerCase().endsWith("pump");
+    const solanaPairs = data.pairs.filter(p => p.chainId === "solana");
+    const BONDING_CURVE_IDS = ["pump-fun", "pumpfun"];
+    const realDexPairs = isPump
+      ? solanaPairs.filter(p => {
+          const dex = String(p.dexId || "").toLowerCase().replace(/-/g, "");
+          return !BONDING_CURVE_IDS.includes(dex);
+        })
+      : solanaPairs;
+    const pool = realDexPairs.length > 0 ? realDexPairs : solanaPairs;
+    const pair = pool.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0]
+              || data.pairs[0];
 
     const dex = pair.dexId;
     const liquidity = pair.liquidity?.usd;

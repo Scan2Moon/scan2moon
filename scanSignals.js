@@ -364,25 +364,26 @@ export function pickSmartPair(mint, pairs) {
   const isPumpFunToken = String(mint).toLowerCase().endsWith("pump");
 
   if (isPumpFunToken) {
-    // Separate real DEX pairs (Meteora, Raydium…) from the pump.fun bonding-curve pair.
-    // DexScreener under-reports liquidity for Meteora DLMM pools, so we can't rely on
-    // liquidity.usd alone — being on a non-pump DEX is enough to confirm graduation.
-    const realDexPairs = solanaPairs.filter(
-      p => !String(p.dexId || "").toLowerCase().includes("pump")
-    );
-    const pumpPairs = solanaPairs.filter(
-      p => String(p.dexId || "").toLowerCase().includes("pump")
-    );
+    // Separate graduated DEX pairs from the pump.fun bonding-curve pair.
+    // Bonding curve dexId = "pump-fun". PumpSwap (graduated AMM) = "pumpswap" — that IS a
+    // real exit pool and must NOT be excluded. Only "pump-fun" / "pumpfun" is the bonding curve.
+    const BONDING_CURVE_IDS = ["pump-fun", "pumpfun"];
+    const isBondingCurve = (p) => {
+      const dex = String(p.dexId || "").toLowerCase().replace(/-/g, "");
+      return BONDING_CURVE_IDS.includes(dex);
+    };
+    const realDexPairs = solanaPairs.filter(p => !isBondingCurve(p));
+    const pumpPairs    = solanaPairs.filter(p =>  isBondingCurve(p));
 
     if (realDexPairs.length > 0) {
-      // Token has graduated — pick the highest-liquidity real DEX pair
+      // Token has graduated (to PumpSwap, Raydium, Meteora, etc.)
       const best = realDexPairs.sort(
         (a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0)
       )[0];
       return { pair: best, isPumpFun: true, hasGraduated: true };
     }
 
-    // Still only on pump.fun — pick highest-liquidity pump pair
+    // Still only on pump.fun bonding curve — not yet graduated
     const best = pumpPairs.sort(
       (a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0)
     )[0] || solanaPairs[0];
