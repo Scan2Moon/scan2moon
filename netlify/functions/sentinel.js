@@ -1,11 +1,11 @@
 /* ============================================================
-   Scan2Moon — Sentinel AI Agent (Gemini proxy)
+   Scan2Moon — Sentinel AI Agent (Groq / Llama proxy)
    POST /.netlify/functions/sentinel
    Body: { scanData: { ... } }
    ============================================================ */
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
-const GEMINI_URL     = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
 
 const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
 
@@ -107,7 +107,7 @@ exports.handler = async (event) => {
   const ip = event.headers["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
   if (isRateLimited(ip)) return { statusCode: 429, headers, body: JSON.stringify({ error: "Too many requests. Please wait a moment." }) };
 
-  if (!GEMINI_API_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: "Sentinel not configured." }) };
+  if (!GROQ_API_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: "Sentinel not configured." }) };
 
   let scanData;
   try { scanData = JSON.parse(event.body || "{}").scanData; }
@@ -116,31 +116,36 @@ exports.handler = async (event) => {
   if (!scanData) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing scanData." }) };
 
   try {
-    const geminiRes = await fetch(GEMINI_URL, {
+    const groqRes = await fetch(GROQ_URL, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({
-        contents: [{ parts: [{ text: buildPrompt(scanData) }] }],
-        generationConfig: { temperature: 0.6, maxOutputTokens: 2000 },
+      headers: {
+        "Content-Type":  "application/json",
+        "Authorization": `Bearer ${GROQ_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model:       "llama-3.1-8b-instant",
+        messages:    [{ role: "user", content: buildPrompt(scanData) }],
+        temperature: 0.6,
+        max_tokens:  2000,
       }),
     });
 
-    if (!geminiRes.ok) {
-      const err = await geminiRes.text();
-      console.error("Gemini error:", err);
-      return { statusCode: 502, headers, body: JSON.stringify({ error: "Gemini API error.", detail: err }) };
+    if (!groqRes.ok) {
+      const err = await groqRes.text();
+      console.error("Groq error:", err);
+      return { statusCode: 502, headers, body: JSON.stringify({ error: "Groq API error.", detail: err }) };
     }
 
-    const geminiJson = await geminiRes.json();
-    const rawText    = geminiJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    const groqJson = await groqRes.json();
+    const rawText  = groqJson.choices?.[0]?.message?.content || "";
 
-    /* Parse the JSON Gemini returns */
+    /* Parse the JSON Groq returns */
     let analysis;
     try {
       const cleaned = rawText.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
       analysis = JSON.parse(cleaned);
     } catch {
-      /* If Gemini didn't return clean JSON, wrap the raw text */
+      /* If Groq didn't return clean JSON, wrap the raw text */
       analysis = { summary: rawText, verdict: "UNKNOWN", verdictEmoji: "🤖", signalBreakdown: [], redFlags: [], greenFlags: [], moonPotential: { rating: "UNKNOWN", emoji: "❓", score: 50, reasoning: "" }, recommendation: "", beginnerTip: "" };
     }
 

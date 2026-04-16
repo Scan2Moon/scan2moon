@@ -98,7 +98,7 @@ function showSentinelModal(scanData) {
         <div class="sentinel-body" id="sentinelBody"></div>
         <div class="sentinel-footer">
           <span>⚠️ Not financial advice. Always DYOR.</span>
-          <span class="sentinel-powered">Powered by Gemini AI</span>
+          <span class="sentinel-powered">Powered by Groq AI</span>
         </div>
       </div>
     `;
@@ -107,20 +107,23 @@ function showSentinelModal(scanData) {
     modal.addEventListener("click", function(e) { if (e.target === modal) closeSentinelModal(); });
   }
 
-  /* Token bar */
+  /* Token bar — use modal.querySelector to avoid null if DOM hasn't settled */
   const meta    = window.scanTokenMeta || {};
   const rawLogo = meta.logo || "";
   const logoUrl = rawLogo
     ? "/.netlify/functions/logoProxy?url=" + encodeURIComponent(rawLogo)
     : "https://placehold.co/36x36";
 
-  document.getElementById("sentinelTokenBar").innerHTML =
-    '<img class="sentinel-token-logo" src="' + logoUrl + '" onerror="this.src=\'https://placehold.co/36x36\'" referrerpolicy="no-referrer"/>' +
-    '<div class="sentinel-token-info">' +
-      '<span class="sentinel-token-name">' + esc(scanData.name) + '</span>' +
-      '<span class="sentinel-token-symbol">' + esc(scanData.symbol) + '</span>' +
-    '</div>' +
-    '<div class="sentinel-token-score-pill ' + scoreClass(scanData.totalScore) + '">' + scanData.totalScore + '/100</div>';
+  const tokenBar = modal.querySelector("#sentinelTokenBar");
+  if (tokenBar) {
+    tokenBar.innerHTML =
+      '<img class="sentinel-token-logo" src="' + logoUrl + '" onerror="this.src=\'https://placehold.co/36x36\'" referrerpolicy="no-referrer"/>' +
+      '<div class="sentinel-token-info">' +
+        '<span class="sentinel-token-name">' + esc(scanData.name) + '</span>' +
+        '<span class="sentinel-token-symbol">' + esc(scanData.symbol) + '</span>' +
+      '</div>' +
+      '<div class="sentinel-token-score-pill ' + scoreClass(scanData.totalScore) + '">' + scanData.totalScore + '/100</div>';
+  }
 
   modal.style.display = "flex";
   document.body.style.overflow = "hidden";
@@ -137,7 +140,8 @@ function closeSentinelModal() {
 
 /* ── Loading / error states ── */
 function setModalState(state, errorMsg) {
-  var body = document.getElementById("sentinelBody");
+  var modal = document.getElementById("sentinelModal");
+  var body = modal ? modal.querySelector("#sentinelBody") : document.getElementById("sentinelBody");
   if (!body) return;
   if (state === "loading") {
     body.innerHTML =
@@ -161,7 +165,8 @@ function setModalState(state, errorMsg) {
 
 /* ── Render full analysis ── */
 function renderSentinelAnalysis(scanData, a) {
-  var body = document.getElementById("sentinelBody");
+  var modal = document.getElementById("sentinelModal");
+  var body = modal ? modal.querySelector("#sentinelBody") : document.getElementById("sentinelBody");
   if (!body) return;
 
   var verdictCls = { "SAFE TO APE": "sv-safe", "LOW RISK": "sv-low", "MODERATE RISK": "sv-moderate", "HIGH RISK": "sv-high", "EXTREME DANGER": "sv-extreme" }[a.verdict] || "sv-moderate";

@@ -233,28 +233,6 @@
 
 </div>
 
-<!-- SENTINEL MODAL -->
-<div id="sentinelModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(2,8,6,0.95);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:linear-gradient(180deg, rgba(12,50,40,0.95), rgba(3,10,8,0.98));border:2px solid #2cffc9;border-radius:16px;width:90%;max-width:680px;max-height:90vh;overflow:auto;box-shadow:0 0 40px rgba(44,255,201,0.4);">
-    <div style="padding:20px 24px;border-bottom:1px solid rgba(44,255,201,0.3);display:flex;justify-content:space-between;align-items:center;">
-      <h2 style="margin:0;color:#7fffe1;font-size:22px;">🛡️ Sentinel AI Analysis</h2>
-      <button onclick="hideSentinelModal()" style="background:none;border:none;font-size:28px;color:#7fffe1;cursor:pointer;line-height:1;">×</button>
-    </div>
-    <div id="sentinelContent" style="padding:24px;line-height:1.6;color:#cffff4;font-size:15px;"></div>
-  </div>
-</div>
-
-<script>
-function showSentinelModal(text) {
-  const modal = document.getElementById("sentinelModal");
-  const content = document.getElementById("sentinelContent");
-  content.innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;background:rgba(0,0,0,0.3);padding:18px;border-radius:10px;border:1px solid rgba(44,255,201,0.2);">${text}</pre>`;
-  modal.style.display = "flex";
-}
-function hideSentinelModal() {
-  document.getElementById("sentinelModal").style.display = "none";
-}
-</script>
 
 <script type="module" src="script.js"></script>
 </body>
