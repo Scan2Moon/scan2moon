@@ -6,6 +6,7 @@
    ============================================================ */
 
 import { renderNav } from "./nav.js";
+import { applyTranslations } from "./i18n.js";
 import "./community.js";
 
 const LB_API = "/.netlify/functions/leaderboard";
@@ -53,6 +54,7 @@ function formatSol(n) {
    ============================================================ */
 document.addEventListener("DOMContentLoaded", async () => {
   renderNav();
+  applyTranslations();
   fetchSolPrice();
   setInterval(fetchSolPrice, 60_000);
 
@@ -829,4 +831,8 @@ window.saveTraderCard = async function() {
 // Close on Escape key
 document.addEventListener("keydown", e => {
   if (e.key === "Escape") window.closeTraderProfile();
+});
+
+window.addEventListener("langchange", () => {
+  applyTranslations();
 });

@@ -1,6 +1,7 @@
 /* ============================
    Scan2Moon – Final Score Panel V2.0
    ============================ */
+import { t } from "./i18n.js";
 
 /* ── Watchlist helpers (localStorage) ── */
 const WL_KEY = "s2m_watchlist";
@@ -106,25 +107,25 @@ export async function renderFinalScore() {
         </div>
 
         <div class="signal-explainer-pro ${explainClass}">
-          <strong>Explain Risk</strong>
+          <strong>${t("explain_risk")}</strong>
           <div class="explain-text">${explanation}</div>
         </div>
 
         <div class="metrics-row">
           <div class="metric">
-            <div class="metric-label">Liquidity</div>
+            <div class="metric-label">${t("liquidity_label")}</div>
             <div class="metric-value">${liquidity}</div>
           </div>
           <div class="metric">
-            <div class="metric-label">Top 10 Holders</div>
+            <div class="metric-label">${t("top10_label")}</div>
             <div class="metric-value">${top10}</div>
           </div>
           <div class="metric">
-            <div class="metric-label">Market Cap</div>
+            <div class="metric-label">${t("market_cap_label")}</div>
             <div class="metric-value">${marketCap}</div>
           </div>
           <div class="metric">
-            <div class="metric-label">Net Buy Pressure (24H)</div>
+            <div class="metric-label">${t("net_buy_label")}</div>
             <div class="metric-value ${pressureClass}">
               ${netPressureDisplay}
               <div class="pressure-badge ${badgeClass}">${pressureBadge}</div>

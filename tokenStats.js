@@ -63,8 +63,19 @@ export async function renderTokenStats(mint) {
       return;
     }
 
-    const pair =
-      data.pairs.find(p => p.chainId === "solana") || data.pairs[0];
+    /* ── Smart pair selection (mirrors scanSignals.js logic) ──
+       Pump.fun tokens have a virtual bonding-curve pair (OLD) and a
+       real Raydium/Orca pair (NEW). Always use the newest real pair. */
+    const solanaPairs = data.pairs.filter(p => p.chainId === "solana");
+    // For pump.fun tokens prefer a real DEX pair (Meteora/Raydium) over the bonding curve.
+    // DexScreener API under-reports liquidity for DLMM pools so we filter first, then sort.
+    const isPumpFunToken = mint.toLowerCase().endsWith("pump");
+    const realDexPairs = isPumpFunToken
+      ? solanaPairs.filter(p => !String(p.dexId || "").toLowerCase().includes("pump"))
+      : solanaPairs;
+    const pool = realDexPairs.length > 0 ? realDexPairs : solanaPairs;
+    let pair = pool.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0]
+             || data.pairs[0];
 
     const priceUsd = pair.priceUsd;
     const priceSol = pair.priceNative;

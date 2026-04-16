@@ -1,5 +1,6 @@
 // home.js – Scan2Moon V2.0 Home Page
 import { renderNav } from "./nav.js";
+import { t } from "./i18n.js";
 import "./community.js";
 
 /* ===== STORAGE KEY ===== */
@@ -48,8 +49,8 @@ function renderScans() {
     container.innerHTML = `
       <div class="no-scans-msg">
         <div class="no-scans-icon">🔍</div>
-        <div class="no-scans-title">No scans yet</div>
-        <div class="no-scans-sub">Head to the <a href="index.html">Risk Scanner</a> and scan your first token!</div>
+        <div class="no-scans-title">${t("home_no_scans_title")}</div>
+        <div class="no-scans-sub">${t("home_no_scans_sub")}</div>
       </div>
     `;
     return;
@@ -88,27 +89,27 @@ function renderScans() {
 
         <div class="mini-metrics">
           <div class="mini-metric">
-            <div class="mini-metric-label">Market Cap</div>
+            <div class="mini-metric-label">${t("market_cap_label")}</div>
             <div class="mini-metric-value">${scan.marketCap || "N/A"}</div>
           </div>
           <div class="mini-metric">
-            <div class="mini-metric-label">Liquidity</div>
+            <div class="mini-metric-label">${t("liquidity_label")}</div>
             <div class="mini-metric-value">${scan.liquidity || "N/A"}</div>
           </div>
           <div class="mini-metric">
-            <div class="mini-metric-label">Top 10 Holders</div>
+            <div class="mini-metric-label">${t("top10_label")}</div>
             <div class="mini-metric-value">${scan.top10 || "N/A"}</div>
           </div>
           <div class="mini-metric">
-            <div class="mini-metric-label">Avg TX Size</div>
+            <div class="mini-metric-label">${t("home_avg_tx")}</div>
             <div class="mini-metric-value">${scan.avgTxSize || "N/A"}</div>
           </div>
         </div>
 
         <div class="mini-card-actions">
-          <div class="mini-rescan-hint">Click to re-scan →</div>
+          <div class="mini-rescan-hint">${t("home_rescan_hint")}</div>
           <button class="mini-trade-btn" onclick="event.stopPropagation(); goToSafeApe('${scan.mint}')">
-            <img src="/sol2moon-token.png" style="width:13px;height:13px;object-fit:contain;vertical-align:middle;margin-right:4px;">Trade on Safe Ape
+            <img src="/sol2moon-token.png" style="width:13px;height:13px;object-fit:contain;vertical-align:middle;margin-right:4px;">${t("home_trade_btn")}
           </button>
         </div>
       </div>
@@ -117,7 +118,7 @@ function renderScans() {
 
   container.innerHTML = `
     <div class="scans-grid">${cardsHTML}</div>
-    <button class="clear-history-btn" onclick="clearHistory()">Clear History</button>
+    <button class="clear-history-btn" onclick="clearHistory()">${t("home_clear_history")}</button>
   `;
 }
 
@@ -146,3 +147,6 @@ document.addEventListener("DOMContentLoaded", () => {
   renderNav();
   renderScans();
 });
+
+/* Re-render scan cards when language switches */
+window.addEventListener("langchange", () => renderScans());

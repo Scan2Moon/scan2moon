@@ -306,3 +306,6 @@ exports.handler = async function(event, context) {
 
   return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 };
+
+/* i18n handles data-i18n elements automatically on langchange — no manual call needed */
+window.addEventListener("langchange", () => { /* i18n system handles this */ });

@@ -38,36 +38,36 @@
     <div class="lb-hero-left">
       <div class="sa-pulse-dot"></div>
       <div>
-        <div class="lb-title">🏆 SAFE APE LEADERBOARD</div>
-        <div class="lb-subtitle">Risk-adjusted rankings • Real discipline rewarded • Not just lucky degens</div>
+        <div class="lb-title" data-i18n="lb_title">🏆 SAFE APE LEADERBOARD</div>
+        <div class="lb-subtitle" data-i18n="lb_subtitle">Risk-adjusted rankings • Real discipline rewarded • Not just lucky degens</div>
       </div>
     </div>
     <div class="lb-hero-right">
       <div class="lb-stat-pill" id="lbTotalTraders">— traders</div>
       <div class="lb-stat-pill" id="lbLastUpdate">Updating…</div>
-      <button class="lb-refresh-btn" id="lbRefreshBtn">↻ Refresh</button>
+      <button class="lb-refresh-btn" id="lbRefreshBtn" data-i18n="btn_refresh">↻ Refresh</button>
     </div>
   </div>
 
   <!-- MVP STRIP -->
   <div class="lb-mvp-strip" id="lbMvpStrip">
     <div class="lb-mvp-card" id="mvpDay">
-      <div class="lb-mvp-label">👑 MVP TODAY</div>
+      <div class="lb-mvp-label" data-i18n="lb_mvp_today">👑 MVP TODAY</div>
       <div class="lb-mvp-name" id="mvpDayName">—</div>
       <div class="lb-mvp-val" id="mvpDayVal">—</div>
     </div>
     <div class="lb-mvp-card" id="mvpWeek">
-      <div class="lb-mvp-label">🔥 MVP THIS WEEK</div>
+      <div class="lb-mvp-label" data-i18n="lb_mvp_week">🔥 MVP THIS WEEK</div>
       <div class="lb-mvp-name" id="mvpWeekName">—</div>
       <div class="lb-mvp-val" id="mvpWeekVal">—</div>
     </div>
     <div class="lb-mvp-card" id="mvpMonth">
-      <div class="lb-mvp-label">🦍 MVP THIS MONTH</div>
+      <div class="lb-mvp-label" data-i18n="lb_mvp_month">🦍 MVP THIS MONTH</div>
       <div class="lb-mvp-name" id="mvpMonthName">—</div>
       <div class="lb-mvp-val" id="mvpMonthVal">—</div>
     </div>
     <div class="lb-mvp-card" id="mvpAllTime">
-      <div class="lb-mvp-label">🐐 ALL TIME MVP</div>
+      <div class="lb-mvp-label" data-i18n="lb_mvp_alltime">🐐 ALL TIME MVP</div>
       <div class="lb-mvp-name" id="mvpAllTimeName">—</div>
       <div class="lb-mvp-val" id="mvpAllTimeVal">—</div>
     </div>
@@ -78,35 +78,35 @@
     <div class="lb-your-rank-left">
       <span class="lb-your-rank-emoji">🦍</span>
       <div>
-        <div class="lb-your-rank-label">YOUR RANK</div>
+        <div class="lb-your-rank-label" data-i18n="lb_your_rank">YOUR RANK</div>
         <div class="lb-your-rank-name" id="yourRankName">—</div>
       </div>
     </div>
     <div class="lb-your-rank-right">
       <div class="lb-your-rank-pos" id="yourRankPos">#—</div>
-      <button class="lb-share-rank-btn" id="shareRankBtn">🐦 Share on X</button>
-      <button class="lb-submit-btn" id="submitScoreBtn">⬆️ Submit Score</button>
+      <button class="lb-share-rank-btn" id="shareRankBtn" data-i18n="lb_share_rank">🐦 Share on X</button>
+      <button class="lb-submit-btn" id="submitScoreBtn" data-i18n="lb_submit_score">⬆️ Submit Score</button>
     </div>
   </div>
 
   <!-- CONNECT BANNER (shown when not connected) -->
   <div class="lb-connect-banner" id="lbConnectBanner">
-    <span>🔗 Connect Phantom wallet to see your rank and submit your score</span>
-    <button class="lb-connect-small-btn" id="lbConnectBtn">Connect Wallet</button>
+    <span data-i18n="lb_connect_msg">🔗 Connect Phantom wallet to see your rank and submit your score</span>
+    <button class="lb-connect-small-btn" id="lbConnectBtn" data-i18n="lb_connect_btn">Connect Wallet</button>
   </div>
 
   <!-- PERIOD TABS -->
   <div class="lb-period-tabs">
-    <button class="lb-period-tab active" data-period="alltime">🏆 All Time</button>
-    <button class="lb-period-tab" data-period="monthly">📅 Monthly</button>
-    <button class="lb-period-tab" data-period="weekly">📆 Weekly</button>
-    <button class="lb-period-tab" data-period="daily">⚡ Daily</button>
+    <button class="lb-period-tab active" data-period="alltime" data-i18n="lb_tab_alltime">🏆 All Time</button>
+    <button class="lb-period-tab" data-period="monthly" data-i18n="lb_tab_monthly">📅 Monthly</button>
+    <button class="lb-period-tab" data-period="weekly" data-i18n="lb_tab_weekly">📆 Weekly</button>
+    <button class="lb-period-tab" data-period="daily" data-i18n="lb_tab_daily">⚡ Daily</button>
   </div>
 
   <!-- MAIN TABLE -->
   <div class="panel">
     <div class="panel-header">
-      <div class="panel-title">📊 FULL RANKINGS</div>
+      <div class="panel-title" data-i18n="lb_rankings_title">📊 FULL RANKINGS</div>
       <div style="font-size:11px;opacity:0.45;padding-right:14px;display:flex;align-items:center;gap:4px;">Adj. Return = P/L% × (Avg Risk Score / 100) &nbsp;|&nbsp; Balance & P/L shown in SOL</div>
     </div>
     <div class="panel-body" id="lbTableBody">
@@ -119,7 +119,7 @@
 
   <!-- COMMUNITY -->
   <div class="panel">
-    <div class="panel-title">Scan2Moon Community</div>
+    <div class="panel-title" data-i18n="community_panel">Scan2Moon Community</div>
     <div class="panel-body" id="communityPanel"></div>
   </div>
 
@@ -145,11 +145,11 @@
   </div>
 
   <footer class="footer">
-    <div class="footer-left">Simulated trading only. Not financial advice. Always DYOR.</div>
+    <div class="footer-left" data-i18n="lb_footer_disclaimer">Simulated trading only. Not financial advice. Always DYOR.</div>
     <div class="footer-right">
       <span class="version">Version V2.0</span>
       <span class="separator">•</span>
-      <span class="powered">Powered by Scan2Moon</span>
+      <span class="powered" data-i18n="footer_powered">Powered by Scan2Moon</span>
     </div>
   </footer>
 

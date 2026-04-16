@@ -52,7 +52,7 @@
     <input
       id="walletInput"
       type="text"
-      placeholder="Paste any Solana wallet address to reveal their Whale DNA…"
+      data-i18n="whale_placeholder" placeholder="Paste any Solana wallet address to reveal their Whale DNA…"
       autocomplete="off"
       spellcheck="false"
     />
@@ -64,7 +64,7 @@
   <!-- DNA PROFILE CARD — hidden until scan -->
   <div class="panel" id="dnaProfilePanel" style="display:none;">
     <div class="panel-header">
-      <div class="panel-title">🧬 WALLET DNA PROFILE</div>
+      <div class="panel-title" data-i18n="whale_dna_profile">🧬 WALLET DNA PROFILE</div>
     </div>
     <div class="panel-body" id="dnaProfileBody"></div>
   </div>
@@ -72,11 +72,11 @@
   <!-- PERFORMANCE STATS — hidden until scan -->
   <div class="grid-2" id="dnaStatsRow" style="display:none;">
     <div class="panel">
-      <div class="panel-title">📊 PERFORMANCE STATS</div>
+      <div class="panel-title" data-i18n="whale_perf_stats">📊 PERFORMANCE STATS</div>
       <div class="panel-body" id="dnaStatsBody"></div>
     </div>
     <div class="panel">
-      <div class="panel-title">🎯 COPY-TRADE RISK SCORE</div>
+      <div class="panel-title" data-i18n="whale_copy_score">🎯 COPY-TRADE RISK SCORE</div>
       <div class="panel-body" id="dnaCopyBody"></div>
     </div>
   </div>
@@ -84,7 +84,7 @@
   <!-- HOLDINGS TABLE — hidden until scan -->
   <div class="panel" id="dnaHoldingsPanel" style="display:none;">
     <div class="panel-header">
-      <div class="panel-title">🐋 CURRENT WHALE HOLDINGS</div>
+      <div class="panel-title" data-i18n="whale_holdings">🐋 CURRENT WHALE HOLDINGS</div>
       <div class="dna-filter-row" id="dnaFilterRow"></div>
     </div>
     <div class="panel-body" id="dnaHoldingsBody"></div>
@@ -92,16 +92,16 @@
 
   <!-- COMMUNITY PANEL -->
   <div class="panel">
-    <div class="panel-title">Scan2Moon Community</div>
+    <div class="panel-title" data-i18n="community_panel">Scan2Moon Community</div>
     <div class="panel-body" id="communityPanel"></div>
   </div>
 
   <footer class="footer">
-    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-left" data-i18n="footer_disclaimer">Informational tool only. Always DYOR.</div>
     <div class="footer-right">
       <span class="version">Version V2.0</span>
       <span class="separator">•</span>
-      <span class="powered">Powered by Scan2Moon</span>
+      <span class="powered" data-i18n="footer_powered">Powered by Scan2Moon</span>
     </div>
   </footer>
 

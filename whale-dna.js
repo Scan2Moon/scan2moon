@@ -4,6 +4,7 @@
    ============================================================ */
 
 import { renderNav } from "./nav.js";
+import { applyTranslations } from "./i18n.js";
 import { callRpc }   from "./rpc.js";
 import "./community.js";
 
@@ -14,6 +15,7 @@ const DEX_API = "https://api.dexscreener.com/latest/dex/tokens/";
    ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
   renderNav();
+  applyTranslations();
   document.getElementById("dnaScanBtn").addEventListener("click", startScan);
   document.getElementById("walletInput").addEventListener("keydown", (e) => {
     if (e.key === "Enter") startScan();
@@ -886,3 +888,6 @@ function formatAmount(num) {
   if (num >= 1e3)  return (num / 1e3).toFixed(2)  + "K";
   return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
 }
+
+/* i18n handles data-i18n elements automatically on langchange — no manual call needed */
+window.addEventListener("langchange", () => { /* i18n system handles this */ });

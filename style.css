@@ -1116,8 +1116,10 @@ a {
 .nav-inner {
   display: flex;
   align-items: center;
-  padding: 10px 20px;
-  gap: 20px;
+  padding: 8px 16px;
+  gap: 8px;
+  flex-wrap: nowrap;
+  overflow: hidden;
 }
 
 .nav-logo {
@@ -1146,7 +1148,7 @@ a {
 .nav-links {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   flex: 1;
   justify-content: center;
 }
@@ -1154,16 +1156,17 @@ a {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 18px;
+  gap: 5px;
+  padding: 7px 11px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  letter-spacing: 1px;
+  letter-spacing: 0.8px;
   text-decoration: none;
   color: rgba(207,255,244,0.6);
   transition: all 0.2s ease;
   border: 1px solid transparent;
+  white-space: nowrap;
 }
 
 .nav-link:hover {
@@ -1187,7 +1190,7 @@ a {
   text-shadow: none;
 }
 
-.nav-icon { font-size: 14px; }
+.nav-icon { display: none; }
 
 .nav-badge {
   flex-shrink: 0;
@@ -1200,6 +1203,48 @@ a {
   border: 1px solid rgba(44,255,201,0.4);
   background: rgba(44,255,201,0.08);
   text-shadow: 0 0 6px rgba(44,255,201,0.5);
+}
+
+/* ── Language Switcher ─────────────────────────────────────── */
+.lang-switcher {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.lang-flag-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 18px;
+  border: 1.5px solid transparent;
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  padding: 1px;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s, box-shadow 0.15s;
+  overflow: hidden;
+}
+
+.lang-flag-btn:hover {
+  border-color: rgba(44,255,201,0.4);
+  transform: scale(1.06);
+}
+
+.lang-flag-btn.lang-active {
+  border-color: #2cffc9;
+  box-shadow: 0 0 5px rgba(44,255,201,0.35);
+}
+
+.lang-flag-img {
+  width: 22px;
+  height: 14px;
+  object-fit: cover;
+  border-radius: 1px;
+  display: block;
 }
 
 @media (max-width: 768px) {
@@ -1890,4 +1935,11 @@ a {
 .s2m-token-icon--footer {
   width: 22px;
   height: 22px;
+}
+/* SENTINEL MODAL - already styled inline for speed, but extra polish */
+#sentinelModal pre {
+  background: rgba(0,0,0,0.3);
+  padding: 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(44,255,201,0.2);
 }
