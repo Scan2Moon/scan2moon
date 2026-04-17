@@ -46,13 +46,20 @@ const BADGE_DEFS = [
   { id: "wins_1000",            cat: "trading", img: "/badges/Wins_1000.png",       icon: "🐐", name: "1000 Safe Wins — GOAT", desc: "1000 profitable trades. You are the absolute Greatest Of All Time.",        reward: 5.0   },
   { id: "sol2moon_millionaire", cat: "trading", img: "/badges/Sol2Moon.png",        icon: "🌙", name: "Sol2Moon Millionaire",  desc: "Grow your simulator balance to 10,000 SOL. Legendary status.",              reward: 500.0 },
 
-  /* ── Academy ── */
-  { id: "lesson_1",      cat: "academy", img: "/badges/lesson_1.png",      icon: "🎯", name: "First Lesson",      desc: "Complete your very first lesson in the Scan2Moon Academy.",                        reward: 0.1  },
-  { id: "risk_master",   cat: "academy", img: "/badges/risk_master.png",   icon: "📊", name: "Risk Master",       desc: "Score 100% on the Risk Scanner knowledge quiz. Perfect understanding!",           reward: 0.25 },
-  { id: "scanner_pro",   cat: "academy", img: "/badges/scanner_pro.png",   icon: "🛡️", name: "Scanner Pro",       desc: "Complete the full Risk Scanner deep-dive course from start to finish.",           reward: 0.5  },
-  { id: "chart_reader",  cat: "academy", img: "/badges/chart_reader.png",  icon: "📈", name: "Chart Reader",      desc: "Pass the Chart Reading & Candle Analysis challenge with 80%+ accuracy.",          reward: 0.25 },
-  { id: "whale_watcher", cat: "academy", img: "/badges/whale_watcher.png", icon: "🐋", name: "Whale Watcher",     desc: "Complete the Whale DNA module and learn how to track smart money.",                reward: 0.25 },
-  { id: "defi_graduate", cat: "academy", img: "/badges/defi_graduate.png", icon: "🏛️", name: "DeFi Graduate",     desc: "Complete every module in the Scan2Moon Academy. Full graduate status!",           reward: 1.0  },
+  /* ── Academy Rank ── */
+  { id: "lesson_1",      cat: "academy", subcat: "rank", img: "/badges/lesson_1.png",      icon: "🎯", name: "First Lesson",      desc: "Complete your very first lesson in the Scan2Moon Academy.",                        reward: 0.1  },
+  { id: "risk_master",   cat: "academy", subcat: "rank", img: "/badges/risk_master.png",   icon: "📊", name: "Risk Master",       desc: "Score 100% on the Risk Scanner knowledge quiz. Perfect understanding!",           reward: 0.25 },
+  { id: "scanner_pro",   cat: "academy", subcat: "rank", img: "/badges/scanner_pro.png",   icon: "🛡️", name: "Scanner Pro",       desc: "Complete the full Risk Scanner deep-dive course from start to finish.",           reward: 0.5  },
+  { id: "chart_reader",  cat: "academy", subcat: "rank", img: "/badges/chart_reader.png",  icon: "📈", name: "Chart Reader",      desc: "Pass the Chart Reading & Candle Analysis challenge with 80%+ accuracy.",          reward: 0.25 },
+  { id: "whale_watcher", cat: "academy", subcat: "rank", img: "/badges/whale_watcher.png", icon: "🐋", name: "Whale Watcher",     desc: "Complete the Whale DNA module and learn how to track smart money.",                reward: 0.25 },
+  { id: "defi_graduate", cat: "academy", subcat: "rank", img: "/badges/defi_graduate.png", icon: "🏛️", name: "DeFi Graduate",     desc: "Complete every module in the Scan2Moon Academy. Full graduate status!",           reward: 1.0  },
+
+  /* ── Academy Level ── */
+  { id: "acad_lvl_1", cat: "academy", subcat: "level", img: "/badges/acad_lvl_1.png", icon: "📖", name: "Academy LVL 1 — Enrolled",   desc: "Earn your first Academy Rank badge. The journey begins!",                  reward: 0.05 },
+  { id: "acad_lvl_2", cat: "academy", subcat: "level", img: "/badges/acad_lvl_2.png", icon: "✏️", name: "Academy LVL 2 — Student",    desc: "Earn 2 Academy Rank badges. You are officially a student.",                reward: 0.1  },
+  { id: "acad_lvl_3", cat: "academy", subcat: "level", img: "/badges/acad_lvl_3.png", icon: "📚", name: "Academy LVL 3 — Scholar",    desc: "Earn 3 Academy Rank badges. Knowledge is compounding.",                    reward: 0.2  },
+  { id: "acad_lvl_4", cat: "academy", subcat: "level", img: "/badges/acad_lvl_4.png", icon: "🎓", name: "Academy LVL 4 — Advanced",   desc: "Earn 4 Academy Rank badges. You're ahead of 90% of traders.",             reward: 0.4  },
+  { id: "acad_lvl_5", cat: "academy", subcat: "level", img: "/badges/acad_lvl_5.png", icon: "🏆", name: "Academy LVL 5 — Professor",  desc: "Earn all 5 core Academy Rank badges. You are the one who teaches now.",   reward: 1.0  },
 
   /* ── Other ── */
   { id: "early_adopter",  cat: "other", img: "/badges/early_adopter.png",  icon: "⚡", name: "Early Adopter",   desc: "Joined Scan2Moon before the V2 public launch. OG status forever.",              reward: 0.5  },
@@ -124,6 +131,14 @@ function badgeProgress(id) {
     case "portfolio_100":        return { cur: Math.max(0, bal - 10), max: 10,    label: `${formatSol(bal)} bal` };
     case "sol2moon_millionaire": return { cur: bal,                   max: 10000, label: `${formatSol(bal)} bal` };
     case "streak_7":             return { cur: streak,                max: 7,     label: `${streak}d streak`     };
+    /* Academy Level badges — progress = how many rank badges earned */
+    case "acad_lvl_1": case "acad_lvl_2": case "acad_lvl_3":
+    case "acad_lvl_4": case "acad_lvl_5": {
+      const RANK_IDS  = ["lesson_1","risk_master","scanner_pro","chart_reader","whale_watcher"];
+      const earned    = (profile.badges || []).filter(id => RANK_IDS.includes(id)).length;
+      const target    = { acad_lvl_1:1, acad_lvl_2:2, acad_lvl_3:3, acad_lvl_4:4, acad_lvl_5:5 }[id];
+      return { cur: earned, max: target, label: `${earned} / ${target} rank badges` };
+    }
     /* Level badges — compute current account level inline */
     case "lvl_1": case "lvl_5": case "lvl_10":
     case "lvl_20": case "lvl_30": case "lvl_50": case "lvl_100": {
@@ -405,6 +420,7 @@ function calcAcadLevel(xp) {
   return lvl;
 }
 
+/* Only rank badges count towards Academy XP (not level badges) */
 const ACADEMY_BADGE_IDS = new Set(["lesson_1","risk_master","scanner_pro","chart_reader","whale_watcher","defi_graduate"]);
 
 function renderStatsRow() {
@@ -477,25 +493,19 @@ function renderBadges() {
     const catSol     = catBadges.filter(b => earned.has(b.id)).reduce((s, b) => s + b.reward, 0);
     const isOpen     = catIdx === 0; // first category open by default
 
-    const cardsHtml = catBadges.map(b => {
-      const isEarned   = earned.has(b.id);
-      const rewardStr  = b.reward >= 1 ? b.reward.toFixed(1) : b.reward.toFixed(2);
-      return `
-        <div class="dash-badge-card ${isEarned ? 'earned' : 'locked'}"
-             onclick="window.openBadgeModal('${b.id}')"
-             title="${esc(b.name)}">
-          <div class="dash-badge-reward">+${rewardStr} SOL</div>
-          <div class="dash-badge-img-wrap">
-            <img class="dash-badge-img" src="${b.img}" alt="${esc(b.name)}"
-              onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-            <span class="dash-badge-emoji" style="display:none">${b.icon}</span>
-          </div>
-          <div class="dash-badge-name">${esc(b.name)}</div>
-          <div class="dash-badge-status ${isEarned ? 'status-earned' : 'status-locked'}">
-            ${isEarned ? '✅ EARNED' : '🔒 LOCKED'}
-          </div>
-        </div>`;
-    }).join("");
+    /* Academy gets two labelled sub-sections; all others render flat */
+    let cardsHtml;
+    if (cat.id === "academy") {
+      const rankBadges  = catBadges.filter(b => b.subcat === "rank");
+      const levelBadges = catBadges.filter(b => b.subcat === "level");
+      cardsHtml = `
+        <div class="dash-badge-subheader">🏛️ ACADEMY RANK BADGES</div>
+        <div class="dash-badges-grid">${rankBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>
+        <div class="dash-badge-subheader" style="margin-top:14px;">⭐ ACADEMY LEVEL BADGES</div>
+        <div class="dash-badges-grid">${levelBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
+    } else {
+      cardsHtml = `<div class="dash-badges-grid">${catBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
+    }
 
     return `
       <div class="dash-cat-wrap ${isOpen ? 'open' : ''}" id="dash-cat-${cat.id}">
@@ -514,10 +524,30 @@ function renderBadges() {
           <span class="dash-cat-chevron">▼</span>
         </div>
         <div class="dash-cat-body">
-          <div class="dash-badges-grid">${cardsHtml}</div>
+          ${cardsHtml}
         </div>
       </div>`;
   }).join("");
+}
+
+/* ── Single badge card HTML ──────────────────────────────── */
+function badgeCardHtml(b, earned) {
+  const isEarned  = earned.has(b.id);
+  const rewardStr = b.reward >= 1 ? b.reward.toFixed(1) : b.reward.toFixed(2);
+  return `
+    <div class="dash-badge-card ${isEarned ? 'earned' : 'locked'}"
+         onclick="window.openBadgeModal('${b.id}')" title="${esc(b.name)}">
+      <div class="dash-badge-reward">+${rewardStr} SOL</div>
+      <div class="dash-badge-img-wrap">
+        <img class="dash-badge-img" src="${b.img}" alt="${esc(b.name)}"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <span class="dash-badge-emoji" style="display:none">${b.icon}</span>
+      </div>
+      <div class="dash-badge-name">${esc(b.name)}</div>
+      <div class="dash-badge-status ${isEarned ? 'status-earned' : 'status-locked'}">
+        ${isEarned ? '✅ EARNED' : '🔒 LOCKED'}
+      </div>
+    </div>`;
 }
 
 /* ── Toggle accordion category ───────────────────────────── */
@@ -730,6 +760,50 @@ window.shareBadgeOnX = async function(id) {
 };
 
 /* ═══════════════════════════════════════════════════════
+   ACADEMY RANK CARD  (for highlight row)
+═══════════════════════════════════════════════════════ */
+const ACADEMY_RANK_LADDER = [
+  { id: "defi_graduate",  icon: "🎓", rank: "DeFi Graduate",  color: "#ffd700", graduated: true  },
+  { id: "whale_watcher",  icon: "🐋", rank: "Whale Tracker",  color: "#60a5fa"                   },
+  { id: "chart_reader",   icon: "📈", rank: "Chart Analyst",  color: "#2cffc9"                   },
+  { id: "scanner_pro",    icon: "🛡️", rank: "Scanner Pro",    color: "#2cffc9"                   },
+  { id: "risk_master",    icon: "📊", rank: "Risk Analyst",   color: "#c084fc"                   },
+  { id: "lesson_1",       icon: "🎯", rank: "Freshman",       color: "#ffb432"                   },
+];
+
+function buildAcademyRankCard() {
+  const earned   = new Set(profile.badges || []);
+  const current  = ACADEMY_RANK_LADDER.find(r => earned.has(r.id));
+
+  /* ── Not enrolled ── */
+  if (!current) {
+    return { customHtml: `
+      <div class="dash-hl-top-label">ACADEMY RANK</div>
+      <div class="dash-hl-icon" style="font-size:28px;line-height:1.1">😴<br><span style="font-size:14px">📚</span></div>
+      <div class="dash-hl-val" style="color:rgba(207,255,244,0.4);font-size:13px;">NOT YET</div>
+      <div class="dash-hl-sub" style="font-size:9px;line-height:1.3;">Textbooks? Never heard of them...</div>
+      <a href="learn2moon.html" class="dash-hl-enroll-btn">👉 Enroll</a>` };
+  }
+
+  /* ── Graduated ── */
+  if (current.graduated) {
+    return { customHtml: `
+      <div class="dash-hl-top-label">ACADEMY RANK</div>
+      <div class="dash-hl-icon">🎓</div>
+      <div class="dash-hl-val" style="color:#ffd700;font-size:13px;">GRADUATE</div>
+      <div class="dash-hl-sub" style="color:#ffd700;font-size:10px;">🏛️ DeFi Graduate</div>
+      <div style="font-size:9px;color:rgba(255,215,0,0.5);margin-top:3px;">Academy Completed ✨</div>`, cls: "academy-grad" };
+  }
+
+  /* ── In progress ── */
+  return { customHtml: `
+    <div class="dash-hl-top-label">ACADEMY RANK</div>
+    <div class="dash-hl-icon">${current.icon}</div>
+    <div class="dash-hl-val" style="color:${current.color};font-size:13px;">${esc(current.rank).toUpperCase()}</div>
+    <div class="dash-hl-sub">Keep learning!</div>` };
+}
+
+/* ═══════════════════════════════════════════════════════
    HIGHLIGHT STATS ROW  (Best Trade, Worst Trade, Tasks…)
 ═══════════════════════════════════════════════════════ */
 function renderHighlightStats() {
@@ -768,23 +842,20 @@ function renderHighlightStats() {
       color: "rgba(207,255,244,0.25)",
       soon: true,
     },
-    {
-      icon: "📊", label: "SCAN ACCURACY",
-      val: "—",
-      sub: "coming soon",
-      color: "rgba(207,255,244,0.25)",
-      soon: true,
-    },
+    buildAcademyRankCard(),
   ];
 
-  document.getElementById("dashHighlightRow").innerHTML = cards.map(c => `
-    <div class="dash-hl-card ${c.soon ? 'soon' : ''}">
-      <div class="dash-hl-top-label">${c.label}</div>
-      <div class="dash-hl-icon">${c.icon}</div>
-      <div class="dash-hl-val" style="color:${c.color}">${c.val}</div>
-      <div class="dash-hl-sub">${c.sub}</div>
-      ${c.soon ? '<div class="dash-hl-soon-chip">COMING SOON</div>' : ''}
-    </div>`).join("");
+  document.getElementById("dashHighlightRow").innerHTML = cards.map(c =>
+    c.customHtml
+      ? `<div class="dash-hl-card ${c.cls || ''}">${c.customHtml}</div>`
+      : `<div class="dash-hl-card ${c.soon ? 'soon' : ''}">
+           <div class="dash-hl-top-label">${c.label}</div>
+           <div class="dash-hl-icon">${c.icon}</div>
+           <div class="dash-hl-val" style="color:${c.color}">${c.val}</div>
+           <div class="dash-hl-sub">${c.sub}</div>
+           ${c.soon ? '<div class="dash-hl-soon-chip">COMING SOON</div>' : ''}
+         </div>`
+  ).join("");
 }
 
 /* ═══════════════════════════════════════════════════════

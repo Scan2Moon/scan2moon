@@ -835,6 +835,36 @@
   word-break: break-all;
 }
 .dash-hl-sub   { font-size: 10px; color: rgba(207,255,244,0.4); margin-top: 1px; }
+/* Academy Rank card states */
+.dash-hl-card .dash-hl-enroll-btn {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 9px; font-weight: 800;
+  padding: 3px 10px; border-radius: 10px;
+  background: rgba(44,255,201,0.1);
+  border: 1px solid rgba(44,255,201,0.25);
+  color: #2cffc9;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+  transition: background 0.15s;
+}
+.dash-hl-card .dash-hl-enroll-btn:hover { background: rgba(44,255,201,0.2); }
+
+.dash-hl-card.academy-grad {
+  border-color: rgba(255,215,0,0.3);
+  background: linear-gradient(160deg, rgba(255,215,0,0.06), rgba(0,0,0,0.3));
+}
+
+/* Badge sub-category headers inside accordion */
+.dash-badge-subheader {
+  font-size: 10px; font-weight: 800;
+  letter-spacing: 1.2px; text-transform: uppercase;
+  color: rgba(207,255,244,0.35);
+  padding: 4px 0 8px;
+  border-bottom: 1px solid rgba(44,255,201,0.08);
+  margin-bottom: 10px;
+}
+
 .dash-hl-soon-chip {
   font-size: 9px; font-weight: 800; letter-spacing: 1px;
   color: rgba(255,180,50,0.55);
