@@ -991,7 +991,7 @@ exports.handler = async function(event, context) {
         timestamp: new Date().toISOString(),
       };
       profile.trades.unshift(trade);
-      if (profile.trades.length > 200) profile.trades = profile.trades.slice(0, 200);
+      if (profile.trades.length > 30) profile.trades = profile.trades.slice(0, 30);
 
       const newBadgesBuy = awardNewBadges(profile);
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
@@ -1077,7 +1077,7 @@ exports.handler = async function(event, context) {
         timestamp: new Date().toISOString(),
       };
       profile.trades.unshift(trade);
-      if (profile.trades.length > 200) profile.trades = profile.trades.slice(0, 200);
+      if (profile.trades.length > 30) profile.trades = profile.trades.slice(0, 30);
 
       const newBadgesSell = awardNewBadges(profile);
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);

@@ -643,7 +643,7 @@ function renderActivityFeed() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   TRADE HISTORY  (last 10 trades)
+   TRADE HISTORY  (panel preview — last 10)
 ═══════════════════════════════════════════════════════ */
 function renderTradeHistory() {
   const el     = document.getElementById("dashTradeHistory");
@@ -654,39 +654,104 @@ function renderTradeHistory() {
     return;
   }
 
-  const rows = trades.map(tr => {
-    const isBuy   = tr.type === "buy";
-    const pnlSol  = !isBuy && tr.pnl !== undefined ? parseFloat(tr.pnl) : null;
-    const pnlHtml = pnlSol !== null
-      ? `<span style="color:${pnlSol>=0?'#2cffc9':'#ff4d6d'}">${pnlSol>=0?'+':''}${formatSol(pnlSol)}</span>`
-      : `<span style="opacity:0.3">—</span>`;
-    const amtSol  = isBuy
-      ? (tr.totalCostSol || null)
-      : (tr.totalReceivedSol || null);
-    const amtHtml = amtSol !== null ? formatSol(amtSol) : "—";
-    const date    = new Date(tr.timestamp).toLocaleDateString(undefined, { month:"short", day:"numeric" });
-
-    return `
-      <div class="dash-trade-row">
-        <div><span class="dash-trade-badge ${isBuy?'buy':'sell'}">${isBuy?'BUY':'SELL'}</span></div>
-        <div>
-          <div class="dash-trade-token">${esc(tr.symbol || tr.name)}</div>
-          <div class="dash-trade-sym">${esc(tr.name || "")}</div>
-        </div>
-        <div class="dash-trade-amt">${amtHtml}</div>
-        <div class="dash-trade-pnl">${pnlHtml}</div>
-        <div style="font-size:10px;opacity:0.35;white-space:nowrap;">${date}</div>
-      </div>`;
-  }).join("");
-
   el.innerHTML = `
     <div class="dash-trade-table">
       <div class="dash-trade-header">
-        <div>TYPE</div><div>TOKEN</div><div>AMOUNT</div><div>P/L</div>
+        <div>TYPE</div><div>TOKEN</div><div>AMOUNT</div><div>P/L</div><div>DATE</div>
       </div>
-      ${rows}
+      ${trades.map(tr => buildTradeRow(tr)).join("")}
     </div>`;
 }
+
+/* ── Shared row builder (panel + modal) ──────────────── */
+function buildTradeRow(tr) {
+  const isBuy   = tr.type === "buy";
+  const pnlSol  = !isBuy && tr.pnl !== undefined ? parseFloat(tr.pnl) : null;
+  const pnlHtml = pnlSol !== null
+    ? `<span style="color:${pnlSol>=0?'#2cffc9':'#ff4d6d'};font-weight:800;">${pnlSol>=0?'+':''}${formatSol(pnlSol)}</span>`
+    : `<span style="opacity:0.3">—</span>`;
+  const amtSol  = isBuy ? (tr.totalCostSol || null) : (tr.totalReceivedSol || null);
+  const amtHtml = amtSol !== null ? formatSol(amtSol) : "—";
+  const date    = new Date(tr.timestamp).toLocaleDateString(undefined, { month:"short", day:"numeric" });
+
+  return `
+    <div class="dash-trade-row">
+      <div><span class="dash-trade-badge ${isBuy?'buy':'sell'}">${isBuy?'BUY':'SELL'}</span></div>
+      <div>
+        <div class="dash-trade-token">${esc(tr.symbol || tr.name)}</div>
+        <div class="dash-trade-sym">${esc(tr.name || "")}</div>
+      </div>
+      <div class="dash-trade-amt">${amtHtml}</div>
+      <div class="dash-trade-pnl">${pnlHtml}</div>
+      <div style="font-size:10px;opacity:0.35;white-space:nowrap;">${date}</div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   FULL TRADE HISTORY MODAL  (all 30, paginated)
+═══════════════════════════════════════════════════════ */
+const TH_PER_PAGE = 10;
+let _thPage = 0;
+
+window.openTradeHistoryModal = function() {
+  _thPage = 0;
+  document.getElementById("tradeHistModalOverlay")?.remove();
+
+  const overlay = document.createElement("div");
+  overlay.className = "th-modal-overlay";
+  overlay.id        = "tradeHistModalOverlay";
+  overlay.innerHTML = `
+    <div class="th-modal-card" id="tradeHistModalCard">
+      <div class="th-modal-header">
+        <div class="th-modal-title">📋 FULL TRADE HISTORY</div>
+        <button class="th-modal-close" onclick="document.getElementById('tradeHistModalOverlay').remove()">✕</button>
+      </div>
+      <div class="th-modal-body" id="thModalBody"></div>
+      <div class="th-modal-pagination" id="thModalPager"></div>
+    </div>`;
+
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  _renderThPage(0);
+};
+
+function _renderThPage(page) {
+  const allTrades = profile.trades || [];
+  const total     = allTrades.length;
+  const pages     = Math.max(1, Math.ceil(total / TH_PER_PAGE));
+  _thPage = Math.max(0, Math.min(page, pages - 1));
+
+  const slice = allTrades.slice(_thPage * TH_PER_PAGE, (_thPage + 1) * TH_PER_PAGE);
+
+  const body  = document.getElementById("thModalBody");
+  const pager = document.getElementById("thModalPager");
+  if (!body || !pager) return;
+
+  /* ── Table ── */
+  body.innerHTML = !total
+    ? `<div class="dash-trade-empty">No trades yet — start trading in the Simulator!</div>`
+    : `<div class="th-modal-count">${total} trade${total!==1?'s':''} saved (max 30)</div>
+       <div class="dash-trade-table">
+         <div class="dash-trade-header">
+           <div>TYPE</div><div>TOKEN</div><div>AMOUNT</div><div>P/L</div><div>DATE</div>
+         </div>
+         ${slice.map(tr => buildTradeRow(tr)).join("")}
+       </div>`;
+
+  /* ── Pagination ── */
+  if (pages <= 1) { pager.innerHTML = ""; return; }
+
+  const btns = [];
+  btns.push(`<button class="th-pg-btn" ${_thPage===0?"disabled":""} onclick="window._thGoPage(${_thPage-1})">‹</button>`);
+  for (let i = 0; i < pages; i++) {
+    btns.push(`<button class="th-pg-btn ${i===_thPage?'active':''}" onclick="window._thGoPage(${i})">${i+1}</button>`);
+  }
+  btns.push(`<button class="th-pg-btn" ${_thPage===pages-1?"disabled":""} onclick="window._thGoPage(${_thPage+1})">›</button>`);
+
+  pager.innerHTML = btns.join("");
+}
+
+window._thGoPage = function(page) { _renderThPage(page); };
 
 /* ═══════════════════════════════════════════════════════
    CURRENT HOLDINGS
