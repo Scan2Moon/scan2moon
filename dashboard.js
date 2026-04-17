@@ -54,6 +54,11 @@ const BADGE_DEFS = [
   { id: "whale_watcher", cat: "academy", subcat: "rank", img: "/badges/whale_watcher.png", icon: "🐋", name: "Whale Watcher",     desc: "Complete the Whale DNA module and learn how to track smart money.",                reward: 0.25 },
   { id: "defi_graduate", cat: "academy", subcat: "rank", img: "/badges/defi_graduate.png", icon: "🏛️", name: "DeFi Graduate",     desc: "Complete every module in the Scan2Moon Academy. Full graduate status!",           reward: 1.0  },
 
+  /* ── Academy Guide Badges ── */
+  { id: "guide_risk_scanner", cat: "academy", subcat: "guide", img: "/badges/guide_risk_scanner.png", icon: "📊", name: "From Zero to Moon",         desc: "Complete the 'S2M – From Zero to Moon' guide. You now understand Risk Scores, Signals and Red Flags.",  reward: 0.15 },
+  { id: "guide_whale_dna",    cat: "academy", subcat: "guide", img: "/badges/guide_whale_dna.png",    icon: "🐋", name: "Track the Smart Money",      desc: "Complete the Whale DNA guide. You can now follow wallet behavior and spot early smart-money accumulation.", reward: 0.15 },
+  { id: "guide_safe_ape",     cat: "academy", subcat: "guide", img: "/badges/guide_safe_ape.png",     icon: "🦍", name: "Paper Trade Before You Risk", desc: "Complete the Safe Ape Simulator guide. Strategy tested, discipline built — zero real SOL at risk.",          reward: 0.15 },
+
   /* ── Academy Level ── */
   { id: "acad_lvl_1", cat: "academy", subcat: "level", img: "/badges/acad_lvl_1.png", icon: "📖", name: "Academy LVL 1 — Enrolled",   desc: "Earn your first Academy Rank badge. The journey begins!",                  reward: 0.05 },
   { id: "acad_lvl_2", cat: "academy", subcat: "level", img: "/badges/acad_lvl_2.png", icon: "✏️", name: "Academy LVL 2 — Student",    desc: "Earn 2 Academy Rank badges. You are officially a student.",                reward: 0.1  },
@@ -498,11 +503,14 @@ function renderBadges() {
     if (cat.id === "academy") {
       const rankBadges  = catBadges.filter(b => b.subcat === "rank");
       const levelBadges = catBadges.filter(b => b.subcat === "level");
+      const guideBadges = catBadges.filter(b => b.subcat === "guide");
       cardsHtml = `
         <div class="dash-badge-subheader">🏛️ ACADEMY RANK BADGES</div>
         <div class="dash-badges-grid">${rankBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>
         <div class="dash-badge-subheader" style="margin-top:14px;">⭐ ACADEMY LEVEL BADGES</div>
-        <div class="dash-badges-grid">${levelBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
+        <div class="dash-badges-grid">${levelBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>
+        <div class="dash-badge-subheader" style="margin-top:14px;">📖 COMPLETED GUIDES</div>
+        <div class="dash-badges-grid">${guideBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
     } else {
       cardsHtml = `<div class="dash-badges-grid">${catBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
     }
