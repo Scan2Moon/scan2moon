@@ -6,8 +6,10 @@
 import { renderNav }           from "./nav.js";
 import { applyTranslations }   from "./i18n.js";
 
-const SIM_API = "/.netlify/functions/simulator";
-const SOL_LOGO = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
+const SIM_API   = "/.netlify/functions/simulator";
+const DEX_API   = "https://api.dexscreener.com/latest/dex/tokens/";
+const JUP_API   = "https://api.jup.ag/price/v2";
+const SOL_LOGO  = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
 
 /* ── Security helpers ─────────────────────────────────────── */
 function esc(s) {
@@ -117,8 +119,84 @@ function badgeProgress(id) {
 }
 
 /* ── State ────────────────────────────────────────────────── */
-let wallet  = null;
-let profile = null;
+let wallet      = null;
+let profile     = null;
+let dashPrices  = {};      /* mint → USD price (live)   */
+let dashPriceTimer = null; /* setInterval handle        */
+
+/* ── Live price fetching ─────────────────────────────────── */
+async function fetchDashPrices() {
+  const holdings = profile?.holdings || {};
+  const mints    = Object.keys(holdings).filter(k => (holdings[k]?.amount || 0) > 0.000001);
+  if (!mints.length) return;
+
+  for (let i = 0; i < mints.length; i += 100) {
+    const slice = mints.slice(i, i + 100);
+    let   fetched = false;
+
+    /* Primary: Jupiter Price API v2 */
+    try {
+      const res  = await fetch(`${JUP_API}?ids=${slice.join(",")}`);
+      if (res.ok) {
+        const data = await res.json();
+        for (const [mint, info] of Object.entries(data.data || {})) {
+          const p = parseFloat(info?.price || "0");
+          if (p > 0) { dashPrices[mint] = p; fetched = true; }
+        }
+      }
+    } catch (e) { console.warn("Dashboard Jupiter price error:", e); }
+
+    /* Fallback: DexScreener */
+    if (!fetched) {
+      try {
+        const res  = await fetch(`${DEX_API}${slice.join(",")}`);
+        const data = await res.json();
+        for (const pair of data.pairs || []) {
+          if (pair.chainId !== "solana") continue;
+          const price = parseFloat(pair.priceUsd || "0");
+          if (price <= 0) continue;
+          const base  = pair.baseToken?.address;
+          const quote = pair.quoteToken?.address;
+          if (base  && slice.includes(base)  && !dashPrices[base])  dashPrices[base]  = price;
+          if (quote && slice.includes(quote) && !dashPrices[quote] && pair.priceNative > 0)
+            dashPrices[quote] = 1 / parseFloat(pair.priceNative);
+        }
+      } catch (e) { console.warn("Dashboard DexScreener fallback error:", e); }
+    }
+  }
+
+  refreshHoldingsPnL(); /* update DOM in-place */
+}
+
+/* ── Refresh P/L cells without full re-render ────────────── */
+function refreshHoldingsPnL() {
+  const holdings = profile?.holdings || {};
+  for (const [mint, h] of Object.entries(holdings)) {
+    if ((h.amount || 0) < 0.000001) continue;
+
+    const price    = dashPrices[mint];
+    const costSol  = h.totalCostSol || 0;
+    /* price-ratio formula — immune to SOL/USD drift */
+    const curVal   = (price && h.avgPrice > 0 && costSol > 0)
+      ? costSol * (price / h.avgPrice) : null;
+    const pnlSol   = curVal !== null ? curVal - costSol : null;
+    const pnlPct   = pnlSol !== null && costSol > 0 ? (pnlSol / costSol) * 100 : null;
+
+    const pnlEl  = document.getElementById(`dash-pnl-${mint}`);
+    const dotEl  = document.getElementById(`dash-dot-${mint}`);
+    const valEl  = document.getElementById(`dash-val-${mint}`);
+
+    if (valEl && curVal !== null)  valEl.textContent  = formatSol(curVal);
+
+    if (pnlEl && pnlSol !== null) {
+      const sign = pnlSol >= 0 ? "+" : "";
+      const col  = pnlSol >= 0 ? "#2cffc9" : "#ff4d6d";
+      pnlEl.style.color   = col;
+      pnlEl.textContent   = `${sign}${formatSol(pnlSol)}  (${sign}${pnlPct.toFixed(1)}%)`;
+    }
+    if (dotEl) dotEl.textContent = "⬤ LIVE · just now";
+  }
+}
 
 /* ═══════════════════════════════════════════════════════
    INIT
@@ -273,6 +351,12 @@ function showDashboard(isDemo = false) {
   renderTradeHistory();
   renderHoldings();
   renderLeaderboard();
+
+  /* ── Start live price polling for holdings ── */
+  if (dashPriceTimer) clearInterval(dashPriceTimer);
+  dashPrices = {};
+  fetchDashPrices(); /* immediate first fetch */
+  dashPriceTimer = setInterval(fetchDashPrices, 30_000); /* refresh every 30 s */
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -890,7 +974,7 @@ function _renderThPage(page) {
 window._thGoPage = function(page) { _renderThPage(page); };
 
 /* ═══════════════════════════════════════════════════════
-   CURRENT HOLDINGS
+   CURRENT HOLDINGS  (with live P/L)
 ═══════════════════════════════════════════════════════ */
 function renderHoldings() {
   const el       = document.getElementById("dashHoldings");
@@ -903,10 +987,22 @@ function renderHoldings() {
   }
 
   el.innerHTML = `<div class="dash-holdings-list">${keys.map(mint => {
-    const h       = holdings[mint];
-    const logo    = h.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}` : "https://placehold.co/34x34";
-    const costSol = h.totalCostSol || 0;
-    const safeMnt = String(mint).replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
+    const h        = holdings[mint];
+    const logo     = h.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}` : "https://placehold.co/34x34";
+    const costSol  = h.totalCostSol || 0;
+    const safeMnt  = String(mint).replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
+
+    /* Use cached price if already loaded */
+    const price    = dashPrices[mint];
+    const curVal   = (price && h.avgPrice > 0 && costSol > 0)
+      ? costSol * (price / h.avgPrice) : null;
+    const pnlSol   = curVal !== null ? curVal - costSol : null;
+    const pnlPct   = pnlSol !== null && costSol > 0 ? (pnlSol / costSol) * 100 : null;
+    const sign     = pnlSol !== null ? (pnlSol >= 0 ? "+" : "") : "";
+    const pnlCol   = pnlSol !== null ? (pnlSol >= 0 ? "#2cffc9" : "#ff4d6d") : "rgba(207,255,244,0.3)";
+    const pnlText  = pnlSol !== null
+      ? `${sign}${formatSol(pnlSol)}  (${sign}${pnlPct.toFixed(1)}%)`
+      : "⬤ Loading…";
 
     return `
       <div class="dash-holding-row">
@@ -916,9 +1012,11 @@ function renderHoldings() {
           <div class="dash-holding-name">${esc(h.name || h.symbol)}</div>
           <div class="dash-holding-sym">${esc(h.symbol)}</div>
         </div>
-        <div style="text-align:right;">
-          <div class="dash-holding-cost">${formatSol(costSol)}</div>
-          <div class="dash-holding-pnl" style="color:rgba(207,255,244,0.3);font-size:10px;">cost basis</div>
+        <div class="dash-holding-vals">
+          <div class="dash-holding-cost" id="dash-val-${safeMnt}">${curVal !== null ? formatSol(curVal) : formatSol(costSol)}</div>
+          <div class="dash-holding-cost-lbl">cost ${formatSol(costSol)}</div>
+          <div class="dash-holding-pnl" id="dash-pnl-${safeMnt}" style="color:${pnlCol};">${pnlText}</div>
+          <div class="dash-holding-dot" id="dash-dot-${safeMnt}">⬤ LIVE · 30s</div>
         </div>
         <a class="dash-holding-btn" href="safe-ape.html"
           onclick="localStorage.setItem('sa_prefill_mint','${safeMnt}')">
