@@ -775,6 +775,182 @@ const DICT = {
   real_time_data:      { en: "Real-time data · DexScreener", nl: "Real-time data · DexScreener" },
   loading:             { en: "Loading…",                   nl: "Laden…" },
   error_no_data:       { en: "⚠️ Could not fetch market data", nl: "⚠️ Marktdata kon niet worden opgehaald" },
+
+  /* ── Safe Ape Simulator – Risk panel ── */
+  sa_lp_likely_locked:  { en: "✅ Likely Locked",     nl: "✅ Waarschijnlijk Vergrendeld" },
+  sa_lp_unverified:     { en: "⚠️ Unverified",        nl: "⚠️ Niet Geverifieerd" },
+  sa_safe_yes:          { en: "✅ Yes, proceed",       nl: "✅ Ja, ga door" },
+  sa_safe_caution:      { en: "⚠️ Use caution",        nl: "⚠️ Wees voorzichtig" },
+  sa_lbl_lp_status:     { en: "LP Status",             nl: "LP Status" },
+  sa_lbl_safe_to_ape:   { en: "Safe to Ape?",          nl: "Veilig om te Apen?" },
+  sa_lbl_24h_vol:       { en: "24H Volume",            nl: "24U Volume" },
+
+  /* ── Safe Ape – Market Signals panel ── */
+  sa_sig_strong_buy:    { en: "🚀 STRONG BUY SIGNAL",   nl: "🚀 STERK KOOPSIGNAAL" },
+  sa_sig_bullish:       { en: "📈 BULLISH",              nl: "📈 BULLISH" },
+  sa_sig_neutral:       { en: "➡️ NEUTRAL / SIDEWAYS",   nl: "➡️ NEUTRAAL / ZIJWAARTS" },
+  sa_sig_bearish:       { en: "📉 BEARISH",              nl: "📉 BEARISH" },
+  sa_sig_strong_sell:   { en: "🚨 STRONG SELL PRESSURE", nl: "🚨 STERKE VERKOOPDRUK" },
+  sa_mom_bullish:       { en: "🚀 Bullish",              nl: "🚀 Stijgend" },
+  sa_mom_neutral:       { en: "➡️ Neutral",              nl: "➡️ Neutraal" },
+  sa_mom_bearish:       { en: "📉 Bearish",              nl: "📉 Dalend" },
+  sa_bp_high:           { en: "🔥 High buyers",          nl: "🔥 Veel kopers" },
+  sa_bp_balanced:       { en: "⚖️ Balanced",             nl: "⚖️ Gebalanceerd" },
+  sa_bp_sellers:        { en: "🔴 Sellers winning",      nl: "🔴 Verkopers winnen" },
+  sa_vol_surging:       { en: "📈 Surging",              nl: "📈 Stijgend" },
+  sa_vol_normal:        { en: "➡️ Normal",               nl: "➡️ Normaal" },
+  sa_vol_drying:        { en: "📉 Drying up",            nl: "📉 Opdrogend" },
+  sa_liq_very_strong:   { en: "💎 Very Strong",          nl: "💎 Zeer Sterk" },
+  sa_liq_healthy:       { en: "✅ Healthy",              nl: "✅ Gezond" },
+  sa_liq_moderate:      { en: "⚠️ Moderate",             nl: "⚠️ Matig" },
+  sa_liq_very_low:      { en: "🚨 Very Low",             nl: "🚨 Zeer Laag" },
+  sa_net_strong_buy:    { en: "🐂 Strong buying",        nl: "🐂 Sterk koopgedrag" },
+  sa_net_slight_buy:    { en: "📈 Slight buying",        nl: "📈 Licht koopgedrag" },
+  sa_net_balanced:      { en: "⚖️ Balanced",             nl: "⚖️ Gebalanceerd" },
+  sa_net_strong_sell:   { en: "🐻 Strong selling",       nl: "🐻 Sterk verkoopgedrag" },
+  sa_lm_safe:           { en: "✅ Safe",                 nl: "✅ Veilig" },
+  sa_lm_watch:          { en: "⚠️ Watch",                nl: "⚠️ Let Op" },
+  sa_lm_risky:          { en: "🚨 Risky",               nl: "🚨 Riskant" },
+  sa_tx_whale:          { en: "🐋 Whale moves",          nl: "🐋 Walvis moves" },
+  sa_tx_large:          { en: "🦈 Large",                nl: "🦈 Groot" },
+  sa_tx_normal:         { en: "🐬 Normal",               nl: "🐬 Normaal" },
+  sa_tx_micro:          { en: "🐟 Micro",                nl: "🐟 Micro" },
+  sa_trend_higher:      { en: "✅ Higher highs",         nl: "✅ Hogere toppen" },
+  sa_trend_recovering:  { en: "⚡ Recovering",           nl: "⚡ Herstellend" },
+  sa_trend_pullback:    { en: "⚠️ Pullback",             nl: "⚠️ Terugval" },
+  sa_trend_downtrend:   { en: "📉 Downtrend",            nl: "📉 Neerwaartse trend" },
+  sa_lbl_momentum:      { en: "⚡ Momentum",             nl: "⚡ Momentum" },
+  sa_lbl_buy_pressure:  { en: "🎯 Buy Pressure",         nl: "🎯 Koopdruk" },
+  sa_lbl_net_pressure:  { en: "🔀 Net Pressure",         nl: "🔀 Netto Druk" },
+  sa_lbl_vol_trend:     { en: "📊 Volume Trend",         nl: "📊 Volume Trend" },
+  sa_lbl_trend_struct:  { en: "📐 Trend Structure",      nl: "📐 Trend Structuur" },
+  sa_lbl_liq:           { en: "💧 Liquidity",            nl: "💧 Liquiditeit" },
+  sa_lbl_liq_mc:        { en: "🔒 Liq/MC Ratio",         nl: "🔒 Liq/MC Ratio" },
+  sa_lbl_avg_tx:        { en: "🐋 Avg TX Size",          nl: "🐋 Gem. TX Grootte" },
+  sa_buys_lbl:          { en: "🟢 Buys",                 nl: "🟢 Aankopen" },
+  sa_sells_lbl:         { en: "Sells",                   nl: "Verkopen" },
+
+  /* ── Safe Ape – token header ── */
+  sa_risk_score_lbl:    { en: "Risk Score:",             nl: "Risico Score:" },
+  sa_wl_add:            { en: "☆ Watchlist",             nl: "☆ Volglijst" },
+  sa_wl_added:          { en: "⭐ Watchlisted",          nl: "⭐ Volglijst ✓" },
+
+  /* ── Safe Ape – risk gate ── */
+  sa_risk_gate_p1:      { en: "below the safe threshold of 45.",
+                          nl: "onder de veilige drempel van 45." },
+  sa_risk_gate_p2:      { en: "Liquidity, volume, and market signals suggest elevated risk of price manipulation or rug pull.",
+                          nl: "Liquiditeit, volume en marktsignalen wijzen op een verhoogd risico op prijsmanipulatie of rug pull." },
+  sa_risk_gate_p3:      { en: "This is a training simulation — but make the right decision you'd make with real money.",
+                          nl: "Dit is een trainingssimulatie — maar maak de beslissing die je ook met echt geld zou nemen." },
+
+  /* ── Safe Ape – holders panel ── */
+  sa_concentration:     { en: "Concentration",           nl: "Concentratie" },
+  sa_est_dist:          { en: "Estimated distribution",  nl: "Geschatte verdeling" },
+  sa_onchain_rpc:       { en: "On-chain · Solana RPC",   nl: "On-chain · Solana RPC" },
+
+  /* ── Safe Ape – sell holding info ── */
+  sa_lbl_holdings:      { en: "Holdings",                nl: "Bezittingen" },
+  sa_lbl_avg_buy:       { en: "Avg Buy Price",           nl: "Gem. Aankoopprijs" },
+  sa_lbl_cur_val:       { en: "Current Value",           nl: "Huidige Waarde" },
+  sa_lbl_unrealised:    { en: "Unrealised P/L",          nl: "Niet Gerealiseerde W/V" },
+  sa_no_holding_yet:    { en: "You don't hold",          nl: "Je hebt" },
+  sa_no_holding_yet2:   { en: "yet.",                    nl: "nog niet." },
+
+  /* ── Safe Ape – portfolio summary ── */
+  sa_total_pnl:         { en: "Total PNL",               nl: "Totaal W/V" },
+  sa_open_positions:    { en: "Open Positions",          nl: "Open Posities" },
+  sa_win_s:             { en: "Win",                     nl: "Winst" },
+  sa_wins_p:            { en: "Wins",                    nl: "Winstposities" },
+  sa_loss_s:            { en: "Loss",                    nl: "Verlies" },
+  sa_losses_p:          { en: "Losses",                  nl: "Verliesposities" },
+  sa_loading:           { en: "loading",                 nl: "laden" },
+
+  /* ── Safe Ape – portfolio cards ── */
+  sa_cost_basis:        { en: "Cost Basis",              nl: "Kostprijs" },
+  sa_atm_pnl:           { en: "ATM P/L",                 nl: "ATM W/V" },
+  sa_no_positions:      { en: "No positions yet",        nl: "Nog geen posities" },
+  sa_no_pos_sub:        { en: "Search a token above and make your first simulated trade!",
+                          nl: "Zoek een token hierboven en doe je eerste gesimuleerde handel!" },
+
+  /* ── Safe Ape – recent trades ── */
+  sa_no_trades:         { en: "No trades yet!",          nl: "Nog geen trades!" },
+
+  /* ── Safe Ape – debrief modal ── */
+  sa_verdict_great:     { en: "GREAT TRADE!",            nl: "GEWELDIGE TRADE!" },
+  sa_verdict_profit:    { en: "PROFITABLE!",             nl: "WINSTGEVEND!" },
+  sa_verdict_loss:      { en: "SMALL LOSS",              nl: "KLEIN VERLIES" },
+  sa_verdict_rug:       { en: "OUCH — RUG?",             nl: "AU — RUG?" },
+  sa_verdict_opened:    { en: "POSITION OPENED",         nl: "POSITIE GEOPEND" },
+  sa_debrief_token:     { en: "Token",                   nl: "Token" },
+  sa_debrief_risk:      { en: "Risk Score",              nl: "Risico Score" },
+  sa_debrief_sold_at:   { en: "Sold at",                 nl: "Verkocht voor" },
+  sa_debrief_avg_buy:   { en: "Avg Buy",                 nl: "Gem. Aankoop" },
+  sa_debrief_tokens:    { en: "Tokens",                  nl: "Tokens" },
+  sa_debrief_entry:     { en: "Entry Price",             nl: "Instapprijs" },
+  sa_lesson:            { en: "💡 Lesson:",              nl: "💡 Les:" },
+
+  /* ── Safe Ape Profile – profile card ── */
+  prof_balance:         { en: "BALANCE",                 nl: "SALDO" },
+  prof_alltime_pnl:     { en: "ALL-TIME P/L",            nl: "ALL-TIME W/V" },
+  prof_win:             { en: "WIN",                     nl: "WINST" },
+  prof_lose:            { en: "LOSE",                    nl: "VERLIES" },
+  prof_total:           { en: "TOTAL",                   nl: "TOTAAL" },
+  prof_day_streak:      { en: "day streak",              nl: "dag reeks" },
+  prof_save_btn:        { en: "Save",                    nl: "Opslaan" },
+  prof_copy_btn:        { en: "Copy",                    nl: "Kopieer" },
+  prof_share_profile:   { en: "🔗 Share Profile",        nl: "🔗 Profiel Delen" },
+  prof_member_since:    { en: "Member since",            nl: "Lid sinds" },
+  prof_view_only:       { en: "👀 Viewing shared profile — read only",
+                          nl: "👀 Gedeeld profiel bekijken — alleen lezen" },
+  prof_rank_legendary:  { en: "🏆 LEGENDARY APE",       nl: "🏆 LEGENDARISCHE APE" },
+  prof_rank_diamond:    { en: "💎 DIAMOND HANDS",        nl: "💎 DIAMOND HANDS" },
+  prof_rank_smart:      { en: "🟢 SMART MONEY",         nl: "🟢 SLIM GELD" },
+  prof_rank_profitable: { en: "📈 PROFITABLE APE",      nl: "📈 WINSTGEVENDE APE" },
+  prof_rank_learning:   { en: "🙈 LEARNING APE",        nl: "🙈 LERENDE APE" },
+  prof_rank_rug:        { en: "💀 RUG SURVIVOR",        nl: "💀 RUG OVERLEVER" },
+
+  /* ── Safe Ape Profile – stats panel ── */
+  prof_win_rate:        { en: "Win Rate",                nl: "Win Percentage" },
+  prof_realised_pnl:    { en: "Realised P/L",            nl: "Gerealiseerde W/V" },
+  prof_portfolio_growth:{ en: "Portfolio Growth",        nl: "Portfolio Groei" },
+  prof_login_streak:    { en: "Login Streak",            nl: "Login Reeks" },
+  prof_from_closed:     { en: "from closed trades",      nl: "van gesloten trades" },
+  prof_vs_start:        { en: "vs 10 SOL start",         nl: "t.o.v. 10 SOL start" },
+  prof_days_row:        { en: "days in a row",           nl: "dagen op rij" },
+  prof_best_trade:      { en: "🏆 BEST TRADE",           nl: "🏆 BESTE TRADE" },
+  prof_worst_trade:     { en: "💀 WORST TRADE",          nl: "💀 SLECHTSTE TRADE" },
+  prof_no_closed:       { en: "No closed trades yet",    nl: "Nog geen gesloten trades" },
+  prof_no_losses:       { en: "No losses yet 🎉",        nl: "Nog geen verlies 🎉" },
+
+  /* ── Safe Ape Profile – badges panel ── */
+  prof_badges_earned:   { en: "badges earned",           nl: "badges verdiend" },
+  prof_pct_complete:    { en: "% complete",              nl: "% compleet" },
+  prof_badge_earned:    { en: "✅ Earned",               nl: "✅ Verdiend" },
+  prof_badge_locked:    { en: "🔒 Not yet earned",       nl: "🔒 Nog niet verdiend" },
+
+  /* ── Safe Ape Profile – holdings table ── */
+  prof_col_token:       { en: "Token",                   nl: "Token" },
+  prof_col_cur_val:     { en: "Cur. Value",              nl: "Hui. Waarde" },
+  prof_col_amount:      { en: "Amount",                  nl: "Bedrag" },
+  prof_col_unrealised:  { en: "Unrealised P/L",          nl: "Niet Gerealiseerde W/V" },
+  prof_col_action:      { en: "Action",                  nl: "Actie" },
+  prof_cost_lbl:        { en: "cost",                    nl: "kostprijs" },
+  prof_no_holdings:     { en: "No open positions",       nl: "Geen open posities" },
+  prof_trade_btn:       { en: "Trade →",                 nl: "Handel →" },
+
+  /* ── Safe Ape – trade type badges ── */
+  sa_trade_buy:         { en: "BUY",                     nl: "KOPEN" },
+  sa_trade_sell:        { en: "SELL",                    nl: "VERKOPEN" },
+
+  /* ── Safe Ape Profile – trade history ── */
+  prof_col_type:        { en: "Type",                    nl: "Type" },
+  prof_col_pnl:         { en: "P/L",                     nl: "W/V" },
+  prof_col_date:        { en: "Date",                    nl: "Datum" },
+  prof_no_trades:       { en: "No trades yet",           nl: "Nog geen trades" },
+  prof_prev_15:         { en: "← Previous 15",           nl: "← Vorige 15" },
+  prof_next_15:         { en: "Next 15 →",               nl: "Volgende 15 →" },
+  prof_page_lbl:        { en: "Page",                    nl: "Pagina" },
+  prof_trades_total:    { en: "trades total",            nl: "trades totaal" },
 };
 
 /* ── Active language ─────────────────────────────────────────── */

@@ -5,6 +5,7 @@
 
 import { renderNav } from "./nav.js";
 import "./community.js";
+import { t } from "./i18n.js";
 
 const SIM_API = "/.netlify/functions/simulator";
 const DEX_API = "https://api.dexscreener.com/latest/dex/tokens/";
@@ -122,6 +123,17 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("profileDisconnectBtn").addEventListener("click", disconnect);
   document.getElementById("resetAccountBtn").addEventListener("click", resetAccount);
   document.getElementById("welcomeGiftBtn")?.addEventListener("click", claimWelcomeGift);
+
+  /* ── Re-render dynamic panels on language switch ── */
+  window.addEventListener("langchange", () => {
+    if (profile) {
+      renderProfileCard();
+      renderStats();
+      renderBadges();
+      renderHoldings();
+      renderTrades();
+    }
+  });
 });
 
 /* ─────────────────────────────────────
@@ -477,12 +489,12 @@ function renderProfileCard() {
 
   // Rank badge based on total P/L (now in SOL)
   let rank, rankColor;
-  if (pnl > 50)        { rank = "🏆 LEGENDARY APE";  rankColor = "#ffd166"; }
-  else if (pnl > 10)   { rank = "💎 DIAMOND HANDS";  rankColor = "#82b4ff"; }
-  else if (pnl > 1)    { rank = "🟢 SMART MONEY";    rankColor = "#2cffc9"; }
-  else if (pnl > 0)    { rank = "📈 PROFITABLE APE"; rankColor = "#7fffe1"; }
-  else if (pnl > -2)   { rank = "🙈 LEARNING APE";   rankColor = "#ffd166"; }
-  else                 { rank = "💀 RUG SURVIVOR";    rankColor = "#ff4d6d"; }
+  if (pnl > 50)        { rank = t("prof_rank_legendary");  rankColor = "#ffd166"; }
+  else if (pnl > 10)   { rank = t("prof_rank_diamond");    rankColor = "#82b4ff"; }
+  else if (pnl > 1)    { rank = t("prof_rank_smart");      rankColor = "#2cffc9"; }
+  else if (pnl > 0)    { rank = t("prof_rank_profitable"); rankColor = "#7fffe1"; }
+  else if (pnl > -2)   { rank = t("prof_rank_learning");   rankColor = "#ffd166"; }
+  else                 { rank = t("prof_rank_rug");         rankColor = "#ff4d6d"; }
 
   el.innerHTML = `
     <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;">
@@ -492,7 +504,7 @@ function renderProfileCard() {
         <div style="font-size:52px;margin-bottom:10px;filter:drop-shadow(0 0 12px rgba(255,180,50,0.4))">🦍</div>
         <div style="font-size:15px;font-weight:800;color:#ffb432;margin-bottom:6px;">${esc(profile.accountName)}</div>
         <div style="font-size:12px;font-weight:700;color:${rankColor};margin-bottom:4px;">${rank}</div>
-        <div style="font-size:10px;opacity:0.4;">🔥 ${profile.loginStreak || 0} day streak</div>
+        <div style="font-size:10px;opacity:0.4;">🔥 ${profile.loginStreak || 0} ${t("prof_day_streak")}</div>
       </div>
 
       <!-- Info -->
@@ -504,19 +516,19 @@ function renderProfileCard() {
             style="flex:1;background:transparent;border:none;outline:none;color:#cffff4;font-size:14px;font-weight:600;" />
           <button id="saveNameBtn" onclick="saveName()"
             style="padding:5px 14px;background:linear-gradient(135deg,#ffb432,#ff8c00);border:none;border-radius:7px;color:#1a0a00;font-size:12px;font-weight:700;cursor:pointer;">
-            Save
+            ${t("prof_save_btn")}
           </button>
         </div>
 
         <!-- Wallet + dates -->
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
           <span style="font-family:monospace;font-size:13px;color:#7fffe1;opacity:0.8;">${short}</span>
-          <button onclick="navigator.clipboard.writeText('${wallet}')" style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(44,255,201,0.08);border:1px solid rgba(44,255,201,0.25);border-radius:6px;color:#2cffc9;cursor:pointer;">Copy</button>
+          <button onclick="navigator.clipboard.writeText('${wallet}')" style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(44,255,201,0.08);border:1px solid rgba(44,255,201,0.25);border-radius:6px;color:#2cffc9;cursor:pointer;">${t("prof_copy_btn")}</button>
           <a href="https://solscan.io/account/${wallet}" target="_blank" rel="noopener noreferrer" style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(44,255,201,0.08);border:1px solid rgba(44,255,201,0.25);border-radius:6px;color:#2cffc9;text-decoration:none;">Solscan ↗</a>
-          <button onclick="copyProfileLink('${wallet}')" id="copyProfileLinkBtn" style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(255,180,50,0.1);border:1px solid rgba(255,180,50,0.35);border-radius:6px;color:#ffb432;cursor:pointer;">🔗 Share Profile</button>
+          <button onclick="copyProfileLink('${wallet}')" id="copyProfileLinkBtn" style="padding:3px 10px;font-size:11px;font-weight:700;background:rgba(255,180,50,0.1);border:1px solid rgba(255,180,50,0.35);border-radius:6px;color:#ffb432;cursor:pointer;">${t("prof_share_profile")}</button>
         </div>
 
-        <div style="font-size:12px;opacity:0.45;margin-bottom:16px;">Member since ${joined}</div>
+        <div style="font-size:12px;opacity:0.45;margin-bottom:16px;">${t("prof_member_since")} ${joined}</div>
 
         <!-- Key stats row -->
         <div style="display:flex;flex-direction:column;gap:8px;">
@@ -524,12 +536,12 @@ function renderProfileCard() {
           <!-- Row 1: Balance + P/L -->
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
             <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(44,255,201,0.1);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:10px;opacity:0.5;letter-spacing:0.5px;margin-bottom:5px;">BALANCE</div>
+              <div style="font-size:10px;opacity:0.5;letter-spacing:0.5px;margin-bottom:5px;">${t("prof_balance")}</div>
               <div style="font-size:18px;font-weight:800;color:#ffb432;">${formatSol(profile.balance)}</div>
               ${solPrice>0?`<div style="font-size:11px;opacity:0.4;">≈ ${formatUsd(profile.balance*solPrice)}</div>`:''}
             </div>
             <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(44,255,201,0.1);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:10px;opacity:0.5;letter-spacing:0.5px;margin-bottom:5px;">ALL-TIME P/L</div>
+              <div style="font-size:10px;opacity:0.5;letter-spacing:0.5px;margin-bottom:5px;">${t("prof_alltime_pnl")}</div>
               <div style="font-size:18px;font-weight:800;color:${pnlCls};">${pnlSign}${formatSol(pnl)}</div>
             </div>
           </div>
@@ -537,15 +549,15 @@ function renderProfileCard() {
           <!-- Row 2: WIN / LOSE / TOTAL -->
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
             <div style="background:rgba(44,255,100,0.06);border:1px solid rgba(44,255,100,0.2);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:10px;letter-spacing:0.5px;margin-bottom:5px;color:#2cff64;font-weight:700;">WIN</div>
+              <div style="font-size:10px;letter-spacing:0.5px;margin-bottom:5px;color:#2cff64;font-weight:700;">${t("prof_win")}</div>
               <div style="font-size:22px;font-weight:800;color:#2cff64;">${tradeWins}</div>
             </div>
             <div style="background:rgba(255,77,109,0.06);border:1px solid rgba(255,77,109,0.2);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:10px;letter-spacing:0.5px;margin-bottom:5px;color:#ff4d6d;font-weight:700;">LOSE</div>
+              <div style="font-size:10px;letter-spacing:0.5px;margin-bottom:5px;color:#ff4d6d;font-weight:700;">${t("prof_lose")}</div>
               <div style="font-size:22px;font-weight:800;color:#ff4d6d;">${tradeLoss}</div>
             </div>
             <div style="background:rgba(0,0,0,0.3);border:1px solid rgba(44,255,201,0.1);border-radius:10px;padding:12px;text-align:center;">
-              <div style="font-size:10px;opacity:0.5;letter-spacing:0.5px;margin-bottom:5px;">TOTAL</div>
+              <div style="font-size:10px;opacity:0.5;letter-spacing:0.5px;margin-bottom:5px;">${t("prof_total")}</div>
               <div style="font-size:22px;font-weight:800;color:#cffff4;">${tradeTotal}</div>
             </div>
           </div>
@@ -601,8 +613,8 @@ function renderBadges() {
         <div class="prof-badge-name">${b.name}</div>
         <div class="prof-badge-desc">${b.desc}</div>
         ${isEarned
-          ? `<div class="prof-badge-earned-tag">✅ Earned</div>`
-          : `<div class="prof-badge-locked-tag">🔒 Not yet earned</div>`}
+          ? `<div class="prof-badge-earned-tag">${t("prof_badge_earned")}</div>`
+          : `<div class="prof-badge-locked-tag">${t("prof_badge_locked")}</div>`}
       </div>`;
   }).join("");
 
@@ -612,10 +624,10 @@ function renderBadges() {
     <!-- Progress bar -->
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div style="font-size:13px;font-weight:600;color:#cffff4;">
-        ${earnedCount} / ${total} badges earned
-        <span style="margin-left:8px;font-size:12px;color:#ffb432;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><img src="${SOL_LOGO}" class="s2m-token-icon" style="width:16px;height:16px;border-radius:50%;"> +${formatSol([...earned].reduce((s, id) => s + badgeReward(id), 0))} earned</span>
+        ${earnedCount} / ${total} ${t("prof_badges_earned")}
+        <span style="margin-left:8px;font-size:12px;color:#ffb432;font-weight:700;display:inline-flex;align-items:center;gap:4px;"><img src="${SOL_LOGO}" class="s2m-token-icon" style="width:16px;height:16px;border-radius:50%;"> +${formatSol([...earned].reduce((s, id) => s + badgeReward(id), 0))} ${t("prof_badge_earned")}</span>
       </div>
-      <div style="font-size:11px;opacity:0.5;">${progressPct}% complete</div>
+      <div style="font-size:11px;opacity:0.5;">${progressPct}${t("prof_pct_complete")}</div>
     </div>
     <div style="background:rgba(255,255,255,0.06);border-radius:4px;height:6px;margin-bottom:18px;overflow:hidden;">
       <div style="height:100%;width:${progressPct}%;background:linear-gradient(90deg,#ffb432,#ff8c00);border-radius:4px;transition:width 0.6s ease;"></div>
@@ -657,43 +669,43 @@ function renderStats() {
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;">
       <div class="prof-stat-card">
-        <div class="prof-stat-label">Win Rate</div>
+        <div class="prof-stat-label">${t("prof_win_rate")}</div>
         <div class="prof-stat-val" style="color:${parseFloat(winRate)>=50?'#2cffc9':'#ff4d6d'}">${winRate}%</div>
         <div class="prof-stat-sub">${wins}W / ${losses}L</div>
       </div>
       <div class="prof-stat-card">
-        <div class="prof-stat-label">Realised P/L</div>
+        <div class="prof-stat-label">${t("prof_realised_pnl")}</div>
         <div class="prof-stat-val" style="color:${pnlCls}">${pnlSign}${formatSol(pnl)}</div>
-        <div class="prof-stat-sub">from closed trades</div>
+        <div class="prof-stat-sub">${t("prof_from_closed")}</div>
       </div>
       <div class="prof-stat-card">
-        <div class="prof-stat-label">Portfolio Growth</div>
+        <div class="prof-stat-label">${t("prof_portfolio_growth")}</div>
         <div class="prof-stat-val" id="profPortfolioGrowth" style="color:${growthCls}">${growthSign}${portfolioGrowth}%</div>
-        <div class="prof-stat-sub">vs 10 SOL start</div>
+        <div class="prof-stat-sub">${t("prof_vs_start")}</div>
       </div>
       <div class="prof-stat-card">
-        <div class="prof-stat-label">Login Streak</div>
+        <div class="prof-stat-label">${t("prof_login_streak")}</div>
         <div class="prof-stat-val" style="color:#ff9a60">🔥 ${profile.loginStreak || 0}</div>
-        <div class="prof-stat-sub">days in a row</div>
+        <div class="prof-stat-sub">${t("prof_days_row")}</div>
       </div>
     </div>
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
       <div style="background:rgba(44,255,201,0.04);border:1px solid rgba(44,255,201,0.12);border-radius:10px;padding:14px;">
-        <div style="font-size:11px;opacity:0.5;margin-bottom:8px;letter-spacing:0.5px;">🏆 BEST TRADE</div>
+        <div style="font-size:11px;opacity:0.5;margin-bottom:8px;letter-spacing:0.5px;">${t("prof_best_trade")}</div>
         ${bestTrade
           ? `<div style="font-weight:700;color:#cffff4;margin-bottom:4px;">${bestTrade.symbol}</div>
              <div style="font-size:18px;font-weight:800;color:${bestTrade.pnl >= 0 ? '#2cffc9' : '#ff4d6d'};">${bestTrade.pnl >= 0 ? '+' : ''}${formatSol(bestTrade.pnl)}</div>
              <div style="font-size:11px;opacity:0.45;">${new Date(bestTrade.timestamp).toLocaleDateString()}</div>`
-          : `<div style="opacity:0.4;font-size:13px;">No closed trades yet</div>`}
+          : `<div style="opacity:0.4;font-size:13px;">${t("prof_no_closed")}</div>`}
       </div>
       <div style="background:rgba(255,77,109,0.04);border:1px solid rgba(255,77,109,0.12);border-radius:10px;padding:14px;">
-        <div style="font-size:11px;opacity:0.5;margin-bottom:8px;letter-spacing:0.5px;">💀 WORST TRADE</div>
+        <div style="font-size:11px;opacity:0.5;margin-bottom:8px;letter-spacing:0.5px;">${t("prof_worst_trade")}</div>
         ${worstTrade && worstTrade.pnl < 0
           ? `<div style="font-weight:700;color:#cffff4;margin-bottom:4px;">${worstTrade.symbol}</div>
              <div style="font-size:18px;font-weight:800;color:#ff4d6d;">${formatSol(worstTrade.pnl)}</div>
              <div style="font-size:11px;opacity:0.45;">${new Date(worstTrade.timestamp).toLocaleDateString()}</div>`
-          : `<div style="opacity:0.4;font-size:13px;">No losses yet 🎉</div>`}
+          : `<div style="opacity:0.4;font-size:13px;">${t("prof_no_losses")}</div>`}
       </div>
     </div>
   `;
@@ -708,7 +720,7 @@ function renderHoldings() {
   const keys     = Object.keys(holdings).filter(k => holdings[k].amount > 0.000001);
 
   if (!keys.length) {
-    el.innerHTML = `<div style="text-align:center;padding:30px;opacity:0.5;">No open positions — <a href="safe-ape.html" style="color:#ffb432;">start trading</a></div>`;
+    el.innerHTML = `<div style="text-align:center;padding:30px;opacity:0.5;">${t("prof_no_holdings")} — <a href="safe-ape.html" style="color:#ffb432;">${t("sa_analyse_btn")}</a></div>`;
     return;
   }
 
@@ -740,7 +752,7 @@ function renderHoldings() {
         </div>
         <div>
           <div style="font-weight:600;color:#7fffe1;" id="prof-curval-${mint}">${curValSol !== null ? formatSol(curValSol) : formatSol(costSol)}</div>
-          <div style="font-size:11px;opacity:0.5;">${formatSol(costSol)} cost</div>
+          <div style="font-size:11px;opacity:0.5;">${formatSol(costSol)} ${t("prof_cost_lbl")}</div>
         </div>
         <div>
           <div style="font-size:12px;opacity:0.6;">${formatAmount(h.amount)} tokens</div>
@@ -751,14 +763,14 @@ function renderHoldings() {
           <div id="prof-dot-${mint}" style="font-size:10px;opacity:0.4;margin-top:2px;">⬤ LIVE · 20s</div>
         </div>
         <div>
-          <a href="safe-ape.html" onclick="localStorage.setItem('sa_prefill_mint','${safeMint(mint)}')" style="padding:6px 12px;background:linear-gradient(135deg,#ffb432,#ff8c00);border:none;border-radius:7px;color:#1a0a00;font-size:11px;font-weight:700;text-decoration:none;display:inline-block;">Trade →</a>
+          <a href="safe-ape.html" onclick="localStorage.setItem('sa_prefill_mint','${safeMint(mint)}')" style="padding:6px 12px;background:linear-gradient(135deg,#ffb432,#ff8c00);border:none;border-radius:7px;color:#1a0a00;font-size:11px;font-weight:700;text-decoration:none;display:inline-block;">${t("prof_trade_btn")}</a>
         </div>
       </div>`;
   }).join("");
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 120px 120px 170px 100px;gap:12px;padding-bottom:8px;border-bottom:1px solid rgba(44,255,201,0.15);font-size:11px;opacity:0.5;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;">
-      <div>Token</div><div>Cur. Value</div><div>Amount</div><div>Unrealised P/L</div><div>Action</div>
+      <div>${t("prof_col_token")}</div><div>${t("prof_col_cur_val")}</div><div>${t("prof_col_amount")}</div><div>${t("prof_col_unrealised")}</div><div>${t("prof_col_action")}</div>
     </div>
     ${rows}`;
 }
@@ -776,41 +788,41 @@ function renderTrades() {
   if (tradesCurrentPage >= totalPages) tradesCurrentPage = totalPages - 1;
   if (tradesCurrentPage < 0) tradesCurrentPage = 0;
 
-  document.getElementById("tradeCountLabel").textContent = `${total} trades total`;
+  document.getElementById("tradeCountLabel").textContent = `${total} ${t("prof_trades_total")}`;
 
   if (!total) {
-    el.innerHTML = `<div style="text-align:center;padding:30px;opacity:0.5;">No trades yet</div>`;
+    el.innerHTML = `<div style="text-align:center;padding:30px;opacity:0.5;">${t("prof_no_trades")}</div>`;
     return;
   }
 
   const start  = tradesCurrentPage * TRADES_PAGE_SIZE;
   const page   = allTrades.slice(start, start + TRADES_PAGE_SIZE);
 
-  const rows = page.map(t => {
-    const isBuy  = t.type === "buy";
-    const logo   = t.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}` : "https://placehold.co/28x28";
-    const pnlSol = parseFloat(t.pnl);
+  const rows = page.map(tr => {
+    const isBuy  = tr.type === "buy";
+    const logo   = tr.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(tr.logo)}` : "https://placehold.co/28x28";
+    const pnlSol = parseFloat(tr.pnl);
     const pnlHtml = !isBuy
-      ? `<span style="color:${pnlSol>=0?'#2cffc9':'#ff4d6d'};font-weight:700;">${pnlSol>=0?'+':''}${formatSol(pnlSol)} (${pnlSol>=0?'+':''}${t.pnlPct}%)</span>`
+      ? `<span style="color:${pnlSol>=0?'#2cffc9':'#ff4d6d'};font-weight:700;">${pnlSol>=0?'+':''}${formatSol(pnlSol)} (${pnlSol>=0?'+':''}${tr.pnlPct}%)</span>`
       : `<span style="opacity:0.35;">—</span>`;
     const amountSol = isBuy
-      ? (t.totalCostSol || (solPrice > 0 ? t.totalCost / solPrice : null))
-      : (t.totalReceivedSol || (solPrice > 0 ? t.totalReceived / solPrice : null));
-    const amountFmt = amountSol !== null ? formatSol(amountSol) : (isBuy ? formatUsd(t.totalCost) : formatUsd(t.totalReceived));
+      ? (tr.totalCostSol || (solPrice > 0 ? tr.totalCost / solPrice : null))
+      : (tr.totalReceivedSol || (solPrice > 0 ? tr.totalReceived / solPrice : null));
+    const amountFmt = amountSol !== null ? formatSol(amountSol) : (isBuy ? formatUsd(tr.totalCost) : formatUsd(tr.totalReceived));
 
     return `
       <div style="display:grid;grid-template-columns:90px 1fr 130px 150px 110px;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(44,255,201,0.05);font-size:13px;">
-        <div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?'BUY':'SELL'}</span></div>
+        <div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?t("sa_trade_buy"):t("sa_trade_sell")}</span></div>
         <div style="display:flex;align-items:center;gap:8px;">
           <img src="${logo}" onerror="this.src='https://placehold.co/28x28'" style="width:28px;height:28px;border-radius:50%;border:1px solid rgba(44,255,201,0.2);object-fit:cover;" />
           <div>
-            <div style="font-weight:600;color:#cffff4;">${esc(t.name || t.symbol)}</div>
-            <div style="font-size:10px;opacity:0.5;">${esc(t.symbol)}</div>
+            <div style="font-weight:600;color:#cffff4;">${esc(tr.name || tr.symbol)}</div>
+            <div style="font-size:10px;opacity:0.5;">${esc(tr.symbol)}</div>
           </div>
         </div>
         <div style="font-weight:600;color:#7fffe1;">${amountFmt}</div>
         <div>${pnlHtml}</div>
-        <div style="font-size:11px;opacity:0.4;">${new Date(t.timestamp).toLocaleString()}</div>
+        <div style="font-size:11px;opacity:0.4;">${new Date(tr.timestamp).toLocaleString()}</div>
       </div>`;
   }).join("");
 
@@ -819,19 +831,19 @@ function renderTrades() {
 
   el.innerHTML = `
     <div style="display:grid;grid-template-columns:90px 1fr 130px 150px 110px;gap:10px;padding-bottom:8px;border-bottom:1px solid rgba(44,255,201,0.15);font-size:11px;opacity:0.5;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;">
-      <div>Type</div><div>Token</div><div>Amount</div><div>P/L</div><div>Date</div>
+      <div>${t("prof_col_type")}</div><div>${t("prof_col_token")}</div><div>${t("prof_col_amount")}</div><div>${t("prof_col_pnl")}</div><div>${t("prof_col_date")}</div>
     </div>
     ${rows}
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0 4px;gap:12px;">
       <button onclick="window.tradesPrevPage()"
         style="padding:7px 16px;background:${hasPrev?'rgba(44,255,201,0.12)':'rgba(44,255,201,0.03)'};border:1px solid ${hasPrev?'rgba(44,255,201,0.35)':'rgba(44,255,201,0.08)'};border-radius:8px;color:${hasPrev?'#2cffc9':'rgba(44,255,201,0.25)'};font-size:12px;font-weight:700;cursor:${hasPrev?'pointer':'default'};transition:all .2s;"
-        ${hasPrev?'':'disabled'}>← Previous 15</button>
+        ${hasPrev?'':'disabled'}>${t("prof_prev_15")}</button>
       <span style="font-size:12px;opacity:0.5;white-space:nowrap;">
-        Page ${tradesCurrentPage + 1} / ${totalPages} &nbsp;·&nbsp; ${total} trades
+        ${t("prof_page_lbl")} ${tradesCurrentPage + 1} / ${totalPages} &nbsp;·&nbsp; ${total} ${t("prof_trades_total")}
       </span>
       <button onclick="window.tradesNextPage()"
         style="padding:7px 16px;background:${hasNext?'rgba(44,255,201,0.12)':'rgba(44,255,201,0.03)'};border:1px solid ${hasNext?'rgba(44,255,201,0.35)':'rgba(44,255,201,0.08)'};border-radius:8px;color:${hasNext?'#2cffc9':'rgba(44,255,201,0.25)'};font-size:12px;font-weight:700;cursor:${hasNext?'pointer':'default'};transition:all .2s;"
-        ${hasNext?'':'disabled'}>Next 15 →</button>
+        ${hasNext?'':'disabled'}>${t("prof_next_15")}</button>
     </div>`;
 }
 

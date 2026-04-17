@@ -12,7 +12,7 @@ import { renderNav }                    from "./nav.js";
 import { CandleChart }                  from "./candleChart.js";
 import "./community.js";
 import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
-import { applyTranslations } from "./i18n.js";
+import { applyTranslations, t } from "./i18n.js";
 import { callRpc }                      from "./rpc.js";
 import { addToWatchlist, isOnWatchlist } from "./watchlist.js";
 
@@ -224,6 +224,19 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => window.searchToken(), 200);
     }
   }
+
+  /* ── Re-render dynamic panels on language switch ── */
+  window.addEventListener("langchange", () => {
+    if (currentToken) {
+      renderTokenHeader(currentToken);
+      updateRiskPanel(currentToken.pair);
+      updateMarketSignals(currentToken.pair);
+      renderHoldersPanel(currentToken);
+      renderSellHoldingInfo();
+    }
+    renderPortfolio();
+    renderRecentTrades();
+  });
 
   document.querySelectorAll(".sa-tf-btn").forEach(btn => {
     btn.addEventListener("click", () => {
@@ -1025,11 +1038,11 @@ function updateRiskPanel(pair) {
       <div class="sa-risk-num" style="color:${cl};text-shadow:0 0 20px ${cl}66">${score}<span class="sa-risk-max">/100</span></div>
       <div class="sa-risk-level" style="color:${cl}">${lv}</div>
     </div>
-    <div class="sa-signal-row"><span class="sa-signal-label">Liquidity</span><span class="sa-signal-val" style="color:${liq>50000?'#2cffc9':liq>10000?'#ffd166':'#ff4d6d'}">${formatUsd(liq)}</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">24H Volume</span><span class="sa-signal-val">${formatUsd(vol)}</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">Market Cap</span><span class="sa-signal-val">${formatUsd(mc)}</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">LP Status</span><span class="sa-signal-val" style="color:${liq>20000?'#2cffc9':'#ffd166'}">${liq>20000?"✅ Likely Locked":"⚠️ Unverified"}</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">Safe to Ape?</span><span class="sa-signal-val" style="color:${cl}">${score>=65?"✅ Yes, proceed":"⚠️ Use caution"}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("liquidity_label")}</span><span class="sa-signal-val" style="color:${liq>50000?'#2cffc9':liq>10000?'#ffd166':'#ff4d6d'}">${formatUsd(liq)}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_24h_vol")}</span><span class="sa-signal-val">${formatUsd(vol)}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("market_cap_label")}</span><span class="sa-signal-val">${formatUsd(mc)}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_lp_status")}</span><span class="sa-signal-val" style="color:${liq>20000?'#2cffc9':'#ffd166'}">${liq>20000?t("sa_lp_likely_locked"):t("sa_lp_unverified")}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_safe_to_ape")}</span><span class="sa-signal-val" style="color:${cl}">${score>=65?t("sa_safe_yes"):t("sa_safe_caution")}</span></div>
   `;
 }
 
@@ -1069,26 +1082,26 @@ function updateMarketSignals(pair) {
   mScore = Math.max(0, Math.min(100, Math.round(mScore)));
 
   let oIcon, oLabel, oCl, oBg;
-  if      (mScore >= 68 && buyPct >= 58 && liq >= 15000) { oIcon="🚀"; oLabel="STRONG BUY SIGNAL";   oCl="#2cffc9"; oBg="rgba(44,255,201,0.09)"; }
-  else if (mScore >= 55 && buyPct >= 50)                  { oIcon="📈"; oLabel="BULLISH";              oCl="#7fffe1"; oBg="rgba(44,255,201,0.05)"; }
-  else if (mScore >= 45)                                  { oIcon="➡️"; oLabel="NEUTRAL / SIDEWAYS";   oCl="#ffd166"; oBg="rgba(255,209,102,0.06)"; }
-  else if (mScore >= 30)                                  { oIcon="📉"; oLabel="BEARISH";              oCl="#ff9a60"; oBg="rgba(255,100,50,0.06)"; }
-  else                                                    { oIcon="🚨"; oLabel="STRONG SELL PRESSURE"; oCl="#ff4d6d"; oBg="rgba(255,77,109,0.09)"; }
+  if      (mScore >= 68 && buyPct >= 58 && liq >= 15000) { oIcon="🚀"; oLabel=t("sa_sig_strong_buy"); oCl="#2cffc9"; oBg="rgba(44,255,201,0.09)"; }
+  else if (mScore >= 55 && buyPct >= 50)                  { oIcon="📈"; oLabel=t("sa_sig_bullish");    oCl="#7fffe1"; oBg="rgba(44,255,201,0.05)"; }
+  else if (mScore >= 45)                                  { oIcon="➡️"; oLabel=t("sa_sig_neutral");    oCl="#ffd166"; oBg="rgba(255,209,102,0.06)"; }
+  else if (mScore >= 30)                                  { oIcon="📉"; oLabel=t("sa_sig_bearish");    oCl="#ff9a60"; oBg="rgba(255,100,50,0.06)"; }
+  else                                                    { oIcon="🚨"; oLabel=t("sa_sig_strong_sell");oCl="#ff4d6d"; oBg="rgba(255,77,109,0.09)"; }
 
   const bpCl  = buyPct >= 60 ? "#2cffc9" : buyPct >= 45 ? "#ffd166" : "#ff4d6d";
-  const bpLbl = buyPct >= 60 ? "🔥 High buyers" : buyPct >= 45 ? "⚖️ Balanced" : "🔴 Sellers winning";
+  const bpLbl = buyPct >= 60 ? t("sa_bp_high") : buyPct >= 45 ? t("sa_bp_balanced") : t("sa_bp_sellers");
   const vCl   = volHourly >= 1.5 ? "#2cffc9" : volHourly >= 0.7 ? "#ffd166" : "#ff4d6d";
-  const vLbl  = volHourly >= 1.5 ? "📈 Surging" : volHourly >= 0.7 ? "➡️ Normal" : "📉 Drying up";
+  const vLbl  = volHourly >= 1.5 ? t("sa_vol_surging") : volHourly >= 0.7 ? t("sa_vol_normal") : t("sa_vol_drying");
   const lCl   = liq >= 30000 ? "#2cffc9" : liq >= 10000 ? "#ffd166" : "#ff4d6d";
-  const lLbl  = liq >= 100000 ? "💎 Very Strong" : liq >= 30000 ? "✅ Healthy" : liq >= 10000 ? "⚠️ Moderate" : "🚨 Very Low";
+  const lLbl  = liq >= 100000 ? t("sa_liq_very_strong") : liq >= 30000 ? t("sa_liq_healthy") : liq >= 10000 ? t("sa_liq_moderate") : t("sa_liq_very_low");
   const nCl   = netPressure > 20 ? "#2cffc9" : netPressure > 0 ? "#7fffe1" : netPressure > -20 ? "#ffd166" : "#ff4d6d";
-  const nLbl  = netPressure > 20 ? "🐂 Strong buying" : netPressure > 0 ? "📈 Slight buying" : netPressure > -20 ? "⚖️ Balanced" : "🐻 Strong selling";
+  const nLbl  = netPressure > 20 ? t("sa_net_strong_buy") : netPressure > 0 ? t("sa_net_slight_buy") : netPressure > -20 ? t("sa_net_balanced") : t("sa_net_strong_sell");
   const lmCl  = liqMcRatio >= 10 ? "#2cffc9" : liqMcRatio >= 3 ? "#ffd166" : liqMcRatio > 0 ? "#ff4d6d" : "#777";
-  const lmLbl = liqMcRatio >= 10 ? "✅ Safe" : liqMcRatio >= 3 ? "⚠️ Watch" : liqMcRatio > 0 ? "🚨 Risky" : "—";
+  const lmLbl = liqMcRatio >= 10 ? t("sa_lm_safe") : liqMcRatio >= 3 ? t("sa_lm_watch") : liqMcRatio > 0 ? t("sa_lm_risky") : "—";
   const atCl  = avgTxSize >= 1000 ? "#2cffc9" : avgTxSize >= 200 ? "#ffd166" : "#777";
-  const atLbl = avgTxSize >= 5000 ? "🐋 Whale moves" : avgTxSize >= 1000 ? "🦈 Large" : avgTxSize >= 200 ? "🐬 Normal" : "🐟 Micro";
+  const atLbl = avgTxSize >= 5000 ? t("sa_tx_whale") : avgTxSize >= 1000 ? t("sa_tx_large") : avgTxSize >= 200 ? t("sa_tx_normal") : t("sa_tx_micro");
   const tsCl  = (pc1h > 0 && pc6h > 0) ? "#2cffc9" : pc1h > 0 ? "#ffd166" : "#ff4d6d";
-  const tsLbl = pc1h > 0 && pc6h > 0 ? "✅ Higher highs" : pc1h > 0 && pc6h <= 0 ? "⚡ Recovering" : pc1h <= 0 && pc6h > 0 ? "⚠️ Pullback" : "📉 Downtrend";
+  const tsLbl = pc1h > 0 && pc6h > 0 ? t("sa_trend_higher") : pc1h > 0 && pc6h <= 0 ? t("sa_trend_recovering") : pc1h <= 0 && pc6h > 0 ? t("sa_trend_pullback") : t("sa_trend_downtrend");
 
   el.innerHTML = `
     <div style="background:${oBg};border:1px solid ${oCl}33;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px;">
@@ -1110,8 +1123,8 @@ function updateMarketSignals(pair) {
 
     <div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;font-size:10px;opacity:0.6;margin-bottom:4px;">
-        <span>🟢 Buys ${buys1h} (${buyPct.toFixed(1)}%)</span>
-        <span>Sells ${sells1h} (${sellPct.toFixed(1)}%) 🔴</span>
+        <span>${t("sa_buys_lbl")} ${buys1h} (${buyPct.toFixed(1)}%)</span>
+        <span>${t("sa_sells_lbl")} ${sells1h} (${sellPct.toFixed(1)}%) 🔴</span>
       </div>
       <div style="height:10px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;">
         <div style="width:${buyPct}%;background:linear-gradient(90deg,#2cffc9,#7fffe1);transition:width 0.8s;"></div>
@@ -1119,14 +1132,14 @@ function updateMarketSignals(pair) {
       </div>
     </div>
 
-    <div class="sa-signal-row"><span class="sa-signal-label">⚡ Momentum</span><span class="sa-signal-val" style="color:${mScore>=60?'#2cffc9':mScore>=45?'#ffd166':'#ff4d6d'}">${mScore>=60?"🚀 Bullish":mScore>=45?"➡️ Neutral":"📉 Bearish"} (${mScore}/100)</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">🎯 Buy Pressure</span><span class="sa-signal-val" style="color:${bpCl}">${bpLbl}</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">🔀 Net Pressure</span><span class="sa-signal-val" style="color:${nCl}">${nLbl} (${netPressure>0?"+":""}${netPressure})</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">📊 Volume Trend</span><span class="sa-signal-val" style="color:${vCl}">${vLbl} · ${formatUsd(vol1h)}/h</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">📐 Trend Structure</span><span class="sa-signal-val" style="color:${tsCl}">${tsLbl}</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">💧 Liquidity</span><span class="sa-signal-val" style="color:${lCl}">${lLbl} (${formatUsd(liq)})</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">🔒 Liq/MC Ratio</span><span class="sa-signal-val" style="color:${lmCl}">${lmLbl} (${liqMcRatio.toFixed(1)}%)</span></div>
-    <div class="sa-signal-row"><span class="sa-signal-label">🐋 Avg TX Size</span><span class="sa-signal-val" style="color:${atCl}">${atLbl} · ${formatUsd(avgTxSize)}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_momentum")}</span><span class="sa-signal-val" style="color:${mScore>=60?'#2cffc9':mScore>=45?'#ffd166':'#ff4d6d'}">${mScore>=60?t("sa_mom_bullish"):mScore>=45?t("sa_mom_neutral"):t("sa_mom_bearish")} (${mScore}/100)</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_buy_pressure")}</span><span class="sa-signal-val" style="color:${bpCl}">${bpLbl}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_net_pressure")}</span><span class="sa-signal-val" style="color:${nCl}">${nLbl} (${netPressure>0?"+":""}${netPressure})</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_vol_trend")}</span><span class="sa-signal-val" style="color:${vCl}">${vLbl} · ${formatUsd(vol1h)}/h</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_trend_struct")}</span><span class="sa-signal-val" style="color:${tsCl}">${tsLbl}</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_liq")}</span><span class="sa-signal-val" style="color:${lCl}">${lLbl} (${formatUsd(liq)})</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_liq_mc")}</span><span class="sa-signal-val" style="color:${lmCl}">${lmLbl} (${liqMcRatio.toFixed(1)}%)</span></div>
+    <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_avg_tx")}</span><span class="sa-signal-val" style="color:${atCl}">${atLbl} · ${formatUsd(avgTxSize)}</span></div>
     <div style="font-size:9px;opacity:0.3;text-align:center;padding-top:8px;border-top:1px solid rgba(44,255,201,0.06);">DexScreener · updates every 8s</div>
   `;
 }
@@ -1283,7 +1296,7 @@ function toggleWatchlistFromApe() {
   const btn = document.getElementById("saWlBtn");
   if (btn) {
     const nowOn = !alreadyOn;
-    btn.textContent = nowOn ? "⭐ Watchlisted" : "☆ Watchlist";
+    btn.textContent = nowOn ? t("sa_wl_added") : t("sa_wl_add");
     btn.classList.toggle("sa-wl-active", nowOn);
     btn.style.transform = "scale(0.93)";
     setTimeout(() => { if (btn) btn.style.transform = ""; }, 150);
@@ -1299,7 +1312,7 @@ function renderTokenHeader(t) {
     <img class="sa-token-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/52x52'" />
     <div style="flex:1;min-width:0;">
       <div class="sa-token-name">${esc(t.name)} <span style="opacity:0.5;font-size:14px">(${esc(t.symbol)})</span></div>
-      <div class="sa-token-symbol">Risk Score: <strong style="color:${t.riskScore>=65?'#2cffc9':t.riskScore>=45?'#ffd166':'#ff4d6d'}">${t.riskScore}/100</strong>
+      <div class="sa-token-symbol">${t("sa_risk_score_lbl")} <strong style="color:${t.riskScore>=65?'#2cffc9':t.riskScore>=45?'#ffd166':'#ff4d6d'}">${t.riskScore}/100</strong>
         <span style="font-size:9px;opacity:0.35;font-weight:400;letter-spacing:1px;margin-left:8px;">⬤ LIVE · 1.5s</span>
       </div>
       <div class="sa-token-mint">${esc(sm)}</div>
@@ -1309,7 +1322,7 @@ function renderTokenHeader(t) {
       <a href="https://solscan.io/token/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">🔎 Solscan</a>
       <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${sm}')" class="sa-token-link">🛡️ Full Scan</a>
       <button id="saWlBtn" class="sa-token-link sa-wl-btn ${isOnWatchlist(t.mint) ? 'sa-wl-active' : ''}" onclick="window._saToggleWl()">
-        ${isOnWatchlist(t.mint) ? "⭐ Watchlisted" : "☆ Watchlist"}
+        ${isOnWatchlist(t.mint) ? t("sa_wl_added") : t("sa_wl_add")}
       </button>
     </div>
   `;
@@ -1322,9 +1335,9 @@ function showRiskGate(t) {
   document.getElementById("saRiskGate").style.display       = "block";
   document.getElementById("saTradingContent").style.display = "none";
   document.getElementById("saRiskGateMsg").innerHTML = `
-    This token's Scan2Moon Risk Score is <strong style="color:#ff4d6d">${t.riskScore}/100</strong> — below the safe threshold of 45.<br/><br/>
-    Liquidity, volume, and market signals suggest elevated risk of price manipulation or rug pull.<br/><br/>
-    <strong>This is a training simulation — but make the right decision you'd make with real money.</strong>
+    This token's Scan2Moon Risk Score is <strong style="color:#ff4d6d">${t.riskScore}/100</strong> — ${t("sa_risk_gate_p1")}<br/><br/>
+    ${t("sa_risk_gate_p2")}<br/><br/>
+    <strong>${t("sa_risk_gate_p3")}</strong>
   `;
   document.getElementById("saRiskProceedBtn").onclick = () => {
     document.getElementById("saRiskGate").style.display = "none";
@@ -1398,11 +1411,11 @@ function renderHoldersPanel(t) {
 
   document.getElementById("saHoldersPanel").innerHTML = `
     <div style="display:flex;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid rgba(44,255,201,0.1);">
-      <span style="font-size:12px;opacity:0.6;">Top ${holders.length} Concentration</span>
+      <span style="font-size:12px;opacity:0.6;">Top ${holders.length} ${t("sa_concentration")}</span>
       <span style="font-weight:700;color:${cl}">${typeof total === "number" ? total.toFixed(1) : total}%</span>
     </div>
     ${holders.map((h,i)=>`<div class="sa-holder-row"><span class="sa-holder-rank">#${i+1}</span><span class="sa-holder-addr">${h.addr}</span><span class="sa-holder-pct" style="color:${i<2?cl:'#cffff4'}">${h.pct}%</span></div>`).join("")}
-    <div style="font-size:10px;opacity:0.3;margin-top:8px;text-align:center;">${isEstimated ? "Estimated distribution" : "On-chain · Solana RPC"}</div>
+    <div style="font-size:10px;opacity:0.3;margin-top:8px;text-align:center;">${isEstimated ? t("sa_est_dist") : t("sa_onchain_rpc")}</div>
   `;
 }
 
@@ -1434,7 +1447,7 @@ function updateTradeTab() {
 function renderSellHoldingInfo() {
   const h  = profile?.holdings?.[currentToken?.mint];
   const el = document.getElementById("saHoldingInfo");
-  if (!h||h.amount<=0) { el.innerHTML=`<div class="sa-no-holding">You don't hold ${currentToken?.symbol||"this token"} yet.</div>`; return; }
+  if (!h||h.amount<=0) { el.innerHTML=`<div class="sa-no-holding">${t("sa_no_holding_yet")} ${currentToken?.symbol||"this token"} ${t("sa_no_holding_yet2")}</div>`; return; }
   const price     = livePrices[currentToken.mint]||parseFloat(currentToken.pair?.priceUsd||"0");
   const costSol   = h.totalCostSol||0;
   // curValSol uses price ratio — immune to solPrice API errors
@@ -1445,11 +1458,11 @@ function renderSellHoldingInfo() {
   const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
   const sign      = pnlSol>=0?"+":"";
   el.innerHTML = `
-    <div class="sa-holding-stat"><span class="sa-holding-label">Holdings</span><span class="sa-holding-val">${formatAmount(h.amount)} ${currentToken.symbol}</span></div>
-    <div class="sa-holding-stat"><span class="sa-holding-label">Avg Buy Price</span><span class="sa-holding-val">${formatPrice(h.avgPrice)}</span></div>
-    <div class="sa-holding-stat"><span class="sa-holding-label">Current Value</span><span class="sa-holding-val" id="saLiveCurrentValue">${formatSol(curValSol)}${solPrice>0?` ≈ ${formatUsd(curValUsd)}`:''}</span></div>
+    <div class="sa-holding-stat"><span class="sa-holding-label">${t("sa_lbl_holdings")}</span><span class="sa-holding-val">${formatAmount(h.amount)} ${currentToken.symbol}</span></div>
+    <div class="sa-holding-stat"><span class="sa-holding-label">${t("sa_lbl_avg_buy")}</span><span class="sa-holding-val">${formatPrice(h.avgPrice)}</span></div>
+    <div class="sa-holding-stat"><span class="sa-holding-label">${t("sa_lbl_cur_val")}</span><span class="sa-holding-val" id="saLiveCurrentValue">${formatSol(curValSol)}${solPrice>0?` ≈ ${formatUsd(curValUsd)}`:''}</span></div>
     <div class="sa-holding-stat sa-pnl-live-row">
-      <span class="sa-holding-label">Unrealised P/L</span>
+      <span class="sa-holding-label">${t("sa_lbl_unrealised")}</span>
       <span class="sa-holding-val sa-holding-pnl ${pnlSol>=0?"pos":"neg"}" id="saLivePnl">${sign}${formatSol(pnlSol)} (${sign}${pnlPct.toFixed(4)}%)</span>
     </div>
   `;
@@ -1667,19 +1680,19 @@ function showDebrief(trade,type,score) {
   if (type==="sell") {
     const pnl=trade.pnl; const isWin=pnl>=0; // pnl is in SOL
     const emoji=pnl>0.5?"🚀":pnl>0?"✅":pnl>-0.2?"😬":"💀";
-    const verdict=pnl>0.5?"GREAT TRADE!":pnl>0?"PROFITABLE!":pnl>-0.2?"SMALL LOSS":"OUCH — RUG?";
+    const verdict=pnl>0.5?t("sa_verdict_great"):pnl>0?t("sa_verdict_profit"):pnl>-0.2?t("sa_verdict_loss"):t("sa_verdict_rug");
     const lesson=score<45?`⚠️ HIGH RISK token (${score}/100).`:pnl>=0?`✅ Good trade! Score ${score}/100.`:`📉 Loss on ${score>=65?"low":"moderate"}-risk token. Use stop-losses.`;
     const lCls=score<45?"sa-lesson-risk":pnl>=0?"sa-lesson-win":"sa-lesson-loss";
     html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">${emoji}</div><div class="sa-debrief-verdict" style="color:${isWin?'#2cffc9':'#ff4d6d'}">${verdict}</div><div class="sa-debrief-pnl ${isWin?'win':'loss'}">${pnl>=0?'+':''}${formatSol(pnl)}</div><div style="opacity:0.6;font-size:13px">${pnl>=0?'+':''}${trade.pnlPct}% return</div></div>
-    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Token</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Risk Score</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Sold at</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Avg Buy</div><div class="sa-debrief-stat-val">${formatPrice(trade.amount>0?trade.costBasis/trade.amount:0)}</div></div></div>
-    <div class="sa-debrief-lesson ${lCls}">💡 <strong>Lesson:</strong> ${lesson}</div>`;
+    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_sold_at")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_avg_buy")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.amount>0?trade.costBasis/trade.amount:0)}</div></div></div>
+    <div class="sa-debrief-lesson ${lCls}">${t("sa_lesson")} ${lesson}</div>`;
   } else {
     const totalCostSol=trade.totalCostSol||(solPrice>0?trade.totalCost/solPrice:0);
     const lesson=score<45?`🚨 HIGH RISK (${score}/100).`:score>=65?`✅ Smart entry! Set a target and stop-loss.`:`⚠️ Moderate risk (${score}/100). Have an exit plan.`;
     const lCls=score<45?"sa-lesson-risk":score>=65?"sa-lesson-win":"sa-lesson-loss";
-    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">🦍</div><div class="sa-debrief-verdict" style="color:#ffb432">POSITION OPENED</div><div style="font-size:28px;font-weight:700;color:#ffb432;margin:8px 0">${formatSol(totalCostSol)}</div><div style="opacity:0.6;font-size:13px">invested in ${trade.symbol}</div></div>
-    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Token</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Risk Score</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Entry Price</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">Tokens</div><div class="sa-debrief-stat-val">${formatAmount(trade.amount)}</div></div></div>
-    <div class="sa-debrief-lesson ${lCls}">💡 <strong>Lesson:</strong> ${lesson}</div>`;
+    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">🦍</div><div class="sa-debrief-verdict" style="color:#ffb432">${t("sa_verdict_opened")}</div><div style="font-size:28px;font-weight:700;color:#ffb432;margin:8px 0">${formatSol(totalCostSol)}</div><div style="opacity:0.6;font-size:13px">invested in ${trade.symbol}</div></div>
+    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_entry")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_tokens")}</div><div class="sa-debrief-stat-val">${formatAmount(trade.amount)}</div></div></div>
+    <div class="sa-debrief-lesson ${lCls}">${t("sa_lesson")} ${lesson}</div>`;
   }
   document.getElementById("debriefContent").innerHTML=html;
 }
@@ -1725,7 +1738,7 @@ function renderPortfolioSummary(keys, holdings) {
   el.innerHTML = `
     <div class="sa-summary-bar">
       <div class="sa-summary-item">
-        <div class="sa-summary-label">Total PNL</div>
+        <div class="sa-summary-label">${t("sa_total_pnl")}</div>
         <div class="sa-summary-val ${pnlCls}" id="sa-total-pnl">
           ${sign}${formatSol(pnlSol)}${pnlUsd !== null ? ` <span style="opacity:0.6;font-size:11px;">≈ ${sign}${formatUsd(Math.abs(pnlUsd))}</span>` : ""}
           <span style="opacity:0.7;font-size:11px;margin-left:4px;">(${sign}${pnlPct.toFixed(2)}%)</span>
@@ -1733,11 +1746,11 @@ function renderPortfolioSummary(keys, holdings) {
       </div>
       <div class="sa-summary-divider"></div>
       <div class="sa-summary-item">
-        <div class="sa-summary-label">Open Positions</div>
+        <div class="sa-summary-label">${t("sa_open_positions")}</div>
         <div class="sa-summary-counts">
-          <span class="sa-summary-wins">▲ ${wins} Win${wins !== 1 ? "s" : ""}</span>
-          <span class="sa-summary-losses">▼ ${losses} Loss${losses !== 1 ? "es" : ""}</span>
-          ${pending ? `<span style="opacity:0.4;font-size:11px;">· ${pending} loading</span>` : ""}
+          <span class="sa-summary-wins">▲ ${wins} ${wins !== 1 ? t("sa_wins_p") : t("sa_win_s")}</span>
+          <span class="sa-summary-losses">▼ ${losses} ${losses !== 1 ? t("sa_losses_p") : t("sa_loss_s")}</span>
+          ${pending ? `<span style="opacity:0.4;font-size:11px;">· ${pending} ${t("sa_loading")}</span>` : ""}
         </div>
       </div>
     </div>`;
@@ -1749,7 +1762,7 @@ function renderPortfolio() {
   const keys=Object.keys(holdings).filter(k=>holdings[k].amount>0);
   if (!keys.length) {
     document.getElementById("saPortfolioSummary").innerHTML = "";
-    body.innerHTML=`<div class="sa-empty-portfolio"><div style="font-size:36px;margin-bottom:10px;">🦍</div><div style="color:#7fffe1;font-weight:600;margin-bottom:6px;">No positions yet</div><div style="opacity:0.5;font-size:13px;">Search a token above and make your first simulated trade!</div></div>`;
+    body.innerHTML=`<div class="sa-empty-portfolio"><div style="font-size:36px;margin-bottom:10px;">🦍</div><div style="color:#7fffe1;font-weight:600;margin-bottom:6px;">${t("sa_no_positions")}</div><div style="opacity:0.5;font-size:13px;">${t("sa_no_pos_sub")}</div></div>`;
     return;
   }
   renderPortfolioSummary(keys, holdings);
@@ -1770,9 +1783,9 @@ function renderPortfolio() {
     return `<div class="sa-holding-card" onclick="document.getElementById('saTokenInput').value='${sm2}';window.searchToken()">
       <div class="sa-holding-card-top"><img class="sa-holding-logo" src="${logo}" onerror="this.src='https://placehold.co/36x36'" /><div><div class="sa-holding-name">${esc(h.name)}</div><div class="sa-holding-symbol">${esc(h.symbol)}</div></div></div>
       <div class="sa-holding-card-stats">
-        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">Current Value</div><div class="sa-holding-card-stat-val" id="sa-cur-val-${mint}">${curValSol!==null?formatSol(curValSol):formatSol(costSol)}</div></div>
-        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">Cost Basis</div><div class="sa-holding-card-stat-val">${formatSol(costSol)}</div></div>
-        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">ATM P/L ${price>0?"🔴 LIVE":""}</div><div class="sa-card-atm-pnl ${pnlCls}" id="sa-atm-pnl-${mint}">${pnlSol!==null?`${sign}${formatSol(pnlSol)} (${sign}${pnlPct.toFixed(4)}%)`:"Loading…"}</div></div>
+        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_lbl_cur_val")}</div><div class="sa-holding-card-stat-val" id="sa-cur-val-${mint}">${curValSol!==null?formatSol(curValSol):formatSol(costSol)}</div></div>
+        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_cost_basis")}</div><div class="sa-holding-card-stat-val">${formatSol(costSol)}</div></div>
+        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_atm_pnl")} ${price>0?"🔴 LIVE":""}</div><div class="sa-card-atm-pnl ${pnlCls}" id="sa-atm-pnl-${mint}">${pnlSol!==null?`${sign}${formatSol(pnlSol)} (${sign}${pnlPct.toFixed(4)}%)`:"Loading…"}</div></div>
       </div>
       <div style="font-size:11px;opacity:0.45;margin-top:6px;">${formatAmount(h.amount)} tokens @ avg ${formatPrice(h.avgPrice)}</div>
     </div>`;
@@ -1785,7 +1798,7 @@ function renderPortfolio() {
 function renderRecentTrades() {
   const body=document.getElementById("saTradesBody");
   const trades=profile?.trades?.slice(0,15)||[];
-  if (!trades.length) { body.innerHTML=`<div style="text-align:center;opacity:0.5;padding:30px;">No trades yet!</div>`; return; }
+  if (!trades.length) { body.innerHTML=`<div style="text-align:center;opacity:0.5;padding:30px;">${t("sa_no_trades")}</div>`; return; }
   body.innerHTML=trades.map(t=>{
     const isBuy=t.type==="buy";
     const logo=t.logo?`/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`:"https://placehold.co/28x28";
@@ -1794,7 +1807,7 @@ function renderRecentTrades() {
       :(t.totalReceivedSol||(solPrice>0?t.totalReceived/solPrice:null));
     const amountFmt=amountSol!==null?formatSol(amountSol):(isBuy?formatUsd(t.totalCost):formatUsd(t.totalReceived));
     const pnlHtml=!isBuy&&t.pnl!==undefined?`<span style="color:${t.pnl>=0?'#2cffc9':'#ff4d6d'};font-weight:700">${t.pnl>=0?'+':''}${formatSol(t.pnl)}</span>`:`<span style="opacity:0.45">—</span>`;
-    return `<div class="sa-trade-row"><div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?'BUY':'SELL'}</span></div><div class="sa-trade-token-cell"><img class="sa-trade-token-logo" src="${logo}" onerror="this.src='https://placehold.co/28x28'" /><div><div class="sa-trade-token-name">${esc(t.name||t.symbol)}</div><div class="sa-trade-token-symbol">${esc(t.symbol)}</div></div></div><div>${amountFmt}</div><div class="sa-trade-pnl">${pnlHtml}</div><div class="sa-trade-time">${new Date(t.timestamp).toLocaleString()}</div></div>`;
+    return `<div class="sa-trade-row"><div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?t("sa_trade_buy"):t("sa_trade_sell")}</span></div><div class="sa-trade-token-cell"><img class="sa-trade-token-logo" src="${logo}" onerror="this.src='https://placehold.co/28x28'" /><div><div class="sa-trade-token-name">${esc(t.name||t.symbol)}</div><div class="sa-trade-token-symbol">${esc(t.symbol)}</div></div></div><div>${amountFmt}</div><div class="sa-trade-pnl">${pnlHtml}</div><div class="sa-trade-time">${new Date(t.timestamp).toLocaleString()}</div></div>`;
   }).join("");
 }
 
