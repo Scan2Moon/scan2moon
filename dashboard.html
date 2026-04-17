@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Dashboard — Scan2Moon</title>
+  <meta name="description" content="Your Scan2Moon dashboard. Track your level, XP, badges, scan history and trading stats all in one place." />
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="Scan2Moon" />
+  <meta property="og:url"          content="https://scan2moon.com/dashboard.html" />
+  <meta property="og:title"        content="Dashboard — Scan2Moon" />
+  <meta property="og:description"  content="Your Scan2Moon dashboard. Level up, earn badges and track your progress." />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@Scan2Moon" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="safe-ape.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- ═══════════════════════════════════════
+       NOT CONNECTED GATE
+  ═══════════════════════════════════════ -->
+  <div id="dashGate">
+    <div class="sa-connect-hero">
+      <div class="sa-connect-emoji">🌙</div>
+      <div class="sa-connect-title">YOUR DASHBOARD</div>
+      <div class="sa-connect-sub">Connect your Phantom wallet to see your level, XP, badges and stats.</div>
+      <button class="sa-wallet-connect-btn" id="dashConnectBtn">
+        <span id="dashConnectText">🔗 Connect Phantom Wallet</span>
+      </button>
+      <div class="sa-connect-note">Same wallet as the Safe Ape Simulator — your data loads automatically</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       DASHBOARD APP
+  ═══════════════════════════════════════ -->
+  <div id="dashApp" style="display:none;">
+
+    <!-- ── HERO PANEL ─────────────────────────────── -->
+    <div class="dash-hero-panel">
+      <!-- dot-grid world map background -->
+      <div class="dash-hero-map"></div>
+
+      <!-- share button -->
+      <button class="dash-share-btn" id="dashShareBtn" title="Share profile">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+          <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+        </svg>
+      </button>
+
+      <!-- avatar + name -->
+      <div class="dash-hero-identity">
+        <div class="dash-avatar" id="dashAvatar">🦍</div>
+        <div class="dash-hero-info">
+          <div class="dash-hero-name" id="dashName">—</div>
+          <div class="dash-hero-wallet" id="dashWalletShort">—</div>
+          <div class="dash-hero-rank-badge" id="dashRankBadge">⭐ Loading…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── STATS ROW ────────────────────────────────── -->
+    <div class="dash-stats-row">
+
+      <!-- Level + XP bar -->
+      <div class="dash-stat-card dash-stat-xp">
+        <div class="dash-lvl-row">
+          <span class="dash-lvl-num" id="dashLvl">—</span>
+          <span class="dash-lvl-label">LVL</span>
+        </div>
+        <div class="dash-xp-track">
+          <div class="dash-xp-fill" id="dashXpFill" style="width:0%"></div>
+        </div>
+        <div class="dash-xp-text" id="dashXpText">— / — XP</div>
+      </div>
+
+      <!-- Total Scans -->
+      <div class="dash-stat-card">
+        <div class="dash-stat-icon">🔍</div>
+        <div class="dash-stat-val" id="dashScans">—</div>
+        <div class="dash-stat-name">SCANS</div>
+      </div>
+
+      <!-- Rank -->
+      <div class="dash-stat-card">
+        <div class="dash-stat-icon">🏆</div>
+        <div class="dash-stat-val dash-stat-val-sm" id="dashRank">— / —</div>
+        <div class="dash-stat-name">RANK</div>
+      </div>
+
+      <!-- Streak -->
+      <div class="dash-stat-card">
+        <div class="dash-stat-icon">🔥</div>
+        <div class="dash-stat-val" id="dashStreak">—</div>
+        <div class="dash-stat-name">STREAK</div>
+      </div>
+
+    </div>
+
+    <!-- ── BADGES ──────────────────────────────────── -->
+    <div class="panel">
+      <div class="panel-title">🏅 BADGES</div>
+      <div class="panel-body">
+        <div class="dash-badges-header">
+          <div class="dash-badges-progress-wrap">
+            <span class="dash-badges-count" id="dashBadgesCount">0 / 12 earned</span>
+            <div class="dash-badges-bar-wrap">
+              <div class="dash-badges-bar-fill" id="dashBadgesBarFill" style="width:0%"></div>
+            </div>
+            <span class="dash-badges-pct" id="dashBadgesPct">0% complete</span>
+          </div>
+          <div class="dash-badges-sol-earned">
+            <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+              style="width:16px;height:16px;border-radius:50%;vertical-align:middle;margin-right:4px;" />
+            <span id="dashBadgesSolEarned">+0 SOL earned</span>
+          </div>
+        </div>
+        <div class="dash-badges-grid" id="dashBadgesGrid">
+          <!-- injected by dashboard.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- ── QUICK STATS ─────────────────────────────── -->
+    <div class="dash-two-col">
+
+      <!-- Ape Simulator snapshot -->
+      <div class="panel">
+        <div class="panel-title">🦍 APE SIMULATOR</div>
+        <div class="panel-body">
+          <div class="dash-qs-grid" id="dashApeStats">
+            <!-- injected by dashboard.js -->
+          </div>
+          <a href="safe-ape.html" class="dash-cta-btn">Open Simulator →</a>
+        </div>
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="panel">
+        <div class="panel-title">⚡ RECENT ACTIVITY</div>
+        <div class="panel-body">
+          <div class="dash-activity-feed" id="dashActivityFeed">
+            <!-- injected by dashboard.js -->
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── COMING SOON PANELS ──────────────────────── -->
+    <div class="dash-two-col">
+
+      <div class="panel dash-soon-panel">
+        <div class="panel-title">📊 SCAN HISTORY</div>
+        <div class="panel-body dash-soon-body">
+          <div class="dash-soon-icon">📊</div>
+          <div class="dash-soon-label">Scan History</div>
+          <div class="dash-soon-sub">Track every token you've scanned, your accuracy score and risk calls.</div>
+          <div class="dash-soon-chip">COMING SOON</div>
+        </div>
+      </div>
+
+      <div class="panel dash-soon-panel">
+        <div class="panel-title">🎯 DAILY TASKS</div>
+        <div class="panel-body dash-soon-body">
+          <div class="dash-soon-icon">🎯</div>
+          <div class="dash-soon-label">Daily Tasks</div>
+          <div class="dash-soon-sub">Complete daily challenges, earn XP and climb the leaderboard.</div>
+          <div class="dash-soon-chip">COMING SOON</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /#dashApp -->
+
+</div><!-- /.app -->
+
+<script type="module" src="dashboard.js"></script>
+</body>
+</html>

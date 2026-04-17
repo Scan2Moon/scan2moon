@@ -70,10 +70,10 @@ export function renderNav() {
               <span class="nav-icon">🎓</span> <span data-i18n="nav_learn2moon">${t("nav_learn2moon")}</span> <span class="nav-chevron">▾</span>
             </button>
             <div class="nav-drop-menu">
-              <a href="dashboard.html" class="nav-drop-item ${currentPage === 'dashboard.html' ? 'drop-active' : ''}" style="opacity:0.45;pointer-events:none;">
+              <a href="dashboard.html" class="nav-drop-item ${currentPage === 'dashboard.html' ? 'drop-active' : ''}">
                 <span class="drop-icon">📊</span>
                 <div>
-                  <div class="drop-label" data-i18n="nav_learn_dashboard">${t("nav_learn_dashboard")} <span style="font-size:9px;background:rgba(207,255,244,0.08);color:rgba(207,255,244,0.4);border:1px solid rgba(207,255,244,0.15);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">SOON</span></div>
+                  <div class="drop-label" data-i18n="nav_learn_dashboard">${t("nav_learn_dashboard")} <span style="font-size:9px;background:rgba(44,255,201,0.15);color:#2cffc9;border:1px solid rgba(44,255,201,0.3);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
                   <div class="drop-sub" data-i18n="nav_learn_dashboard_sub">${t("nav_learn_dashboard_sub")}</div>
                 </div>
               </a>
