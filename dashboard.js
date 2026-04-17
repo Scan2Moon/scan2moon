@@ -120,28 +120,93 @@ async function connectWallet() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   LOAD DASHBOARD
+   DEMO / FAKE PROFILE  (used when API is unavailable)
+═══════════════════════════════════════════════════════ */
+const DEMO_PROFILE = {
+  accountName:  "Demo Ape",
+  balance:      14.75,
+  totalPnL:     4.75,
+  winCount:     18,
+  lossCount:    7,
+  loginStreak:  5,
+  badges:       ["first_profit", "win_streak_5", "safe_trader"],
+  holdings:     {},
+  trades: [
+    { type:"sell", symbol:"BONK",  name:"Bonk",      pnl:  1.24, pnlPct:"38.5", timestamp: Date.now() - 3_600_000 },
+    { type:"buy",  symbol:"WIF",   name:"dogwifhat", pnl: undefined,             timestamp: Date.now() - 7_200_000 },
+    { type:"sell", symbol:"POPCAT",name:"Popcat",    pnl: -0.31, pnlPct:"-9.2",  timestamp: Date.now() - 86_400_000 },
+    { type:"sell", symbol:"MEW",   name:"cat in a dogs world", pnl: 2.10, pnlPct:"67.2", timestamp: Date.now() - 172_800_000 },
+  ],
+};
+
+/* ═══════════════════════════════════════════════════════
+   LOAD DASHBOARD  (with 503 retry + demo fallback)
 ═══════════════════════════════════════════════════════ */
 async function loadDashboard() {
-  try {
-    showToast("⏳ Loading dashboard…");
-    const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
-    const data = await resp.json();
-    if (data.error) throw new Error(data.error);
-    profile = data.profile;
+  showToast("⏳ Loading dashboard…");
 
-    document.getElementById("dashGate").style.display = "none";
-    document.getElementById("dashApp").style.display  = "block";
+  /* ── Retry up to 4× on 503 ── */
+  let data;
+  const MAX_RETRIES = 4;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const resp = await fetch(`${SIM_API}?wallet=${wallet}`);
 
-    renderHero();
-    renderStatsRow();
-    renderBadges();
-    renderApeStats();
-    renderActivityFeed();
-  } catch (e) {
-    showToast("❌ Could not load dashboard — please refresh.");
-    console.error("Dashboard load error:", e);
+      if (resp.status === 503) {
+        if (attempt < MAX_RETRIES) {
+          const delay = Math.min((attempt + 1) * 2000, 8000);
+          showToast(`⏳ Storage reconnecting… (${attempt + 1}/${MAX_RETRIES})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+        /* All retries exhausted — fall back to demo data */
+        console.warn("Dashboard: API unavailable after retries, using demo data.");
+        profile = { ...DEMO_PROFILE, accountName: "Demo Mode" };
+        showDashboard(true);
+        return;
+      }
+
+      data = await resp.json();
+      if (data.error) throw new Error(data.error);
+      break; // success
+    } catch (e) {
+      if (attempt < MAX_RETRIES) {
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      /* Network failure — show demo data */
+      console.warn("Dashboard: Network error, using demo data:", e);
+      profile = { ...DEMO_PROFILE, accountName: "Demo Mode" };
+      showDashboard(true);
+      return;
+    }
   }
+
+  profile = data.profile;
+  showDashboard(false);
+}
+
+function showDashboard(isDemo = false) {
+  document.getElementById("dashGate").style.display = "none";
+  document.getElementById("dashApp").style.display  = "block";
+
+  if (isDemo) {
+    /* Add a subtle demo banner */
+    const existing = document.getElementById("demoBanner");
+    if (!existing) {
+      const banner = document.createElement("div");
+      banner.id = "demoBanner";
+      banner.style.cssText = "background:rgba(255,180,50,0.1);border:1px solid rgba(255,180,50,0.3);border-radius:10px;padding:8px 16px;font-size:12px;font-weight:600;color:#ffb432;text-align:center;margin-bottom:14px;";
+      banner.textContent = "⚠️ Storage temporarily unavailable — showing demo preview. Your real data will load once the connection restores.";
+      document.getElementById("dashApp").prepend(banner);
+    }
+  }
+
+  renderHero();
+  renderStatsRow();
+  renderBadges();
+  renderApeStats();
+  renderActivityFeed();
 }
 
 /* ═══════════════════════════════════════════════════════
