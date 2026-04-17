@@ -110,6 +110,11 @@
 
     </div>
 
+    <!-- ── HIGHLIGHT STATS ROW ──────────────────────── -->
+    <div class="dash-highlight-row" id="dashHighlightRow">
+      <!-- injected by dashboard.js -->
+    </div>
+
     <!-- ── BADGES ──────────────────────────────────── -->
     <div class="panel">
       <div class="panel-title">🏅 BADGES</div>
@@ -160,26 +165,28 @@
 
     </div>
 
-    <!-- ── COMING SOON PANELS ──────────────────────── -->
+    <!-- ── TRADE HISTORY + CURRENT HOLDINGS ─────────── -->
     <div class="dash-two-col">
 
-      <div class="panel dash-soon-panel">
-        <div class="panel-title">📊 SCAN HISTORY</div>
-        <div class="panel-body dash-soon-body">
-          <div class="dash-soon-icon">📊</div>
-          <div class="dash-soon-label">Scan History</div>
-          <div class="dash-soon-sub">Track every token you've scanned, your accuracy score and risk calls.</div>
-          <div class="dash-soon-chip">COMING SOON</div>
+      <!-- Trade History -->
+      <div class="panel">
+        <div class="panel-title">📋 TRADE HISTORY</div>
+        <div class="panel-body">
+          <div id="dashTradeHistory"><!-- injected by dashboard.js --></div>
+          <a href="safe-ape-profile.html" class="dash-cta-btn" style="margin-top:10px;">
+            View full history →
+          </a>
         </div>
       </div>
 
-      <div class="panel dash-soon-panel">
-        <div class="panel-title">🎯 DAILY TASKS</div>
-        <div class="panel-body dash-soon-body">
-          <div class="dash-soon-icon">🎯</div>
-          <div class="dash-soon-label">Daily Tasks</div>
-          <div class="dash-soon-sub">Complete daily challenges, earn XP and climb the leaderboard.</div>
-          <div class="dash-soon-chip">COMING SOON</div>
+      <!-- Current Holdings -->
+      <div class="panel">
+        <div class="panel-title">💼 CURRENT HOLDINGS</div>
+        <div class="panel-body">
+          <div id="dashHoldings"><!-- injected by dashboard.js --></div>
+          <a href="safe-ape.html" class="dash-cta-btn" style="margin-top:10px;">
+            Trade on Safe Ape →
+          </a>
         </div>
       </div>
 

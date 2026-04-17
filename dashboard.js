@@ -221,7 +221,6 @@ function showDashboard(isDemo = false) {
   document.getElementById("dashApp").style.display  = "block";
 
   if (isDemo) {
-    /* Add a subtle demo banner */
     const existing = document.getElementById("demoBanner");
     if (!existing) {
       const banner = document.createElement("div");
@@ -234,9 +233,12 @@ function showDashboard(isDemo = false) {
 
   renderHero();
   renderStatsRow();
+  renderHighlightStats();
   renderBadges();
   renderApeStats();
   renderActivityFeed();
+  renderTradeHistory();
+  renderHoldings();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -517,7 +519,65 @@ window.shareBadgeOnX = async function(id) {
 };
 
 /* ═══════════════════════════════════════════════════════
-   APE SIMULATOR QUICK STATS
+   HIGHLIGHT STATS ROW  (Best Trade, Worst Trade, Tasks…)
+═══════════════════════════════════════════════════════ */
+function renderHighlightStats() {
+  const trades   = profile.trades || [];
+  const sells    = trades.filter(tr => tr.type === "sell");
+  const winSells = sells.filter(tr => (tr.pnl || 0) > 0);
+  const losSells = sells.filter(tr => (tr.pnl || 0) < 0);
+
+  const best  = winSells.length  ? winSells.reduce((a, b)  => (b.pnl > a.pnl  ? b : a), winSells[0])  : null;
+  const worst = losSells.length  ? losSells.reduce((a, b)  => (b.pnl < a.pnl  ? b : a), losSells[0])  : null;
+
+  const cards = [
+    {
+      icon: "🏆", label: "BEST TRADE",
+      val: best  ? `+${formatSol(best.pnl)}`  : "—",
+      sub: best  ? esc(best.symbol  || best.name  || "") : "No wins yet",
+      color: "#2cffc9",
+    },
+    {
+      icon: "💀", label: "WORST TRADE",
+      val: worst ? formatSol(worst.pnl) : "—",
+      sub: worst ? esc(worst.symbol || worst.name || "") : "No losses 🎉",
+      color: worst ? "#ff4d6d" : "#2cffc9",
+    },
+    {
+      icon: "✅", label: "TASKS DONE",
+      val: "0",
+      sub: "coming soon",
+      color: "rgba(207,255,244,0.35)",
+      soon: true,
+    },
+    {
+      icon: "🎯", label: "DAILY STREAK XP",
+      val: "—",
+      sub: "coming soon",
+      color: "rgba(207,255,244,0.25)",
+      soon: true,
+    },
+    {
+      icon: "📊", label: "SCAN ACCURACY",
+      val: "—",
+      sub: "coming soon",
+      color: "rgba(207,255,244,0.25)",
+      soon: true,
+    },
+  ];
+
+  document.getElementById("dashHighlightRow").innerHTML = cards.map(c => `
+    <div class="dash-hl-card ${c.soon ? 'soon' : ''}">
+      <div class="dash-hl-top-label">${c.label}</div>
+      <div class="dash-hl-icon">${c.icon}</div>
+      <div class="dash-hl-val" style="color:${c.color}">${c.val}</div>
+      <div class="dash-hl-sub">${c.sub}</div>
+      ${c.soon ? '<div class="dash-hl-soon-chip">COMING SOON</div>' : ''}
+    </div>`).join("");
+}
+
+/* ═══════════════════════════════════════════════════════
+   APE SIMULATOR QUICK STATS  (6 cards: 2×3 grid)
 ═══════════════════════════════════════════════════════ */
 function renderApeStats() {
   const wins    = profile.winCount   || 0;
@@ -530,10 +590,12 @@ function renderApeStats() {
   const bal     = profile.balance    || 10;
 
   const cards = [
-    { label: "BALANCE",    val: formatSol(bal),              color: "#ffb432" },
-    { label: "ALL-TIME P/L", val: `${pnlSign}${formatSol(pnl)}`, color: pnlCls },
-    { label: "WIN RATE",   val: `${winRate}%`,               color: parseFloat(winRate) >= 50 ? "#2cffc9" : "#ff4d6d" },
-    { label: "TRADES",     val: total,                       color: "#cffff4" },
+    { label: "BALANCE",      val: formatSol(bal),                    color: "#ffb432" },
+    { label: "ALL-TIME P/L", val: `${pnlSign}${formatSol(pnl)}`,     color: pnlCls   },
+    { label: "WIN  ✅",      val: wins,                              color: "#2cffc9" },
+    { label: "LOSE  ❌",     val: losses,                            color: losses > 0 ? "#ff4d6d" : "rgba(207,255,244,0.4)" },
+    { label: "WIN RATE",     val: `${winRate}%`,                     color: parseFloat(winRate) >= 50 ? "#2cffc9" : "#ff4d6d" },
+    { label: "TRADES",       val: total,                             color: "#cffff4" },
   ];
 
   document.getElementById("dashApeStats").innerHTML = cards.map(c => `
@@ -544,19 +606,18 @@ function renderApeStats() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   RECENT ACTIVITY FEED  (fake — real data V1.1)
+   RECENT ACTIVITY FEED
 ═══════════════════════════════════════════════════════ */
 function renderActivityFeed() {
-  const trades   = (profile.trades || []).slice(0, 4);
+  const trades       = (profile.trades || []).slice(0, 5);
   const earnedBadges = profile.badges || [];
-
   const feed = [];
 
-  // last trades as activity items
   for (const tr of trades) {
-    const isBuy = tr.type === "buy";
-    const pnlStr = !isBuy && tr.pnl !== undefined
-      ? ` · ${tr.pnl >= 0 ? '+' : ''}${formatSol(tr.pnl)}`
+    const isBuy  = tr.type === "buy";
+    const pnlSol = !isBuy && tr.pnl !== undefined ? parseFloat(tr.pnl) : null;
+    const pnlStr = pnlSol !== null
+      ? ` <span style="font-weight:800;color:${pnlSol >= 0 ? '#2cffc9' : '#ff4d6d'}">${pnlSol >= 0 ? '+' : ''}${formatSol(pnlSol)}</span>`
       : "";
     feed.push({
       icon: isBuy ? "🟢" : "🔴",
@@ -565,31 +626,105 @@ function renderActivityFeed() {
     });
   }
 
-  // last badge earned
   if (earnedBadges.length) {
     const lastBadgeId = earnedBadges[earnedBadges.length - 1];
     const b = BADGE_DEFS.find(x => x.id === lastBadgeId);
-    if (b) {
-      feed.unshift({
-        icon: "🏅",
-        text: `Badge unlocked: <strong>${esc(b.name)}</strong>`,
-        time: "recently",
-      });
-    }
+    if (b) feed.unshift({ icon: "🏅", text: `Badge unlocked: <strong>${esc(b.name)}</strong>`, time: "recently" });
   }
 
-  if (!feed.length) {
-    document.getElementById("dashActivityFeed").innerHTML =
-      `<div style="text-align:center;padding:20px;opacity:0.4;font-size:13px;">No activity yet — start scanning!</div>`;
+  document.getElementById("dashActivityFeed").innerHTML = feed.length
+    ? feed.map(item => `
+        <div class="dash-activity-item">
+          <span class="dash-activity-icon">${item.icon}</span>
+          <span class="dash-activity-text">${item.text}</span>
+          <span class="dash-activity-time">${item.time}</span>
+        </div>`).join("")
+    : `<div style="text-align:center;padding:20px;opacity:0.4;font-size:13px;">No activity yet — start trading!</div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   TRADE HISTORY  (last 10 trades)
+═══════════════════════════════════════════════════════ */
+function renderTradeHistory() {
+  const el     = document.getElementById("dashTradeHistory");
+  const trades = (profile.trades || []).slice(0, 10);
+
+  if (!trades.length) {
+    el.innerHTML = `<div class="dash-trade-empty">No trades yet — head to the Simulator!</div>`;
     return;
   }
 
-  document.getElementById("dashActivityFeed").innerHTML = feed.map(item => `
-    <div class="dash-activity-item">
-      <span class="dash-activity-icon">${item.icon}</span>
-      <span class="dash-activity-text">${item.text}</span>
-      <span class="dash-activity-time">${item.time}</span>
-    </div>`).join("");
+  const rows = trades.map(tr => {
+    const isBuy   = tr.type === "buy";
+    const pnlSol  = !isBuy && tr.pnl !== undefined ? parseFloat(tr.pnl) : null;
+    const pnlHtml = pnlSol !== null
+      ? `<span style="color:${pnlSol>=0?'#2cffc9':'#ff4d6d'}">${pnlSol>=0?'+':''}${formatSol(pnlSol)}</span>`
+      : `<span style="opacity:0.3">—</span>`;
+    const amtSol  = isBuy
+      ? (tr.totalCostSol || null)
+      : (tr.totalReceivedSol || null);
+    const amtHtml = amtSol !== null ? formatSol(amtSol) : "—";
+    const date    = new Date(tr.timestamp).toLocaleDateString(undefined, { month:"short", day:"numeric" });
+
+    return `
+      <div class="dash-trade-row">
+        <div><span class="dash-trade-badge ${isBuy?'buy':'sell'}">${isBuy?'BUY':'SELL'}</span></div>
+        <div>
+          <div class="dash-trade-token">${esc(tr.symbol || tr.name)}</div>
+          <div class="dash-trade-sym">${esc(tr.name || "")}</div>
+        </div>
+        <div class="dash-trade-amt">${amtHtml}</div>
+        <div class="dash-trade-pnl">${pnlHtml}</div>
+        <div style="font-size:10px;opacity:0.35;white-space:nowrap;">${date}</div>
+      </div>`;
+  }).join("");
+
+  el.innerHTML = `
+    <div class="dash-trade-table">
+      <div class="dash-trade-header">
+        <div>TYPE</div><div>TOKEN</div><div>AMOUNT</div><div>P/L</div>
+      </div>
+      ${rows}
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CURRENT HOLDINGS
+═══════════════════════════════════════════════════════ */
+function renderHoldings() {
+  const el       = document.getElementById("dashHoldings");
+  const holdings = profile.holdings || {};
+  const keys     = Object.keys(holdings).filter(k => (holdings[k]?.amount || 0) > 0.000001);
+
+  if (!keys.length) {
+    el.innerHTML = `<div class="dash-holdings-empty">No open positions — start trading in the Simulator!</div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="dash-holdings-list">${keys.map(mint => {
+    const h       = holdings[mint];
+    const logo    = h.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}` : "https://placehold.co/34x34";
+    const costSol = h.totalCostSol || 0;
+    const safeMnt = String(mint).replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
+
+    return `
+      <div class="dash-holding-row">
+        <img class="dash-holding-logo" src="${logo}"
+          onerror="this.src='https://placehold.co/34x34'" />
+        <div class="dash-holding-info">
+          <div class="dash-holding-name">${esc(h.name || h.symbol)}</div>
+          <div class="dash-holding-sym">${esc(h.symbol)}</div>
+        </div>
+        <div style="text-align:right;">
+          <div class="dash-holding-cost">${formatSol(costSol)}</div>
+          <div class="dash-holding-pnl" style="color:rgba(207,255,244,0.3);font-size:10px;">cost basis</div>
+        </div>
+        <a class="dash-holding-btn" href="safe-ape.html"
+          onclick="localStorage.setItem('sa_prefill_mint','${safeMnt}')">
+          Trade →
+        </a>
+      </div>`;
+  }).join("")}</div>`;
 }
 
 /* ═══════════════════════════════════════════════════════
