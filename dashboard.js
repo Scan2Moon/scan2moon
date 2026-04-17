@@ -27,6 +27,7 @@ const BADGE_CATEGORIES = [
   { id: "academy", icon: "🎓", label: "Academy",          color: "#ffb432",  bgColor: "rgba(255,180,50,0.12)",  borderColor: "rgba(255,180,50,0.35)"  },
   { id: "other",   icon: "🌟", label: "Other",            color: "#c084fc",  bgColor: "rgba(192,132,252,0.12)", borderColor: "rgba(192,132,252,0.35)" },
   { id: "pro",     icon: "💎", label: "PRO",              color: "#60a5fa",  bgColor: "rgba(96,165,250,0.12)",  borderColor: "rgba(96,165,250,0.35)"  },
+  { id: "levels",  icon: "⭐", label: "Account Levels",   color: "#ffd700",  bgColor: "rgba(255,215,0,0.12)",   borderColor: "rgba(255,215,0,0.4)"    },
 ];
 
 /* ── Badge definitions ────────────────────────────────────── */
@@ -65,6 +66,15 @@ const BADGE_DEFS = [
   { id: "alpha_caller",  cat: "pro", img: "/badges/alpha_caller.png",  icon: "🎯", name: "Alpha Caller",    desc: "Correctly predict 3 tokens that go 10× before they pump. Real alpha.",          reward: 2.0  },
   { id: "whale_analyst", cat: "pro", img: "/badges/whale_analyst.png", icon: "🐋", name: "Whale Analyst",   desc: "Successfully identify 5 whale wallet patterns using Whale DNA scanner.",         reward: 1.0  },
   { id: "top_10",        cat: "pro", img: "/badges/top_10.png",        icon: "🏆", name: "Top 10",          desc: "Reach the top 10 on the Scan2Moon Leaderboard. Elite trader confirmed.",         reward: 5.0  },
+
+  /* ── Account Levels ── */
+  { id: "lvl_1",   cat: "levels", img: "/badges/lvl_1.png",   icon: "🌱", name: "Level 1 — First Step",   desc: "Reach Account Level 1. Every legend starts with a single step.", reward: 0.05 },
+  { id: "lvl_5",   cat: "levels", img: "/badges/lvl_5.png",   icon: "🔥", name: "Level 5 — Getting Warm",  desc: "Reach Account Level 5. You're building momentum — keep going!",   reward: 0.1  },
+  { id: "lvl_10",  cat: "levels", img: "/badges/lvl_10.png",  icon: "💪", name: "Level 10 — Veteran",      desc: "Reach Account Level 10. A true Scan2Moon veteran. Respect.",       reward: 0.25 },
+  { id: "lvl_20",  cat: "levels", img: "/badges/lvl_20.png",  icon: "🧠", name: "Level 20 — Smart Money",  desc: "Reach Account Level 20. You clearly understand how this works.",    reward: 0.5  },
+  { id: "lvl_30",  cat: "levels", img: "/badges/lvl_30.png",  icon: "💎", name: "Level 30 — Diamond Mind", desc: "Reach Account Level 30. Elite mentality. Diamond hands, diamond brain.", reward: 1.0  },
+  { id: "lvl_50",  cat: "levels", img: "/badges/lvl_50.png",  icon: "🚀", name: "Level 50 — Half Moon",    desc: "Reach Account Level 50. Halfway to the moon and already a legend.",  reward: 2.0  },
+  { id: "lvl_100", cat: "levels", img: "/badges/lvl_100.png", icon: "🌙", name: "Level 100 — Sol2Moon",    desc: "Reach Account Level 100. Maximum level. You ARE the moon. Absolute GOAT.", reward: 10.0 },
 ];
 
 /* ── XP / Level system (fake for now, real data V1.1) ─────── */
@@ -114,6 +124,17 @@ function badgeProgress(id) {
     case "portfolio_100":        return { cur: Math.max(0, bal - 10), max: 10,    label: `${formatSol(bal)} bal` };
     case "sol2moon_millionaire": return { cur: bal,                   max: 10000, label: `${formatSol(bal)} bal` };
     case "streak_7":             return { cur: streak,                max: 7,     label: `${streak}d streak`     };
+    /* Level badges — compute current account level inline */
+    case "lvl_1": case "lvl_5": case "lvl_10":
+    case "lvl_20": case "lvl_30": case "lvl_50": case "lvl_100": {
+      const wins   = profile.winCount   || 0;
+      const losses = profile.lossCount  || 0;
+      const badges = (profile.badges    || []).length;
+      const xp     = (wins + losses) * 25 + badges * 50 + streak * 5;
+      const lvl    = calcLevel(xp);
+      const target = { lvl_1:1, lvl_5:5, lvl_10:10, lvl_20:20, lvl_30:30, lvl_50:50, lvl_100:100 }[id];
+      return { cur: lvl, max: target, label: `LVL ${lvl}` };
+    }
     default:                     return null;
   }
 }
@@ -374,29 +395,54 @@ function renderHero() {
 /* ═══════════════════════════════════════════════════════
    STATS ROW
 ═══════════════════════════════════════════════════════ */
+/* Academy level thresholds: 7 levels based on academy XP */
+const ACAD_XP_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1400, 2000];
+function calcAcadLevel(xp) {
+  let lvl = 1;
+  for (let i = 1; i < ACAD_XP_THRESHOLDS.length; i++) {
+    if (xp >= ACAD_XP_THRESHOLDS[i]) lvl = i + 1; else break;
+  }
+  return lvl;
+}
+
+const ACADEMY_BADGE_IDS = new Set(["lesson_1","risk_master","scanner_pro","chart_reader","whale_watcher","defi_graduate"]);
+
 function renderStatsRow() {
   const trades  = (profile.trades || []).length;
   const badges  = (profile.badges || []).length;
   const streak  = profile.loginStreak || 0;
   const wins    = profile.winCount   || 0;
   const losses  = profile.lossCount  || 0;
+  const earned  = profile.badges || [];
 
-  /* ── XP (fake formula until real scan data available) ── */
-  const xp      = (trades * 25) + (badges * 50) + (streak * 5);
+  /* ── Account XP & Level ── */
+  const xp      = ((wins + losses) * 25) + (badges * 50) + (streak * 5);
   const lvl     = calcLevel(xp);
   const xpCur   = xp - xpForLevel(lvl);
   const xpRange = xpForNextLevel(lvl) - xpForLevel(lvl);
   const xpPct   = xpRange > 0 ? Math.min(100, Math.round((xpCur / xpRange) * 100)) : 100;
 
-  document.getElementById("dashLvl").textContent      = lvl;
-  document.getElementById("dashXpText").textContent   = `${xp.toLocaleString()} / ${xpForNextLevel(lvl).toLocaleString()} XP`;
-  document.getElementById("dashXpFill").style.width   = xpPct + "%";
+  document.getElementById("dashLvl").textContent    = lvl;
+  document.getElementById("dashXpText").textContent = `${xp.toLocaleString()} / ${xpForNextLevel(lvl).toLocaleString()} XP`;
+  document.getElementById("dashXpFill").style.width = xpPct + "%";
 
-  /* ── Scans (fake — placeholder until scan tracking) ── */
-  const fakeScans = trades + 12; // placeholder: trades + some bonus
-  document.getElementById("dashScans").textContent = fakeScans;
+  /* ── Academy XP & Level ── */
+  const acadBadgesEarned = earned.filter(id => ACADEMY_BADGE_IDS.has(id)).length;
+  const acadXp    = acadBadgesEarned * 100;
+  const acadLvl   = calcAcadLevel(acadXp);
+  const acadNext  = ACAD_XP_THRESHOLDS[Math.min(acadLvl, ACAD_XP_THRESHOLDS.length - 1)];
+  const acadCur   = acadXp - ACAD_XP_THRESHOLDS[acadLvl - 1];
+  const acadRange = acadNext - ACAD_XP_THRESHOLDS[acadLvl - 1];
+  const acadPct   = acadRange > 0 ? Math.min(100, Math.round((acadCur / acadRange) * 100)) : 100;
 
-  /* ── Rank (fake — placeholder until leaderboard integration) ── */
+  document.getElementById("dashAcadLvl").textContent    = acadLvl;
+  document.getElementById("dashAcadXpText").textContent = `${acadXp} / ${acadNext} XP`;
+  document.getElementById("dashAcadXpFill").style.width = acadPct + "%";
+
+  /* ── Scans placeholder ── */
+  document.getElementById("dashScans").textContent = trades + 12;
+
+  /* ── Rank placeholder ── */
   document.getElementById("dashRank").textContent = `${Math.max(1, 2400 - wins * 3)} / 17k`;
 
   /* ── Streak ── */

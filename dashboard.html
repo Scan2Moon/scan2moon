@@ -33,7 +33,16 @@
   ═══════════════════════════════════════ -->
   <div id="dashGate">
     <div class="sa-connect-hero">
-      <div class="sa-connect-emoji">🌙</div>
+      <div class="dash-scanner-anim">
+        <div class="scan-ring scan-ring-1"></div>
+        <div class="scan-ring scan-ring-2"></div>
+        <div class="scan-ring scan-ring-3"></div>
+        <div class="scan-sweep"></div>
+        <div class="scan-dot scan-dot-1"></div>
+        <div class="scan-dot scan-dot-2"></div>
+        <div class="scan-dot scan-dot-3"></div>
+        <div class="scan-center">S2M</div>
+      </div>
       <div class="sa-connect-title">YOUR DASHBOARD</div>
       <div class="sa-connect-sub">Connect your Phantom wallet to see your level, XP, badges and stats.</div>
       <button class="sa-wallet-connect-btn" id="dashConnectBtn">
@@ -79,16 +88,39 @@
     <!-- ── STATS ROW ────────────────────────────────── -->
     <div class="dash-stats-row">
 
-      <!-- Level + XP bar -->
+      <!-- Account Level + Academy Level -->
       <div class="dash-stat-card dash-stat-xp">
-        <div class="dash-lvl-row">
-          <span class="dash-lvl-num" id="dashLvl">—</span>
-          <span class="dash-lvl-label">LVL</span>
+        <div class="dash-dual-lvl">
+
+          <!-- Account Level -->
+          <div class="dash-lvl-section">
+            <div class="dash-lvl-type">ACCOUNT</div>
+            <div class="dash-lvl-row">
+              <span class="dash-lvl-num" id="dashLvl">—</span>
+              <span class="dash-lvl-label">LVL</span>
+            </div>
+            <div class="dash-xp-track">
+              <div class="dash-xp-fill" id="dashXpFill" style="width:0%"></div>
+            </div>
+            <div class="dash-xp-text" id="dashXpText">— / — XP</div>
+          </div>
+
+          <div class="dash-lvl-divider"></div>
+
+          <!-- Academy Level -->
+          <div class="dash-lvl-section">
+            <div class="dash-lvl-type" style="color:#ffb432;">ACADEMY</div>
+            <div class="dash-lvl-row">
+              <span class="dash-lvl-num" id="dashAcadLvl" style="color:#ffb432;">—</span>
+              <span class="dash-lvl-label">LVL</span>
+            </div>
+            <div class="dash-xp-track">
+              <div class="dash-xp-fill dash-xp-fill-acad" id="dashAcadXpFill" style="width:0%"></div>
+            </div>
+            <div class="dash-xp-text" id="dashAcadXpText">— / — XP</div>
+          </div>
+
         </div>
-        <div class="dash-xp-track">
-          <div class="dash-xp-fill" id="dashXpFill" style="width:0%"></div>
-        </div>
-        <div class="dash-xp-text" id="dashXpText">— / — XP</div>
       </div>
 
       <!-- Total Scans -->
