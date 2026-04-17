@@ -27,7 +27,8 @@ const BADGE_CATEGORIES = [
   { id: "academy", icon: "🎓", label: "Academy",          color: "#ffb432",  bgColor: "rgba(255,180,50,0.12)",  borderColor: "rgba(255,180,50,0.35)"  },
   { id: "other",   icon: "🌟", label: "Other",            color: "#c084fc",  bgColor: "rgba(192,132,252,0.12)", borderColor: "rgba(192,132,252,0.35)" },
   { id: "pro",     icon: "💎", label: "PRO",              color: "#60a5fa",  bgColor: "rgba(96,165,250,0.12)",  borderColor: "rgba(96,165,250,0.35)"  },
-  { id: "levels",  icon: "⭐", label: "Account Levels",   color: "#ffd700",  bgColor: "rgba(255,215,0,0.12)",   borderColor: "rgba(255,215,0,0.4)"    },
+  { id: "levels",   icon: "⭐", label: "Account Levels",   color: "#ffd700",  bgColor: "rgba(255,215,0,0.12)",   borderColor: "rgba(255,215,0,0.4)"    },
+  { id: "cosmetics",icon: "✨", label: "Cosmetics",        color: "#ff6eb4",  bgColor: "rgba(255,110,180,0.12)", borderColor: "rgba(255,110,180,0.4)"  },
 ];
 
 /* ── Badge definitions ────────────────────────────────────── */
@@ -78,6 +79,14 @@ const BADGE_DEFS = [
   { id: "alpha_caller",  cat: "pro", img: "/badges/alpha_caller.png",  icon: "🎯", name: "Alpha Caller",    desc: "Correctly predict 3 tokens that go 10× before they pump. Real alpha.",          reward: 2.0  },
   { id: "whale_analyst", cat: "pro", img: "/badges/whale_analyst.png", icon: "🐋", name: "Whale Analyst",   desc: "Successfully identify 5 whale wallet patterns using Whale DNA scanner.",         reward: 1.0  },
   { id: "top_10",        cat: "pro", img: "/badges/top_10.png",        icon: "🏆", name: "Top 10",          desc: "Reach the top 10 on the Scan2Moon Leaderboard. Elite trader confirmed.",         reward: 5.0  },
+
+  /* ── Cosmetics (Moon Market) ── */
+  { id: "cosm_moon_aura",    cat: "cosmetics", market: true, img: "/badges/cosm_moon_aura.png",    icon: "🌙", name: "Moon Aura",         desc: "A golden moon aura frame for your profile. Flex your Sol2Moon energy.",            reward: 0   },
+  { id: "cosm_diamond_ape",  cat: "cosmetics", market: true, img: "/badges/cosm_diamond_ape.png",  icon: "💎", name: "Diamond Ape",       desc: "Diamond-studded ape portrait. For those who hold through everything.",             reward: 0   },
+  { id: "cosm_sol_ghost",    cat: "cosmetics", market: true, img: "/badges/cosm_sol_ghost.png",    icon: "👻", name: "Sol Ghost",         desc: "Phantom-style ghost with Solana colours. Silent. Deadly. Profitable.",             reward: 0   },
+  { id: "cosm_pixel_rocket", cat: "cosmetics", market: true, img: "/badges/cosm_pixel_rocket.png", icon: "🚀", name: "Pixel Rocket",      desc: "8-bit pixel rocket blasting off. Old school vibes, new school gains.",             reward: 0   },
+  { id: "cosm_green_king",   cat: "cosmetics", market: true, img: "/badges/cosm_green_king.png",   icon: "📈", name: "Green Candle King", desc: "All green candles, all the time. The market bows to you.",                         reward: 0   },
+  { id: "cosm_degen_crown",  cat: "cosmetics", market: true, img: "/badges/cosm_degen_crown.png",  icon: "👑", name: "Degen Crown",       desc: "The crown of the true degen. Worn by those who survived the trenches and thrived.", reward: 0   },
 
   /* ── Account Levels ── */
   { id: "lvl_1",   cat: "levels", img: "/badges/lvl_1.png",   icon: "🌱", name: "Level 1 — First Step",   desc: "Reach Account Level 1. Every legend starts with a single step.", reward: 0.05 },
@@ -404,12 +413,24 @@ function showDashboard(isDemo = false) {
    HERO PANEL
 ═══════════════════════════════════════════════════════ */
 function renderHero() {
-  const short = wallet.slice(0, 6) + "…" + wallet.slice(-6);
-  const pnl   = profile.totalPnL || 0;
+  const short      = wallet.slice(0, 6) + "…" + wallet.slice(-6);
+  const pnl        = profile.totalPnL || 0;
+  const savedName  = localStorage.getItem("sa_display_name");
+  const savedAvId  = localStorage.getItem("sa_avatar_id");
 
-  document.getElementById("dashName").textContent        = esc(profile.accountName || "Ape Trader");
+  document.getElementById("dashName").textContent        = esc(savedName || profile.accountName || "Ape Trader");
   document.getElementById("dashWalletShort").textContent = short;
   document.getElementById("dashRankBadge").textContent   = rankLabel(pnl);
+
+  /* Avatar — badge image or default emoji */
+  const avEl = document.getElementById("dashAvatar");
+  if (savedAvId) {
+    const b = BADGE_DEFS.find(x => x.id === savedAvId);
+    if (b) {
+      avEl.innerHTML = `<img src="${b.img}" class="dash-avatar-img"
+        onerror="this.parentElement.innerHTML='🦍'" alt="${esc(b.name)}">`;
+    } else { avEl.textContent = "🦍"; }
+  } else { avEl.textContent = "🦍"; }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1150,6 +1171,129 @@ function renderHoldings() {
       </div>`;
   }).join("")}</div>`;
 }
+
+/* ═══════════════════════════════════════════════════════
+   ACCOUNT SETTINGS MODAL
+═══════════════════════════════════════════════════════ */
+window.openAccountSettings = function() {
+  document.getElementById("accountSettingsOverlay")?.remove();
+
+  const earned    = new Set(profile.badges || []);
+  const savedName = localStorage.getItem("sa_display_name") || profile.accountName || "";
+  const savedAvId = localStorage.getItem("sa_avatar_id") || "";
+
+  /* Build avatar picker: default + every earned badge that has an image */
+  const avatarOptions = [
+    { id: "", img: null, icon: "🦍", label: "Default" },
+    ...BADGE_DEFS.filter(b => earned.has(b.id)),
+  ];
+
+  const avatarHtml = avatarOptions.map(b => `
+    <div class="accs-av-option ${b.id === savedAvId ? 'selected' : ''}"
+         id="av-opt-${b.id || 'default'}"
+         onclick="window.selectAvatar('${b.id}')"
+         title="${esc(b.name || 'Default')}">
+      ${b.img
+        ? `<img src="${b.img}" class="accs-av-img"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+           <span class="accs-av-emoji" style="display:none">${b.icon}</span>`
+        : `<span class="accs-av-emoji">${b.icon}</span>`}
+    </div>`).join("");
+
+  const overlay = document.createElement("div");
+  overlay.className = "accs-overlay";
+  overlay.id        = "accountSettingsOverlay";
+  overlay.innerHTML = `
+    <div class="accs-card" id="accountSettingsCard">
+
+      <div class="accs-header">
+        <div class="accs-title">⚙️ ACCOUNT SETTINGS</div>
+        <button class="accs-close" onclick="document.getElementById('accountSettingsOverlay').remove()">✕</button>
+      </div>
+
+      <!-- Display Name -->
+      <div class="accs-section">
+        <div class="accs-section-label">DISPLAY NAME</div>
+        <div class="accs-name-row">
+          <input class="accs-name-input" id="accsNameInput" type="text"
+            maxlength="24" placeholder="Your name…" value="${esc(savedName)}" />
+          <button class="accs-save-btn" onclick="window.saveDisplayName()">Save</button>
+        </div>
+        <div class="accs-name-hint">Max 24 characters</div>
+      </div>
+
+      <!-- Avatar Picker -->
+      <div class="accs-section">
+        <div class="accs-section-label">PROFILE AVATAR</div>
+        <div class="accs-section-sub">Choose from your earned badges</div>
+        <div class="accs-av-grid" id="accsAvatarGrid">
+          ${avatarHtml}
+        </div>
+        ${earned.size === 0 ? `<div class="accs-av-hint">Earn badges to unlock more avatar options!</div>` : ""}
+      </div>
+
+      <!-- Moon Market -->
+      <div class="accs-section accs-market-row">
+        <div class="accs-market-info">
+          <div class="accs-section-label" style="color:#ff6eb4;">🛒 MOON MARKET</div>
+          <div class="accs-section-sub">Buy exclusive cosmetic badges for your profile</div>
+        </div>
+        <div class="accs-soon-chip">COMING SOON</div>
+      </div>
+
+      <!-- Disconnect -->
+      <div class="accs-section accs-disconnect-section">
+        <button class="accs-disconnect-btn" onclick="window.disconnectDashWallet()">
+          🔌 Disconnect Wallet
+        </button>
+        <div class="accs-name-hint" style="text-align:center;margin-top:6px;">Clears your session — your data stays safe on-chain</div>
+      </div>
+
+    </div>`;
+
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+};
+
+window.saveDisplayName = function() {
+  const val = document.getElementById("accsNameInput")?.value.trim();
+  if (!val) return;
+  localStorage.setItem("sa_display_name", val);
+  document.getElementById("dashName").textContent = esc(val);
+  showToast("✅ Name updated!");
+};
+
+window.selectAvatar = function(badgeId) {
+  /* Update selection ring in picker */
+  document.querySelectorAll(".accs-av-option").forEach(el => el.classList.remove("selected"));
+  document.getElementById(`av-opt-${badgeId || "default"}`)?.classList.add("selected");
+
+  /* Save and update hero */
+  if (badgeId) {
+    localStorage.setItem("sa_avatar_id", badgeId);
+    const b   = BADGE_DEFS.find(x => x.id === badgeId);
+    const avEl = document.getElementById("dashAvatar");
+    if (b && avEl) {
+      avEl.innerHTML = `<img src="${b.img}" class="dash-avatar-img"
+        onerror="this.parentElement.innerHTML='🦍'" alt="${esc(b.name)}">`;
+    }
+  } else {
+    localStorage.removeItem("sa_avatar_id");
+    const avEl = document.getElementById("dashAvatar");
+    if (avEl) avEl.textContent = "🦍";
+  }
+  showToast("✅ Avatar updated!");
+};
+
+window.disconnectDashWallet = function() {
+  if (!confirm("Disconnect wallet? Your simulator data stays safe — this just ends your session.")) return;
+  localStorage.removeItem("sa_wallet");
+  localStorage.removeItem("sa_display_name");
+  localStorage.removeItem("sa_avatar_id");
+  if (dashPriceTimer) clearInterval(dashPriceTimer);
+  document.getElementById("accountSettingsOverlay")?.remove();
+  location.reload();
+};
 
 /* ═══════════════════════════════════════════════════════
    LEADERBOARD PREVIEW

@@ -62,11 +62,16 @@
       <!-- dot-grid world map background -->
       <div class="dash-hero-map"></div>
 
-      <!-- share buttons -->
-      <button class="dash-profile-share-btn" id="dashProfileShareBtn"
-        onclick="window.shareProfileCard()" title="Share your stats as an image">
-        📸 Share Stats
-      </button>
+      <!-- hero action buttons -->
+      <div class="dash-hero-btns">
+        <button class="dash-profile-share-btn" id="dashProfileShareBtn"
+          onclick="window.shareProfileCard()" title="Share your stats as an image">
+          📸 Share Stats
+        </button>
+        <button class="dash-accs-btn" onclick="window.openAccountSettings()" title="Account settings">
+          ⚙️ Account
+        </button>
+      </div>
       <button class="dash-share-btn" id="dashShareBtn" title="Copy profile link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
