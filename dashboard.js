@@ -175,9 +175,13 @@ let dashPrices  = {};      /* mint → USD price (live)   */
 let dashPriceTimer = null; /* setInterval handle        */
 
 /* ── Live price fetching ─────────────────────────────────── */
+const VALID_MINT = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
 async function fetchDashPrices() {
   const holdings = profile?.holdings || {};
-  const mints    = Object.keys(holdings).filter(k => (holdings[k]?.amount || 0) > 0.000001);
+  const mints    = Object.keys(holdings).filter(k =>
+    (holdings[k]?.amount || 0) > 0.000001 && VALID_MINT.test(k)
+  );
   if (!mints.length) return;
 
   for (let i = 0; i < mints.length; i += 100) {
@@ -307,10 +311,11 @@ const DEMO_PROFILE = {
   loginStreak:  5,
   badges:       ["first_profit", "win_streak_5", "safe_trader"],
   holdings: {
-    "WIFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1": {
-      name:"dogwifhat",  symbol:"WIF",  amount:15000, totalCostSol:2.10, logo:"" },
-    "SAMOxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2": {
-      name:"Samoyedcoin",symbol:"SAMO", amount:8500,  totalCostSol:1.50, logo:"" },
+    /* Real Solana mints so Jupiter price API can respond in demo mode */
+    "EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm": {
+      name:"dogwifhat",  symbol:"WIF",  amount:15000, totalCostSol:2.10, avgPrice:0.00014, logo:"" },
+    "7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU": {
+      name:"Samoyedcoin",symbol:"SAMO", amount:8500,  totalCostSol:1.50, avgPrice:0.000176, logo:"" },
   },
   trades: [
     { type:"sell", symbol:"BONK",   name:"Bonk",                 pnl:  1.24, pnlPct: "38.5", totalReceivedSol:4.45, timestamp: Date.now() -   3_600_000 },
@@ -636,6 +641,7 @@ function renderNextBadges() {
    BADGE MODAL
 ═══════════════════════════════════════════════════════ */
 window.openBadgeModal = function(id) {
+  if (!profile) return;
   const b        = BADGE_DEFS.find(x => x.id === id);
   if (!b) return;
   const cat      = BADGE_CATEGORIES.find(c => c.id === b.cat);
@@ -1176,6 +1182,10 @@ function renderHoldings() {
    ACCOUNT SETTINGS MODAL
 ═══════════════════════════════════════════════════════ */
 window.openAccountSettings = function() {
+  if (!profile) {
+    showToast("⏳ Dashboard is still loading — please wait a moment.");
+    return;
+  }
   document.getElementById("accountSettingsOverlay")?.remove();
 
   const earned    = new Set(profile.badges || []);
