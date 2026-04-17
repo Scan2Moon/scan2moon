@@ -98,6 +98,24 @@ function rankLabel(pnl) {
   return "💀 Rugged Survivor";
 }
 
+/* ── Badge progress (for "Next to Unlock" strip) ─────────── */
+function badgeProgress(id) {
+  const wins   = profile.winCount    || 0;
+  const bal    = profile.balance     || 10;
+  const streak = profile.loginStreak || 0;
+  switch (id) {
+    case "wins_25":              return { cur: wins,                  max: 25,    label: `${wins} wins`          };
+    case "wins_50":              return { cur: wins,                  max: 50,    label: `${wins} wins`          };
+    case "wins_100":             return { cur: wins,                  max: 100,   label: `${wins} wins`          };
+    case "wins_500":             return { cur: wins,                  max: 500,   label: `${wins} wins`          };
+    case "wins_1000":            return { cur: wins,                  max: 1000,  label: `${wins} wins`          };
+    case "portfolio_100":        return { cur: Math.max(0, bal - 10), max: 10,    label: `${formatSol(bal)} bal` };
+    case "sol2moon_millionaire": return { cur: bal,                   max: 10000, label: `${formatSol(bal)} bal` };
+    case "streak_7":             return { cur: streak,                max: 7,     label: `${streak}d streak`     };
+    default:                     return null;
+  }
+}
+
 /* ── State ────────────────────────────────────────────────── */
 let wallet  = null;
 let profile = null;
@@ -160,12 +178,25 @@ const DEMO_PROFILE = {
   lossCount:    7,
   loginStreak:  5,
   badges:       ["first_profit", "win_streak_5", "safe_trader"],
-  holdings:     {},
+  holdings: {
+    "WIFxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx1": {
+      name:"dogwifhat",  symbol:"WIF",  amount:15000, totalCostSol:2.10, logo:"" },
+    "SAMOxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx2": {
+      name:"Samoyedcoin",symbol:"SAMO", amount:8500,  totalCostSol:1.50, logo:"" },
+  },
   trades: [
-    { type:"sell", symbol:"BONK",  name:"Bonk",      pnl:  1.24, pnlPct:"38.5", timestamp: Date.now() - 3_600_000 },
-    { type:"buy",  symbol:"WIF",   name:"dogwifhat", pnl: undefined,             timestamp: Date.now() - 7_200_000 },
-    { type:"sell", symbol:"POPCAT",name:"Popcat",    pnl: -0.31, pnlPct:"-9.2",  timestamp: Date.now() - 86_400_000 },
-    { type:"sell", symbol:"MEW",   name:"cat in a dogs world", pnl: 2.10, pnlPct:"67.2", timestamp: Date.now() - 172_800_000 },
+    { type:"sell", symbol:"BONK",   name:"Bonk",                 pnl:  1.24, pnlPct: "38.5", totalReceivedSol:4.45, timestamp: Date.now() -   3_600_000 },
+    { type:"buy",  symbol:"WIF",    name:"dogwifhat",                                         totalCostSol:2.10,     timestamp: Date.now() -   7_200_000 },
+    { type:"sell", symbol:"POPCAT", name:"Popcat",                pnl: -0.31, pnlPct: "-9.2", totalReceivedSol:3.04, timestamp: Date.now() -  86_400_000 },
+    { type:"sell", symbol:"MEW",    name:"cat in a dogs world",   pnl:  2.10, pnlPct: "67.2", totalReceivedSol:5.25, timestamp: Date.now() - 172_800_000 },
+    { type:"buy",  symbol:"SAMO",   name:"Samoyedcoin",                                       totalCostSol:1.50,     timestamp: Date.now() - 259_200_000 },
+    { type:"sell", symbol:"JUP",    name:"Jupiter",               pnl:  0.88, pnlPct: "23.1", totalReceivedSol:4.69, timestamp: Date.now() - 345_600_000 },
+    { type:"sell", symbol:"PYTH",   name:"Pyth Network",          pnl: -0.55, pnlPct:"-18.0", totalReceivedSol:2.51, timestamp: Date.now() - 432_000_000 },
+    { type:"sell", symbol:"RAY",    name:"Raydium",               pnl:  0.42, pnlPct: "15.3", totalReceivedSol:3.17, timestamp: Date.now() - 518_400_000 },
+    { type:"sell", symbol:"ORCA",   name:"Orca",                  pnl:  1.67, pnlPct: "44.6", totalReceivedSol:5.41, timestamp: Date.now() - 604_800_000 },
+    { type:"buy",  symbol:"FOXY",   name:"Famous Fox",                                        totalCostSol:0.80,     timestamp: Date.now() - 691_200_000 },
+    { type:"sell", symbol:"MNGO",   name:"Mango",                 pnl: -0.22, pnlPct: "-8.1", totalReceivedSol:2.49, timestamp: Date.now() - 777_600_000 },
+    { type:"sell", symbol:"ATLAS",  name:"Star Atlas",            pnl:  3.40, pnlPct: "82.1", totalReceivedSol:7.54, timestamp: Date.now() - 864_000_000 },
   ],
 };
 
@@ -234,11 +265,14 @@ function showDashboard(isDemo = false) {
   renderHero();
   renderStatsRow();
   renderHighlightStats();
+  renderNextBadges();
   renderBadges();
   renderApeStats();
   renderActivityFeed();
+  renderPnlChart();
   renderTradeHistory();
   renderHoldings();
+  renderLeaderboard();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -361,6 +395,53 @@ window.toggleBadgeCat = function(catId) {
   const wrap = document.getElementById(`dash-cat-${catId}`);
   if (wrap) wrap.classList.toggle("open");
 };
+
+/* ═══════════════════════════════════════════════════════
+   NEXT BADGES TO UNLOCK
+═══════════════════════════════════════════════════════ */
+function renderNextBadges() {
+  const el     = document.getElementById("dashNextBadges");
+  if (!el) return;
+  const earned = new Set(profile.badges || []);
+  const locked = BADGE_DEFS.filter(b => !earned.has(b.id));
+
+  if (!locked.length) {
+    el.innerHTML = `<div style="text-align:center;padding:18px;color:#2cffc9;font-weight:700;font-size:14px;">🎉 All badges earned! You're a legend.</div>`;
+    return;
+  }
+
+  /* Score each locked badge by trackable progress % */
+  const scored = locked.map(b => {
+    const prog = badgeProgress(b.id);
+    const pct  = prog ? Math.min(100, Math.round((prog.cur / prog.max) * 100)) : 0;
+    return { b, prog, pct };
+  }).sort((a, z) => z.pct - a.pct).slice(0, 3);
+
+  el.innerHTML = `<div class="dash-next-row">${scored.map(({ b, prog, pct }) => {
+    const cat       = BADGE_CATEGORIES.find(c => c.id === b.cat);
+    const rewardStr = b.reward >= 1 ? b.reward.toFixed(1) : b.reward.toFixed(2);
+    const progLabel = prog ? `${prog.label} · ${pct}%` : "Complete requirements";
+    return `
+      <div class="dash-next-card" onclick="window.openBadgeModal('${b.id}')">
+        <div class="dash-next-img-wrap">
+          <img class="dash-next-img" src="${b.img}" alt="${esc(b.name)}"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <span class="dash-next-emoji" style="display:none">${b.icon}</span>
+          <div class="dash-next-lock">🔒</div>
+        </div>
+        <div class="dash-next-name">${esc(b.name)}</div>
+        <div class="dash-next-cat" style="color:${cat.color};">${cat.icon} ${cat.label}</div>
+        <div class="dash-next-reward">
+          <img src="${SOL_LOGO}" style="width:11px;height:11px;border-radius:50%;vertical-align:middle;">
+          +${rewardStr} SOL
+        </div>
+        <div class="dash-next-bar-wrap">
+          <div class="dash-next-bar-fill" style="width:${pct}%;background:${cat.color};"></div>
+        </div>
+        <div class="dash-next-prog-label">${progLabel}</div>
+      </div>`;
+  }).join("")}</div>`;
+}
 
 /* ═══════════════════════════════════════════════════════
    BADGE MODAL
@@ -603,6 +684,23 @@ function renderApeStats() {
       <div class="dash-qs-label">${c.label}</div>
       <div class="dash-qs-val" style="color:${c.color}">${c.val}</div>
     </div>`).join("");
+
+  /* ── Donut ring ── */
+  const winPct = total > 0 ? Math.round((wins / total) * 100) : 0;
+  const donutEl = document.getElementById("dashDonutWrap");
+  if (donutEl) {
+    donutEl.innerHTML = `
+      <div class="dash-donut-ring" style="--win-pct:${winPct}">
+        <div class="dash-donut-inner">
+          <div class="dash-donut-val">${winRate}%</div>
+          <div class="dash-donut-lbl">WIN RATE</div>
+        </div>
+      </div>
+      <div class="dash-donut-legend">
+        <span class="dash-donut-dot" style="background:#2cffc9;"></span> WIN ${wins}
+        <span class="dash-donut-dot" style="background:rgba(255,77,109,0.7);margin-left:12px;"></span> LOSE ${losses}
+      </div>`;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -684,6 +782,44 @@ function buildTradeRow(tr) {
       <div class="dash-trade-amt">${amtHtml}</div>
       <div class="dash-trade-pnl">${pnlHtml}</div>
       <div style="font-size:10px;opacity:0.35;white-space:nowrap;">${date}</div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   P/L BAR CHART  (last 10 sells)
+═══════════════════════════════════════════════════════ */
+function renderPnlChart() {
+  const el    = document.getElementById("dashPnlChart");
+  if (!el) return;
+
+  const sells = (profile.trades || [])
+    .filter(t => t.type === "sell" && t.pnl !== undefined)
+    .slice(0, 10)
+    .reverse(); /* oldest → newest, left → right */
+
+  if (sells.length < 2) { el.style.display = "none"; return; }
+  el.style.display = "block";
+
+  const vals   = sells.map(t => parseFloat(t.pnl));
+  const maxAbs = Math.max(...vals.map(Math.abs), 0.001);
+
+  el.innerHTML = `
+    <div class="pnl-chart-title">P/L PER SELL · LAST ${sells.length} TRADES</div>
+    <div class="pnl-chart-bars">
+      ${sells.map(t => {
+        const v    = parseFloat(t.pnl);
+        const pct  = Math.max(4, Math.round((Math.abs(v) / maxAbs) * 100));
+        const pos  = v >= 0;
+        const sym  = (t.symbol || t.name || "").slice(0, 5);
+        return `
+          <div class="pnl-bar-col">
+            <div class="pnl-bar-wrap">
+              <div class="pnl-bar ${pos ? 'pos' : 'neg'}" style="height:${pct}%"
+                title="${pos ? '+' : ''}${formatSol(v)} — ${esc(t.symbol || t.name || '')}"></div>
+            </div>
+            <div class="pnl-bar-label">${esc(sym)}</div>
+          </div>`;
+      }).join("")}
     </div>`;
 }
 
@@ -791,6 +927,156 @@ function renderHoldings() {
       </div>`;
   }).join("")}</div>`;
 }
+
+/* ═══════════════════════════════════════════════════════
+   LEADERBOARD PREVIEW
+═══════════════════════════════════════════════════════ */
+const FAKE_LEADERBOARD = [
+  { rank:1, name:"MoonWalker",   level:12, winRate:78.4, pnl: 847.3 },
+  { rank:2, name:"DeFi Phantom", level:11, winRate:71.2, pnl: 612.8 },
+  { rank:3, name:"SolNinja",     level:10, winRate:68.9, pnl: 489.5 },
+  { rank:4, name:"ApeKing",      level: 9, winRate:65.1, pnl: 334.2 },
+  { rank:5, name:"RiskHunter",   level: 8, winRate:61.7, pnl: 218.6 },
+];
+
+function renderLeaderboard() {
+  const el = document.getElementById("dashLeaderboard");
+  if (!el) return;
+
+  const wins    = profile.winCount   || 0;
+  const losses  = profile.lossCount  || 0;
+  const total   = wins + losses;
+  const winRate = total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0;
+  const pnl     = profile.totalPnL   || 0;
+  const xp      = (total * 25) + ((profile.badges || []).length * 50) + ((profile.loginStreak || 0) * 5);
+  const lvl     = calcLevel(xp);
+
+  /* Insert user at correct position vs fake list */
+  const userRank  = FAKE_LEADERBOARD.filter(e => e.pnl > pnl).length + 1;
+  const userEntry = { rank: userRank, name: profile.accountName || "You", level: lvl, winRate, pnl, isUser: true };
+
+  /* Build display rows: top 5 fakes + user if outside top 5 */
+  const rows     = FAKE_LEADERBOARD.slice(0, 5).map(e => ({ ...e, isUser: false }));
+  const inTop5   = userRank <= 5;
+  if (inTop5) {
+    rows.splice(userRank - 1, 0, userEntry);
+    rows.length = Math.min(rows.length, 6);
+  }
+  const medals = ["🥇","🥈","🥉"];
+
+  const rowHtml = r => `
+    <div class="dash-lb-row ${r.isUser ? 'is-user' : ''}">
+      <div class="dash-lb-rank">${r.rank <= 3 ? medals[r.rank - 1] : `#${r.rank}`}</div>
+      <div class="dash-lb-name">${r.isUser
+        ? `<span style="color:#2cffc9;">▶ ${esc(r.name)}</span>`
+        : esc(r.name)}</div>
+      <div class="dash-lb-lvl">LVL ${r.level}</div>
+      <div class="dash-lb-wr" style="color:${r.winRate>=50?'#2cffc9':'#ff4d6d'}">${r.winRate}%</div>
+      <div class="dash-lb-pnl" style="color:${r.pnl>=0?'#2cffc9':'#ff4d6d'}">${r.pnl>=0?'+':''}${formatSol(r.pnl)}</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div class="dash-lb-table">
+      <div class="dash-lb-header"><div>RANK</div><div>TRADER</div><div>LVL</div><div>WIN%</div><div>P/L</div></div>
+      ${rows.map(rowHtml).join("")}
+      ${!inTop5 ? `
+        <div class="dash-lb-sep">• • •</div>
+        ${rowHtml(userEntry)}` : ""}
+    </div>
+    <div class="dash-lb-footer">Full leaderboard — <span style="color:rgba(255,180,50,0.75);">coming soon</span></div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SHAREABLE PROFILE CARD
+═══════════════════════════════════════════════════════ */
+async function buildProfileShareCard() {
+  const wins    = profile.winCount  || 0;
+  const losses  = profile.lossCount || 0;
+  const total   = wins + losses;
+  const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "0";
+  const pnl     = profile.totalPnL  || 0;
+  const xp      = (total * 25) + ((profile.badges || []).length * 50) + ((profile.loginStreak || 0) * 5);
+  const lvl     = calcLevel(xp);
+  const short   = wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "";
+  const badges  = (profile.badges || []).length;
+  const best    = (profile.trades || [])
+    .filter(t => t.type === "sell" && (t.pnl || 0) > 0)
+    .reduce((a, b) => (b.pnl > (a?.pnl || 0) ? b : a), null);
+
+  document.getElementById("profileShareCard")?.remove();
+
+  const card = document.createElement("div");
+  card.id = "profileShareCard";
+  card.innerHTML = `
+    <div class="psc-header">
+      <span class="psc-logo">🌙 SCAN2MOON</span>
+      <span class="psc-tag">TRADER PROFILE</span>
+    </div>
+    <div class="psc-avatar">🦍</div>
+    <div class="psc-name">${esc(profile.accountName || "Ape Trader")}</div>
+    <div class="psc-rank-badge">${rankLabel(pnl)}</div>
+    <div class="psc-level">LVL ${lvl}</div>
+    <div class="psc-stats-grid">
+      <div class="psc-stat">
+        <div class="psc-stat-val" style="color:${pnl>=0?'#2cffc9':'#ff4d6d'}">${pnl>=0?'+':''}${formatSol(pnl)}</div>
+        <div class="psc-stat-lbl">ALL-TIME P/L</div>
+      </div>
+      <div class="psc-stat">
+        <div class="psc-stat-val" style="color:${parseFloat(winRate)>=50?'#2cffc9':'#ff4d6d'}">${winRate}%</div>
+        <div class="psc-stat-lbl">WIN RATE</div>
+      </div>
+      <div class="psc-stat">
+        <div class="psc-stat-val">${total}</div>
+        <div class="psc-stat-lbl">TRADES</div>
+      </div>
+      <div class="psc-stat">
+        <div class="psc-stat-val" style="color:#ffb432">${badges}</div>
+        <div class="psc-stat-lbl">BADGES</div>
+      </div>
+    </div>
+    ${best ? `<div class="psc-best">🏆 Best trade: <strong>+${formatSol(best.pnl)}</strong> on ${esc(best.symbol || best.name || "")}</div>` : ""}
+    <div class="psc-wallet">${short}</div>
+    <div class="psc-footer">scan2moon.com · We don't shill. We show data. 🌙</div>`;
+
+  document.body.appendChild(card);
+  await new Promise(r => setTimeout(r, 140));
+
+  const canvas = await html2canvas(card, {
+    backgroundColor: "#040f0d", scale: 2,
+    useCORS: true, allowTaint: true, logging: false,
+  });
+  card.remove();
+  return canvas;
+}
+
+window.shareProfileCard = async function() {
+  const btn = document.getElementById("dashProfileShareBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Saving…"; }
+  try {
+    const canvas = await buildProfileShareCard();
+    /* Auto-download */
+    const link = document.createElement("a");
+    link.download = "Scan2Moon-Profile.png";
+    link.href     = canvas.toDataURL("image/png");
+    link.click();
+    /* Open tweet */
+    const pnl     = profile.totalPnL || 0;
+    const wins    = profile.winCount  || 0;
+    const losses  = profile.lossCount || 0;
+    const total   = wins + losses;
+    const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "0";
+    const xp      = (total * 25) + ((profile.badges || []).length * 50) + ((profile.loginStreak || 0) * 5);
+    const lvl     = calcLevel(xp);
+    const tweet   = `📊 My Scan2Moon Stats:\n\n${rankLabel(pnl)} · LVL ${lvl}\n💰 P/L: ${pnl>=0?'+':''}${formatSol(pnl)}\n🎯 Win Rate: ${winRate}%\n🏅 Badges: ${(profile.badges||[]).length}\n\nWe don't shill. We show data. 🌙\nhttps://scan2moon.com`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank");
+    showToast("✅ Profile card saved — tweet is opening!");
+  } catch (e) {
+    console.error("Profile share error:", e);
+    showToast("⚠️ Could not save — try again.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "📸 Share Stats"; }
+  }
+};
 
 /* ═══════════════════════════════════════════════════════
    HELPERS

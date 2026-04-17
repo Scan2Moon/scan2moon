@@ -53,8 +53,12 @@
       <!-- dot-grid world map background -->
       <div class="dash-hero-map"></div>
 
-      <!-- share button -->
-      <button class="dash-share-btn" id="dashShareBtn" title="Share profile">
+      <!-- share buttons -->
+      <button class="dash-profile-share-btn" id="dashProfileShareBtn"
+        onclick="window.shareProfileCard()" title="Share your stats as an image">
+        📸 Share Stats
+      </button>
+      <button class="dash-share-btn" id="dashShareBtn" title="Copy profile link">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
           <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
@@ -115,6 +119,14 @@
       <!-- injected by dashboard.js -->
     </div>
 
+    <!-- ── NEXT BADGES TO UNLOCK ────────────────────── -->
+    <div class="panel">
+      <div class="panel-title">🎯 NEXT BADGES TO UNLOCK</div>
+      <div class="panel-body">
+        <div id="dashNextBadges"><!-- injected by dashboard.js --></div>
+      </div>
+    </div>
+
     <!-- ── BADGES ──────────────────────────────────── -->
     <div class="panel">
       <div class="panel-title">🏅 BADGES</div>
@@ -149,6 +161,9 @@
           <div class="dash-qs-grid" id="dashApeStats">
             <!-- injected by dashboard.js -->
           </div>
+          <div id="dashDonutWrap" class="dash-donut-wrap">
+            <!-- injected by dashboard.js -->
+          </div>
           <a href="safe-ape.html" class="dash-cta-btn">Open Simulator →</a>
         </div>
       </div>
@@ -172,6 +187,7 @@
       <div class="panel">
         <div class="panel-title">📋 TRADE HISTORY</div>
         <div class="panel-body">
+          <div id="dashPnlChart" class="dash-pnl-chart"></div>
           <div id="dashTradeHistory"><!-- injected by dashboard.js --></div>
           <button class="dash-cta-btn" style="margin-top:10px;width:100%;cursor:pointer;"
             onclick="window.openTradeHistoryModal()">
@@ -191,6 +207,14 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- ── LEADERBOARD PREVIEW ───────────────────────── -->
+    <div class="panel">
+      <div class="panel-title">🏆 LEADERBOARD</div>
+      <div class="panel-body">
+        <div id="dashLeaderboard"><!-- injected by dashboard.js --></div>
+      </div>
     </div>
 
   </div><!-- /#dashApp -->
