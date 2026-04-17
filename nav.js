@@ -65,7 +65,7 @@ export function renderNav() {
               </a>
             </div>
           </div>
-          <div class="nav-dropdown ${isLearn ? 'active' : ''}" id="dd-learn" style="display:none;">
+          <div class="nav-dropdown ${isLearn ? 'active' : ''}" id="dd-learn">
             <button class="nav-link nav-drop-btn ${isLearn ? 'active' : ''}">
               <span class="nav-icon">🎓</span> <span data-i18n="nav_learn2moon">${t("nav_learn2moon")}</span> <span class="nav-chevron">▾</span>
             </button>
