@@ -13,6 +13,8 @@ const REDIS_TTL = 90; // seconds — 90s keeps Birdeye rate limits comfortable
 let _schemaReady = false;
 
 // ── Birdeye fetch with 429 retry ──────────────────────────────────────────
+// Note: 429 = rate limited (retryable after backoff)
+//       400 "Compute units usage limit exceeded" = quota exhausted (NOT retryable — daily/monthly cap)
 async function birdeyeFetch(url, headers, retries = 2) {
   const res = await fetch(url, { headers, signal: AbortSignal.timeout(8000) });
   if (res.status === 429 && retries > 0) {
@@ -20,6 +22,19 @@ async function birdeyeFetch(url, headers, retries = 2) {
     console.log(`[scanToken] 429 rate-limit — retrying in ${wait}ms (${retries} left)`);
     await new Promise(r => setTimeout(r, wait));
     return birdeyeFetch(url, headers, retries - 1);
+  }
+  // 400 with compute-units message: mark so caller knows to use stale fallback immediately
+  if (res.status === 400) {
+    const txt = await res.text();
+    if (txt.includes("Compute units")) {
+      const err = new Error(`QUOTA_EXCEEDED: ${txt.slice(0, 200)}`);
+      err.quotaExceeded = true;
+      throw err;
+    }
+    // other 400: re-pack so caller handles it
+    const e2 = new Error(`Birdeye 400: ${txt.slice(0, 200)}`);
+    e2.status = 400;
+    throw e2;
   }
   return res;
 }
@@ -220,9 +235,11 @@ exports.handler = async (event) => {
     }
   } catch {}
 
-  // L2: Neon — pull pair_created_at so phase 2 can be skipped even in full mode
-  //   (lite mode uses it too so the score is accurate for previously-seen tokens)
+  // L2: Neon — fetch full cached row for two purposes:
+  //   a) pair_created_at lets us skip Birdeye phase 2 (saves 2 API calls)
+  //   b) full row is our emergency fallback if Birdeye quota is exhausted
   let cachedCreatedAt = null;
+  let neonRow         = null;
   let sql;
   try {
     sql = getDb();
@@ -230,12 +247,56 @@ exports.handler = async (event) => {
       await sql`ALTER TABLE token_cache ADD COLUMN IF NOT EXISTS pair_created_at BIGINT`;
       _schemaReady = true;
     }
-    const rows = await sql`SELECT pair_created_at FROM token_cache WHERE mint = ${mint} LIMIT 1`;
-    if (rows.length && rows[0].pair_created_at) {
-      cachedCreatedAt = Number(rows[0].pair_created_at);
-      console.log("[scanToken] pair_created_at from Neon:", new Date(cachedCreatedAt).toISOString());
+    const rows = await sql`
+      SELECT mint, symbol, name, logo_uri, price_usd, volume_24h, market_cap, pair_created_at
+      FROM   token_cache
+      WHERE  mint = ${mint}
+      LIMIT  1
+    `;
+    if (rows.length) {
+      neonRow = rows[0];
+      if (neonRow.pair_created_at) {
+        cachedCreatedAt = Number(neonRow.pair_created_at);
+        console.log("[scanToken] pair_created_at from Neon:", new Date(cachedCreatedAt).toISOString());
+      }
     }
-  } catch (e) { console.warn("[scanToken] Neon createdAt lookup:", e.message); }
+  } catch (e) { console.warn("[scanToken] Neon lookup:", e.message); }
+
+  // ── Helper: build minimal pair from stale Neon row so the UI shows something
+  //    when Birdeye quota is exhausted. Cached in Redis for 30s so next tick retries Birdeye.
+  function staleResponseFromNeon(row) {
+    const stalePair = {
+      priceUsd:    String(row.price_usd  ?? 0),
+      priceNative: "0",
+      priceChange: { m5: null, h1: null, h6: null, h24: null },
+      liquidity:   { usd: 0 },
+      marketCap:   row.market_cap  ?? 0,
+      fdv:         row.market_cap  ?? 0,
+      volume:      { h1: 0, h24: row.volume_24h ?? 0 },
+      txns:        { h1: { buys: 0, sells: 0 }, h24: { buys: 0, sells: 0 } },
+      pairCreatedAt: row.pair_created_at ?? null,
+      baseToken:   { symbol: row.symbol ?? "UNKNOWN", name: row.name ?? "Unknown Token" },
+      info:        { imageUrl: row.logo_uri ?? null },
+      dexId:       "birdeye",
+      holders:     0,
+      uniqueWallets24h: 0,
+    };
+    const staleMeta = {
+      name:      row.name      ?? "Unknown Token",
+      symbol:    row.symbol    ?? "UNKNOWN",
+      logo:      row.logo_uri  ?? null,
+      marketCap: row.market_cap ?? 0,
+    };
+    return {
+      pair:         stalePair,
+      meta:         staleMeta,
+      isPumpFun:    String(mint).toLowerCase().endsWith("pump"),
+      hasGraduated: false,
+      solPrice:     0,
+      mint,
+      stale:        true,
+    };
+  }
 
   // L3: Birdeye
   //   lite mode  → always skip phase 2 (use Neon value if available, else null/35)
@@ -246,10 +307,30 @@ exports.handler = async (event) => {
     result = await fetchBirdeyeData(mint, cachedCreatedAt, skipPhase2);
   } catch (e) {
     console.error("[scanToken] Birdeye error:", e.message);
+
+    // ── Quota exhausted / hard failure → serve stale Neon data rather than blank 502 ──
+    if (neonRow) {
+      console.log(`[scanToken] Birdeye down — serving stale Neon data for ${mint.slice(0, 8)}…`);
+      const staleResult = staleResponseFromNeon(neonRow);
+      // Cache with short TTL (30s) so next cycle retries Birdeye quickly
+      try { await redisSet(cacheKey, staleResult, 30); } catch {}
+      return {
+        statusCode: 200,
+        headers: { ...CORS, "X-Cache": "STALE-NEON" },
+        body: JSON.stringify({ ok: true, ...staleResult }),
+      };
+    }
+
+    // No Neon data either — true hard failure
+    const isQuotaErr = e.quotaExceeded || e.message?.includes("QUOTA_EXCEEDED");
     return {
-      statusCode: 502,
+      statusCode: isQuotaErr ? 503 : 502,
       headers: CORS,
-      body: JSON.stringify({ ok: false, error: "Token data unavailable", detail: e.message }),
+      body: JSON.stringify({
+        ok: false,
+        error: isQuotaErr ? "Birdeye compute quota exceeded — upgrade plan or wait for reset" : "Token data unavailable",
+        detail: e.message,
+      }),
     };
   }
 

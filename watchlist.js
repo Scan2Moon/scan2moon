@@ -410,6 +410,7 @@ async function fetchBirdeyeScore(mint, staggerMs = 0) {
         pair:         data.pair,
         isPumpFun:    data.isPumpFun    ?? false,
         hasGraduated: data.hasGraduated ?? false,
+        stale:        data.stale        ?? false,  // true when Birdeye quota exhausted, data from Neon
         ts: Date.now(),
       };
       _wlBirdeyeCache[mint] = entry;
@@ -839,6 +840,32 @@ function _fdEscKey(e) {
   if (e.key === "Escape") closeFavDashboard();
 }
 
+/* ── Stale-data banner: shown when Birdeye quota is exhausted ── */
+function _fdShowStaleBanner(show = true) {
+  let el = document.getElementById("fdStaleBanner");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "fdStaleBanner";
+    el.style.cssText = [
+      "display:none",
+      "position:sticky",
+      "top:0",
+      "z-index:10",
+      "background:rgba(255,180,0,0.12)",
+      "border-bottom:1px solid rgba(255,180,0,0.30)",
+      "color:rgba(255,220,100,0.9)",
+      "font-size:12px",
+      "text-align:center",
+      "padding:6px 12px",
+      "letter-spacing:0.03em",
+    ].join(";");
+    el.textContent = "⚠️  Live data unavailable — showing last saved prices (Birdeye quota exceeded). Charts and P/L may be outdated.";
+    const overlay = document.getElementById("favDashOverlay");
+    if (overlay) overlay.prepend(el);
+  }
+  el.style.display = show ? "block" : "none";
+}
+
 /* ── Max-9 toast ── */
 function _fdShowMaxToast() {
   const el = document.getElementById("fdMaxToast");
@@ -919,6 +946,7 @@ async function _fdBuild(favMints) {
   /* ── Fetch initial pair data sequentially ─────────────────────────────────
      Most tokens will already be in _wlBirdeyeCache from liveRefreshTick.
      Sequential ensures we don't burst Birdeye if caches are cold.           */
+  let anyStale = false;
   for (const t of tokens) {
     const isCached = _wlBirdeyeCache[t.mint] &&
                      (Date.now() - _wlBirdeyeCache[t.mint].ts) < WL_BIRDEYE_TTL;
@@ -927,11 +955,14 @@ async function _fdBuild(favMints) {
       if (!isCached) await new Promise(r => setTimeout(r, 1100));
       continue;
     }
+    if (entry.stale) anyStale = true;
     _fdPairMap[t.mint]  = t.mint;
     _fdPairData[t.mint] = entry.pair;
     _fdUpdateCard(t.mint, entry.pair, t);
     if (!isCached) await new Promise(r => setTimeout(r, 1100));
   }
+  /* Show/hide stale warning banner */
+  _fdShowStaleBanner(anyStale);
 
   /* ── Create LightweightCharts candlestick chart for each card ──────────────
      ohlcvData and scanToken share the same Birdeye API key rate limit.
@@ -1308,6 +1339,7 @@ async function _fdLiveTickInner() {
   if (!favMints.length) return;
   const list = loadWatchlist();
   const now  = Math.floor(Date.now() / 1000);
+  let tickStale = false;
 
   for (const mint of favMints) {
     if (!_fdOpen) break;
@@ -1320,6 +1352,7 @@ async function _fdLiveTickInner() {
       if (!isCached) await new Promise(r => setTimeout(r, 1100));
       continue;
     }
+    if (entry.stale) tickStale = true;
     const pair        = entry.pair;
     const storedToken = list.find(t => t.mint === mint);
 
@@ -1355,6 +1388,9 @@ async function _fdLiveTickInner() {
     /* Only delay if this was a real API call — cache hits are instant */
     if (!isCached) await new Promise(r => setTimeout(r, 1100));
   }
+
+  /* Update stale banner — hide when live data is back */
+  _fdShowStaleBanner(tickStale);
 }
 
 /* Timeframe label → seconds (used by live tick to snap to bucket) */
