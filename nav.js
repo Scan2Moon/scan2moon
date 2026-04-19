@@ -9,7 +9,7 @@ export function renderNav() {
 
   const isScanner  = ["risk-scanner.html","portfolio.html","whale-dna.html"].includes(currentPage);
   const isRadar    = currentPage === "entry-radar.html";
-  const isInsights = ["watchlist.html","about.html","leaderboard.html","safe-ape.html","safe-ape-profile.html"].includes(currentPage);
+  const isInsights = ["watchlist.html","about.html","leaderboard.html","safe-ape.html"].includes(currentPage);
   const isLearn    = ["guide.html","guide-risk-scanner.html","dashboard.html","tasks.html","academy.html"].includes(currentPage);
 
   const navHTML = `
@@ -84,17 +84,17 @@ export function renderNav() {
                   <div class="drop-sub" data-i18n="nav_learn_guides_sub">${t("nav_learn_guides_sub")}</div>
                 </div>
               </a>
-              <a href="tasks.html" class="nav-drop-item ${currentPage === 'tasks.html' ? 'drop-active' : ''}" style="opacity:0.45;pointer-events:none;">
+              <a href="tasks.html" class="nav-drop-item ${currentPage === 'tasks.html' ? 'drop-active' : ''}">
                 <span class="drop-icon">✅</span>
                 <div>
-                  <div class="drop-label" data-i18n="nav_learn_tasks">${t("nav_learn_tasks")} <span style="font-size:9px;background:rgba(207,255,244,0.08);color:rgba(207,255,244,0.4);border:1px solid rgba(207,255,244,0.15);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">SOON</span></div>
+                  <div class="drop-label" data-i18n="nav_learn_tasks">${t("nav_learn_tasks")} <span style="font-size:9px;background:rgba(44,255,201,0.1);color:#2cffc9;border:1px solid rgba(44,255,201,0.25);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
                   <div class="drop-sub" data-i18n="nav_learn_tasks_sub">${t("nav_learn_tasks_sub")}</div>
                 </div>
               </a>
-              <a href="academy.html" class="nav-drop-item ${currentPage === 'academy.html' ? 'drop-active' : ''}" style="opacity:0.45;pointer-events:none;">
+              <a href="academy.html" class="nav-drop-item ${currentPage === 'academy.html' ? 'drop-active' : ''}">
                 <span class="drop-icon">🏛️</span>
                 <div>
-                  <div class="drop-label" data-i18n="nav_learn_academy">${t("nav_learn_academy")} <span style="font-size:9px;background:rgba(207,255,244,0.08);color:rgba(207,255,244,0.4);border:1px solid rgba(207,255,244,0.15);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">SOON</span></div>
+                  <div class="drop-label" data-i18n="nav_learn_academy">${t("nav_learn_academy")} <span style="font-size:9px;background:rgba(44,255,201,0.1);color:#2cffc9;border:1px solid rgba(44,255,201,0.25);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
                   <div class="drop-sub" data-i18n="nav_learn_academy_sub">${t("nav_learn_academy_sub")}</div>
                 </div>
               </a>
@@ -112,7 +112,7 @@ export function renderNav() {
                   <div class="drop-sub" data-i18n="nav_watchlist_sub">${t("nav_watchlist_sub")}</div>
                 </div>
               </a>
-              <a href="safe-ape.html" class="nav-drop-item ${currentPage === 'safe-ape.html' || currentPage === 'safe-ape-profile.html' ? 'drop-active' : ''}" style="border:1px solid rgba(255,180,50,0.2);background:rgba(255,180,50,0.04);">
+              <a href="safe-ape.html" class="nav-drop-item ${currentPage === 'safe-ape.html' ? 'drop-active' : ''}" style="border:1px solid rgba(255,180,50,0.2);background:rgba(255,180,50,0.04);">
                 <span class="drop-icon">🦍</span>
                 <div>
                   <div class="drop-label" style="color:#ffb432;" data-i18n="nav_safe_ape">${t("nav_safe_ape")} <span style="font-size:9px;background:rgba(255,180,50,0.2);color:#ffb432;border:1px solid rgba(255,180,50,0.4);border-radius:6px;padding:1px 6px;margin-left:4px;vertical-align:middle;">NEW</span></div>

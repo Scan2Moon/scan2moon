@@ -1386,9 +1386,10 @@
   overflow: hidden;
 }
 
-/* Lightweight Charts div — fill wrapper fully */
+/* Lightweight Charts container — flex column so toolbar + chart inner div stack */
 #saLiveChart {
-  display: block;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
   min-height: 350px;
@@ -1573,4 +1574,495 @@
 .s2m-token-icon--footer {
   width: 22px;
   height: 22px;
+}
+
+/* ═══════════════════════════════════════
+   DRAWING TOOLBAR  (candleChart.js V4.0)
+═══════════════════════════════════════ */
+.sa-draw-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: rgba(4,18,12,0.92);
+  border-bottom: 1px solid rgba(0,255,163,0.12);
+  flex-wrap: wrap;
+  user-select: none;
+}
+
+.sa-draw-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sa-draw-sep {
+  width: 1px;
+  height: 22px;
+  background: rgba(0,255,163,0.15);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+.sa-draw-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 28px;
+  background: rgba(0,255,163,0.04);
+  border: 1px solid rgba(0,255,163,0.12);
+  border-radius: 5px;
+  color: rgba(207,255,244,0.55);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+  padding: 0;
+  line-height: 1;
+}
+
+.sa-draw-btn svg {
+  width: 14px;
+  height: 14px;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.8;
+}
+
+.sa-draw-btn:hover {
+  background: rgba(0,255,163,0.10);
+  border-color: rgba(0,255,163,0.30);
+  color: rgba(207,255,244,0.85);
+}
+
+.sa-draw-btn.active {
+  background: rgba(0,255,163,0.14);
+  border-color: rgba(0,255,163,0.55);
+  color: #00ffa3;
+  box-shadow: 0 0 8px rgba(0,255,163,0.18);
+}
+
+/* Buy marker button */
+.sa-draw-btn.sa-draw-buy {
+  color: #00e07a;
+  border-color: rgba(0,224,122,0.25);
+  background: rgba(0,224,122,0.06);
+  font-size: 10px;
+}
+.sa-draw-btn.sa-draw-buy:hover,
+.sa-draw-btn.sa-draw-buy.active {
+  background: rgba(0,224,122,0.14);
+  border-color: rgba(0,224,122,0.55);
+  box-shadow: 0 0 8px rgba(0,224,122,0.20);
+}
+
+/* Sell marker button */
+.sa-draw-btn.sa-draw-sell {
+  color: #ff4d6a;
+  border-color: rgba(255,77,106,0.25);
+  background: rgba(255,77,106,0.06);
+  font-size: 10px;
+}
+.sa-draw-btn.sa-draw-sell:hover,
+.sa-draw-btn.sa-draw-sell.active {
+  background: rgba(255,77,106,0.14);
+  border-color: rgba(255,77,106,0.55);
+  box-shadow: 0 0 8px rgba(255,77,106,0.20);
+}
+
+/* Clear-all button */
+.sa-draw-btn.sa-draw-clear {
+  color: rgba(255,120,80,0.60);
+  border-color: rgba(255,120,80,0.18);
+}
+.sa-draw-btn.sa-draw-clear:hover {
+  background: rgba(255,100,60,0.12);
+  border-color: rgba(255,100,60,0.45);
+  color: #ff7c50;
+  box-shadow: 0 0 8px rgba(255,100,60,0.18);
+}
+
+/* Hint text shown right of the buttons */
+.sa-draw-hint {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(207,255,244,0.35);
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  padding-right: 4px;
+  transition: color 0.2s;
+  font-family: 'Courier New', monospace;
+}
+
+/* When a drawing mode is active, hint glows slightly */
+.sa-draw-btn.active ~ .sa-draw-hint,
+.sa-draw-toolbar[data-active-tool]:not([data-active-tool="cursor"]) .sa-draw-hint {
+  color: rgba(0,255,163,0.55);
+}
+
+/* ── Responsive: collapse hint on small screens ── */
+@media (max-width: 480px) {
+  .sa-draw-hint { display: none; }
+  .sa-draw-toolbar { gap: 2px; padding: 4px 6px; }
+  .sa-draw-btn { width: 26px; height: 24px; }
+}
+
+/* ═══════════════════════════════════════
+   EXPAND CHART BUTTON  (in chart header)
+═══════════════════════════════════════ */
+.sa-chart-expand-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid rgba(44,255,201,0.22);
+  background: rgba(44,255,201,0.06);
+  color: rgba(207,255,244,0.55);
+  letter-spacing: 0.4px;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.sa-chart-expand-btn svg {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.sa-chart-expand-btn:hover {
+  background: rgba(44,255,201,0.14);
+  border-color: #2cffc9;
+  color: #2cffc9;
+  box-shadow: 0 0 10px rgba(44,255,201,0.18);
+}
+.sa-chart-expand-btn:hover svg {
+  opacity: 1;
+}
+
+/* ═══════════════════════════════════════
+   FULLSCREEN CHART MODAL  (sa-fcm-*)
+═══════════════════════════════════════ */
+.sa-fcm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: rgba(2,8,6,0.88);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  animation: fcmFadeIn 0.18s ease;
+}
+
+@keyframes fcmFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sa-fcm-inner {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1600px;
+  margin: 12px;
+  background: #040e0a;
+  border: 1px solid rgba(44,255,201,0.18);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 80px rgba(0,255,163,0.10), 0 24px 80px rgba(0,0,0,0.6);
+  animation: fcmSlideUp 0.22s cubic-bezier(0.22,1,0.36,1);
+}
+
+@keyframes fcmSlideUp {
+  from { transform: translateY(20px) scale(0.98); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+/* ── Modal header bar ── */
+.sa-fcm-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: rgba(4,14,10,0.95);
+  border-bottom: 1px solid rgba(44,255,201,0.10);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.sa-fcm-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #cffff4;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.sa-fcm-live-dot {
+  font-size: 8px;
+  color: #00e07a;
+  letter-spacing: 1px;
+  font-weight: 700;
+  animation: fcmPulse 2s infinite;
+}
+
+@keyframes fcmPulse {
+  0%, 100% { opacity: 0.6; }
+  50%       { opacity: 1; }
+}
+
+.sa-fcm-price-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Reuse sa-price-main / sa-price-change styles inside the modal */
+.sa-fcm-price-row .sa-price-main {
+  font-size: 20px !important;
+}
+
+.sa-fcm-tfs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.sa-fcm-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(44,255,201,0.18);
+  background: rgba(255,80,80,0.06);
+  color: rgba(207,255,244,0.5);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.sa-fcm-close:hover {
+  background: rgba(255,60,60,0.18);
+  border-color: rgba(255,80,80,0.5);
+  color: #ff7070;
+}
+
+/* ── Chart body ── */
+.sa-fcm-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  background: #040d0b;
+}
+
+#saFcmChart {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .sa-fcm-inner     { margin: 6px; border-radius: 10px; }
+  .sa-fcm-header    { gap: 8px; padding: 8px 12px; }
+  .sa-fcm-title     { font-size: 12px; }
+  .sa-fcm-price-row { display: none; }
+  #saFcmChart       { min-height: 300px; }
+}
+
+@media (max-width: 480px) {
+  .sa-fcm-tfs .sa-tf-btn { padding: 3px 7px; font-size: 10px; }
+}
+
+/* ═══════════════════════════════════════
+   XP PILL  (in hero bar)
+═══════════════════════════════════════ */
+.sa-xp-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  padding: 8px 16px;
+  background: rgba(171,159,242,0.08);
+  border: 1px solid rgba(171,159,242,0.3);
+  border-radius: 10px;
+}
+
+.sa-xp-label { font-size: 10px; opacity: 0.5; letter-spacing: 0.5px; }
+.sa-xp-val   { font-size: 18px; font-weight: 800; color: #ab9ff2; text-shadow: 0 0 10px rgba(171,159,242,0.4); }
+
+/* XP flash toast */
+.sa-xp-toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: linear-gradient(135deg, rgba(171,159,242,0.2), rgba(6,32,26,0.97));
+  border: 1px solid rgba(171,159,242,0.55);
+  border-radius: 12px;
+  padding: 12px 24px;
+  font-size: 15px;
+  font-weight: 800;
+  color: #ab9ff2;
+  box-shadow: 0 0 30px rgba(171,159,242,0.35);
+  z-index: 9999;
+  pointer-events: none;
+  animation: xpToastIn 0.3s ease;
+}
+
+@keyframes xpToastIn {
+  from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.9); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0)    scale(1);   }
+}
+
+/* ═══════════════════════════════════════
+   JUPITER IFRAME MODAL  (sim-jup-*)
+═══════════════════════════════════════ */
+.sim-jup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  background: rgba(0,0,0,0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  animation: simJupFadeIn 0.2s ease;
+}
+
+@keyframes simJupFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sim-jup-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 480px;
+  background: linear-gradient(160deg, #071f1a, #030e0b);
+  border: 1px solid rgba(171,159,242,0.35);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 0 60px rgba(171,159,242,0.18), 0 24px 60px rgba(0,0,0,0.6);
+  animation: simJupSlideUp 0.22s cubic-bezier(0.22,1,0.36,1);
+}
+
+@keyframes simJupSlideUp {
+  from { transform: translateY(24px) scale(0.97); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
+}
+
+.sim-jup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: rgba(171,159,242,0.06);
+  border-bottom: 1px solid rgba(171,159,242,0.15);
+  flex-shrink: 0;
+}
+
+.sim-jup-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #ab9ff2;
+  letter-spacing: 0.5px;
+}
+
+.sim-jup-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(171,159,242,0.25);
+  background: rgba(171,159,242,0.06);
+  color: #ab9ff2;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+}
+
+.sim-jup-close:hover {
+  background: rgba(255,60,60,0.18);
+  border-color: rgba(255,80,80,0.5);
+  color: #ff7070;
+}
+
+.sim-jup-note {
+  padding: 10px 18px;
+  font-size: 11px;
+  color: rgba(171,159,242,0.6);
+  background: rgba(171,159,242,0.04);
+  border-bottom: 1px solid rgba(171,159,242,0.1);
+  text-align: center;
+}
+
+.sim-jup-iframe-wrap {
+  flex: 1;
+  min-height: 520px;
+  position: relative;
+  background: #1a1035;
+}
+
+.sim-jup-iframe-wrap iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 520px;
+  border: none;
+  display: block;
+}
+
+/* JUP button in trade panel */
+.sa-jup-btn {
+  width: 100%;
+  padding: 11px;
+  background: linear-gradient(135deg, rgba(171,159,242,0.2), rgba(124,92,191,0.25));
+  border: 1px solid rgba(171,159,242,0.4);
+  border-radius: 10px;
+  color: #ab9ff2;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  letter-spacing: 0.3px;
+  transition: all 0.2s;
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.sa-jup-btn:hover {
+  background: linear-gradient(135deg, rgba(171,159,242,0.32), rgba(124,92,191,0.38));
+  border-color: rgba(171,159,242,0.7);
+  box-shadow: 0 0 18px rgba(171,159,242,0.25);
+}
+
+@media (max-width: 600px) {
+  .sim-jup-panel { max-width: 100%; border-radius: 14px 14px 0 0; }
+  .sim-jup-overlay { align-items: flex-end; padding: 0; }
+  .sim-jup-iframe-wrap { min-height: 420px; }
+  .sim-jup-iframe-wrap iframe { min-height: 420px; }
 }

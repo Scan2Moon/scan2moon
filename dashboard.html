@@ -65,10 +65,13 @@
       <!-- hero action buttons -->
       <div class="dash-hero-btns">
         <button class="dash-profile-share-btn" id="dashProfileShareBtn"
-          onclick="window.shareProfileCard()" title="Share your stats as an image">
+          title="Share your stats as an image">
           📸 Share Stats
         </button>
-        <button class="dash-accs-btn" onclick="window.openAccountSettings()" title="Account settings">
+        <button class="dash-accs-btn dash-card-btn" id="dashCardBtn" title="View & customise your profile card">
+          🪪 Account Card
+        </button>
+        <button class="dash-accs-btn" id="dashAccsBtn" title="Account settings">
           ⚙️ Account
         </button>
       </div>
@@ -81,13 +84,21 @@
 
       <!-- avatar + name -->
       <div class="dash-hero-identity">
-        <div class="dash-avatar" id="dashAvatar">🦍</div>
+        <div class="dash-avatar-frame" id="dashAvatarFrame">
+          <div class="dash-avatar" id="dashAvatar">🦍</div>
+        </div>
         <div class="dash-hero-info">
           <div class="dash-hero-name" id="dashName">—</div>
           <div class="dash-hero-wallet" id="dashWalletShort">—</div>
           <div class="dash-hero-rank-badge" id="dashRankBadge">⭐ Loading…</div>
         </div>
       </div>
+    </div>
+
+    <!-- ── DAILY REWARD BANNER ──────────────────────── -->
+    <div class="sa-daily-banner" id="dashDailyBanner" style="display:none;">
+      <span>🎁 Daily reward available! +5 XP &amp; SOL bonus</span>
+      <button class="sa-daily-claim-btn" id="dashDailyClaimBtn">Claim Daily Reward</button>
     </div>
 
     <!-- ── STATS ROW ────────────────────────────────── -->
@@ -155,6 +166,9 @@
     <div class="dash-highlight-row" id="dashHighlightRow">
       <!-- injected by dashboard.js -->
     </div>
+
+    <!-- ── MISSIONS TEASER ───────────────────────────── -->
+    <div id="dashMissionTeaser"><!-- injected by dashboard.js --></div>
 
     <!-- ── NEXT BADGES TO UNLOCK ────────────────────── -->
     <div class="panel">
@@ -244,6 +258,25 @@
         </div>
       </div>
 
+    </div>
+
+    <!-- ── SCANNER STATS ────────────────────────────── -->
+    <div class="panel">
+      <div class="panel-title">🔍 SCANNER STATS</div>
+      <div class="panel-body">
+        <div id="dashScannerStats"><!-- injected by dashboard.js --></div>
+        <a href="index.html" class="dash-cta-btn" style="margin-top:12px;">
+          Open Scanner →
+        </a>
+      </div>
+    </div>
+
+    <!-- ── ACADEMY — CERTIFICATES ────────────────────── -->
+    <div class="panel dash-academy-panel">
+      <div class="panel-title">🎓 ACADEMY CERTIFICATES</div>
+      <div class="panel-body">
+        <div id="dashAcademyPlaceholder"><!-- injected by dashboard.js --></div>
+      </div>
     </div>
 
     <!-- ── LEADERBOARD PREVIEW ───────────────────────── -->

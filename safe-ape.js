@@ -16,10 +16,14 @@ import { applyTranslations, t } from "./i18n.js";
 import { callRpc }                      from "./rpc.js";
 import { addToWatchlist, isOnWatchlist } from "./watchlist.js";
 
-const DEX_API     = "https://api.dexscreener.com/latest/dex/tokens/";
-const SIM_API     = "/.netlify/functions/simulator";
-const LB_API      = "/.netlify/functions/leaderboard";
-const GECKO_API   = "https://api.geckoterminal.com/api/v2/networks/solana/pools/";
+const DEX_API       = "https://api.dexscreener.com/latest/dex/tokens/";
+const SIM_API       = "/.netlify/functions/simulator";
+const LB_API        = "/.netlify/functions/leaderboard";
+const GECKO_API     = "https://api.geckoterminal.com/api/v2/networks/solana/pools/";
+const PRICE_ONLY_API = "/.netlify/functions/priceOnly";
+const JUP_REF       = "49h527zlp56g";
+const SA_FAST_MS    = 3000;   /* priceOnly ticker interval — max 12 Birdeye calls/min */
+const SA_SLOW_MS    = 30000;  /* full DexScreener refresh interval */
 
 /* ── Security helpers ───────────────────────────────────────────────────
    esc()      – HTML-escapes any string before injecting into innerHTML.
@@ -75,7 +79,8 @@ const TF_GECKO = {
   "5m":  { path: "minute", agg: 5,  limit: 200 },  /* ~16 h */
   "15m": { path: "minute", agg: 15, limit: 200 },  /* ~2 d  */
   "1h":  { path: "hour",   agg: 1,  limit: 200 },  /* ~8 d  */
-  "4h":  { path: "hour",   agg: 4,  limit: 250 },  /* ~6 wk */
+  "4h":  { path: "hour",   agg: 4,  limit: 250 },  /* ~6 wk  */
+  "12h": { path: "hour",   agg: 12, limit: 200 },  /* ~3 mo  */
   "1d":  { path: "day",    agg: 1,  limit: 500 },  /* ~16 mo — covers most tokens */
   "max": { path: "day",    agg: 1,  limit: 1000 }, /* all-time: max daily candles   */
 };
@@ -88,7 +93,7 @@ const TICK_BUFFER_MAX = 2000; /* ~50 min of 1.5 s ticks per token */
 const _tickBuffer     = {};   /* mint → tick array                  */
 const _TF_MS = {
   "1m":  60000,   "5m":  300000,  "15m": 900000,
-  "1h":  3600000, "4h":  14400000,"1d":  86400000, "max": 86400000,
+  "1h":  3600000, "4h":  14400000,"12h": 43200000, "1d":  86400000, "max": 86400000,
 };
 
 function _storeTick(mint, price, vol1h) {
@@ -122,11 +127,13 @@ function _buildOhlcvFromTicks(mint, tf) {
 }
 
 /* ── Timers ── */
-let tokenPollTimer     = null;
-let portfolioPollTimer = null;
-let pnlTickTimer       = null;
+let tokenPollTimer       = null;
+let portfolioPollTimer   = null;
+let pnlTickTimer         = null;
+let _saChartFastInterval = null;  /* 3s priceOnly ticker for live candle */
+let _saChartSlowInterval = null;  /* 30s DexScreener poll for full data  */
 
-const TOKEN_POLL_MS = 1500; /* poll DexScreener every 1.5s — max safe rate */
+const TOKEN_POLL_MS = 30000; /* full DexScreener poll every 30s (was 1.5s) */
 
 /* ── State ── */
 let wallet       = null;
@@ -564,13 +571,15 @@ async function initSimulator() {
    TIMERS
    ============================================================ */
 function stopAllTimers() {
-  clearInterval(tokenPollTimer);     tokenPollTimer     = null;
-  clearInterval(portfolioPollTimer); portfolioPollTimer = null;
-  clearInterval(pnlTickTimer);       pnlTickTimer       = null;
+  clearInterval(tokenPollTimer);       tokenPollTimer       = null;
+  clearInterval(portfolioPollTimer);   portfolioPollTimer   = null;
+  clearInterval(pnlTickTimer);         pnlTickTimer         = null;
+  _saStopChartTicker();
 }
 
 function stopTokenTimers() {
   clearInterval(tokenPollTimer); tokenPollTimer = null;
+  _saStopChartTicker();
 }
 
 /* ============================================================
@@ -586,6 +595,10 @@ function updateStaticUI() {
   document.getElementById("heroBalance").textContent  = balDisplay;
   document.getElementById("tradeBalance").textContent = balDisplay;
   document.getElementById("heroStreak").textContent   = `🔥 Streak: ${profile.loginStreak || 0}`;
+  const xpEl = document.getElementById("heroXp");
+  if (xpEl) xpEl.textContent = (profile.tradeXp || 0).toLocaleString();
+  const xpBadge = document.getElementById("saPortfolioXpBadge");
+  if (xpBadge) xpBadge.textContent = `⚡ ${(profile.tradeXp || 0).toLocaleString()} XP`;
   renderPortfolio();
   renderRecentTrades();
 }
@@ -635,10 +648,69 @@ async function claimDaily() {
 /* ============================================================
    REAL-TIME POLLING — 8s for active token, 20s for portfolio
    ============================================================ */
-function startTokenPoll(mint) {
-  clearInterval(tokenPollTimer);
+/* ── Fast chart ticker: priceOnly (Birdeye) every 3s → chart tick ────── */
+async function _saChartFastTick(mint) {
+  if (!mint || !candleChart) return;
+  try {
+    const res = await fetch(`${PRICE_ONLY_API}?mint=${encodeURIComponent(mint)}`,
+                            { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return;
+    const pxData = await res.json();
+    if (!pxData.ok || !(pxData.price > 0)) return;
+    const price = pxData.price;
+
+    /* EMA spike filter */
+    if (!_priceEmas[mint] || _priceEmas[mint] <= 0) _priceEmas[mint] = price;
+    const dev = Math.abs(price - _priceEmas[mint]) / _priceEmas[mint];
+    if (dev > 0.35) {
+      _priceEmas[mint] = _priceEmas[mint] * 0.90 + price * 0.10;
+      livePrices[mint] = _priceEmas[mint];
+      return;
+    }
+    _priceEmas[mint] = _priceEmas[mint] * 0.75 + price * 0.25;
+    livePrices[mint] = price;
+
+    /* Rug detection */
+    if (!_peakPrices[mint] || price > _peakPrices[mint]) _peakPrices[mint] = price;
+    if (!_rugTriggered[mint] && _peakPrices[mint] > 0) {
+      const drawdown = (_peakPrices[mint] - price) / _peakPrices[mint];
+      if (drawdown >= 0.60 && currentToken?.mint === mint) {
+        _rugTriggered[mint] = true;
+        showRugOverlay(drawdown);
+      }
+    }
+
+    /* Tick the chart — vol spread across 3s ticks (1h vol / ticks-per-hour) */
+    const vol1h = currentToken?.pair?.volume?.h1 || 0;
+    candleChart.tick(price, vol1h / 1200); /* 1200 ticks/hr at 3s each */
+
+    /* Update price display + trade info */
+    if (currentToken?.pair) updatePriceHeader(currentToken.pair, price);
+    updateLivePnl(price);
+    updateBuyInfo();
+    updateSellInfo();
+    flashLiveIndicator();
+  } catch { /* non-critical */ }
+}
+
+function _saStartChartTicker(mint) {
+  _saStopChartTicker();
+  if (!mint) return;
+  /* Immediate first tick then every 3s */
+  _saChartFastTick(mint);
+  _saChartFastInterval = setInterval(() => _saChartFastTick(mint), SA_FAST_MS);
+  /* Slow full-pair refresh every 30s */
   pollActivePair(mint);
-  tokenPollTimer = setInterval(() => pollActivePair(mint), TOKEN_POLL_MS);
+  _saChartSlowInterval = setInterval(() => pollActivePair(mint), SA_SLOW_MS);
+}
+
+function _saStopChartTicker() {
+  clearInterval(_saChartFastInterval); _saChartFastInterval = null;
+  clearInterval(_saChartSlowInterval); _saChartSlowInterval = null;
+}
+
+function startTokenPoll(mint) {
+  _saStartChartTicker(mint);
 }
 
 async function pollActivePair(mint) {
@@ -696,21 +768,14 @@ async function pollActivePair(mint) {
       riskScore              = currentToken.riskScore;
     }
 
-    /* ── Feed tick to candlestick chart ──
-       vol1h is the 1-hour USD volume. We want the volume contribution for
-       this single 1.5 s poll tick so the live candle accumulates to roughly
-       the correct per-candle volume when compared to historical bars.
-       Ticks per hour = 3600 / 1.5 = 2400 → divide vol1h by 2400. */
-    if (candleChart) {
-      candleChart.tick(price, vol1h / 2400);
-    }
+    /* Chart tick is handled by the 3s fast ticker (_saChartFastTick).
+       The slow poll just refreshes pair metadata / risk / signals. */
 
     updatePriceHeader(pair, price);
     updateRiskPanel(pair);
     updateMarketSignals(pair);
     updateBuyInfo();
     updateSellInfo();
-    flashLiveIndicator();
 
   } catch (e) { console.warn("Token poll failed:", e); }
 }
@@ -764,15 +829,11 @@ function startPnlTick() {
   pnlTickTimer = setInterval(() => {
     if (currentToken) {
       const price = livePrices[currentToken.mint];
-      if (price) {
-        updateLivePnl(price);
-        /* Feed price to chart every 200ms — keeps live candle close updated smoothly */
-        if (candleChart) candleChart.tick(price, 0);
-      }
+      if (price) updateLivePnl(price);
     }
     /* Always update portfolio P/L cards for all holdings */
     updatePortfolioPnlCards();
-  }, 200); /* 200ms = 5 ticks/second — smooth candle + P/L updates */
+  }, 200); /* 200ms = 5 ticks/second — smooth P/L updates */
 }
 
 function flashLiveIndicator() {
@@ -1000,10 +1061,13 @@ async function initChart(t) {
 
   /* Feed current price as first tick for live candle */
   const price = livePrices[t.mint] || parseFloat(t.pair.priceUsd || "0");
-  if (price > 0) candleChart.tick(price, (t.pair.volume?.h1 || 0) / 2400);
+  if (price > 0) candleChart.tick(price, (t.pair.volume?.h1 || 0) / 1200);
 
   /* Plot B/S markers for any previous trades on this token */
   if (profile?.trades) candleChart.setTradeMarkers(profile.trades, t.mint);
+
+  /* Start the two-speed live ticker now that the chart is loaded */
+  _saStartChartTicker(t.mint);
 }
 
 /* ============================================================
@@ -1199,16 +1263,42 @@ function calcRiskScore(pair, top10Pct = 0) {
 window.searchToken = async function() {
   const mint = document.getElementById("saTokenInput").value.trim();
   if (!mint) { showToast("Paste a token mint address first!"); return; }
+
+  /* Basic Solana address sanity check (base58, 32-44 chars) */
+  if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(mint)) {
+    showToast("⚠️ That doesn't look like a valid Solana mint address.");
+    return;
+  }
+
   const btn = document.getElementById("saSearchBtn");
   btn.disabled = true; btn.textContent = "⏳ Scanning…";
   clearTerminal();
   try {
-    // Fetch DEX market data and on-chain holder data in parallel for speed
+    /* Fetch DEX market data and on-chain holder data in parallel.
+       Use a 9-second AbortSignal so a hung connection doesn't block forever. */
     const [res, holderData] = await Promise.all([
-      fetch(`${DEX_API}${mint}`),
+      fetch(`${DEX_API}${mint}`, { signal: AbortSignal.timeout(9000) }),
       fetchTop10Pct(mint)
     ]);
-    const data = await res.json();
+
+    /* Specific status codes before we try to parse JSON */
+    if (!res.ok) {
+      if (res.status === 429) {
+        showToast("⚠️ Rate limited by DexScreener — wait a moment and try again.");
+      } else {
+        showToast(`⚠️ Token lookup failed (HTTP ${res.status}). Try again shortly.`);
+      }
+      return;
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      showToast("⚠️ Unexpected response from DexScreener. Try again.");
+      return;
+    }
+
     const pair = pickBestPair(mint, data.pairs);
     if (!pair) { showToast("⚠️ No market data found for this token."); return; }
     const price = parseFloat(pair.priceUsd || "0");
@@ -1222,7 +1312,13 @@ window.searchToken = async function() {
     startTokenPoll(mint);
     /* Push a history entry so browser Back returns to Your Holdings, not another page */
     history.pushState({ saView: "token", mint }, "", "#token");
-  } catch { showToast("⚠️ Failed to load token. Check the mint address."); }
+  } catch (e) {
+    console.error("searchToken error:", e);
+    const msg = e?.name === "TimeoutError" || e?.name === "AbortError"
+      ? "⚠️ Token lookup timed out. Check your internet connection."
+      : "⚠️ Failed to load token. Check the mint address.";
+    showToast(msg);
+  }
   finally { btn.disabled = false; btn.textContent = "🔍 Analyse Token"; }
 };
 
@@ -1239,6 +1335,137 @@ function clearTerminal() {
 window.clearTerminal = clearTerminal;
 
 /* ============================================================
+   FULLSCREEN CHART MODAL
+   ============================================================ */
+let _fcmChart    = null;   /* CandleChart instance inside the modal     */
+let _fcmTf       = "5m";   /* active timeframe inside the modal         */
+let _fcmReqId    = 0;      /* abort stale loads when TF switches quickly */
+let _fcmPriceTick = null;  /* setInterval for price row updates          */
+
+window.openChartModal = async function() {
+  if (!currentToken) return;
+  const modal = document.getElementById("saChartModal");
+  if (!modal) return;
+
+  /* Reset and show overlay */
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";  /* prevent page scroll behind modal */
+
+  /* Sync TF with the main chart */
+  _fcmTf = currentTf;
+
+  /* Highlight the active TF button */
+  _fcmSyncTfBtns(_fcmTf);
+
+  /* Token name */
+  const nameEl = document.getElementById("saFcmTokenName");
+  if (nameEl) nameEl.textContent = `${currentToken.name} (${currentToken.symbol})`;
+
+  /* Build the CandleChart inside the modal */
+  if (_fcmChart) { _fcmChart.destroy(); _fcmChart = null; }
+  _fcmChart = new CandleChart("saFcmChart");
+  _fcmChart.setToken(currentToken.name, currentToken.symbol);
+  _fcmChart.setTimeframe(_fcmTf);
+  _fcmChart.startLoading();
+
+  /* Load OHLCV */
+  await _fcmLoadCandles();
+
+  /* Live price row */
+  _fcmUpdatePriceRow();
+  clearInterval(_fcmPriceTick);
+  _fcmPriceTick = setInterval(_fcmUpdatePriceRow, 1500);
+
+  /* ESC to close */
+  document.addEventListener("keydown", _fcmEscHandler);
+};
+
+window.closeChartModal = function() {
+  const modal = document.getElementById("saChartModal");
+  if (modal) modal.style.display = "none";
+  document.body.style.overflow = "";
+  document.removeEventListener("keydown", _fcmEscHandler);
+  clearInterval(_fcmPriceTick);
+  if (_fcmChart) { _fcmChart.destroy(); _fcmChart = null; }
+};
+
+/* Click on the dark backdrop (not the inner panel) → close */
+window._fcmBgClick = function(e) {
+  if (e.target === document.getElementById("saChartModal")) window.closeChartModal();
+};
+
+function _fcmEscHandler(e) {
+  if (e.key === "Escape") window.closeChartModal();
+}
+
+async function _fcmLoadCandles() {
+  if (!currentToken || !_fcmChart) return;
+  const myId = ++_fcmReqId;
+
+  const pairAddress = currentToken.pair?.pairAddress;
+  const liveP = livePrices[currentToken.mint] || parseFloat(currentToken.pair?.priceUsd || "0");
+
+  let loaded = false;
+  if (pairAddress) {
+    const ohlcv = await fetchOhlcv(pairAddress, _fcmTf, liveP);
+    if (myId !== _fcmReqId || !_fcmChart) return; /* stale — user switched TF */
+    if (ohlcv && ohlcv.length > 0) {
+      _fcmChart.loadCandles(ohlcv);
+      loaded = true;
+    }
+  }
+  if (!loaded) {
+    const tickOhlcv = _buildOhlcvFromTicks(currentToken.mint, _fcmTf);
+    if (tickOhlcv && _fcmChart) { _fcmChart.loadCandles(tickOhlcv); loaded = true; }
+  }
+  if (!loaded && _fcmChart) _fcmChart.loadCandles([]);
+
+  /* Seed first tick */
+  if (_fcmChart && liveP > 0) {
+    _fcmChart.tick(liveP, (currentToken.pair?.volume?.h1 || 0) / 2400);
+  }
+}
+
+function _fcmUpdatePriceRow() {
+  if (!currentToken || !_fcmChart) return;
+  const price = livePrices[currentToken.mint] || parseFloat(currentToken.pair?.priceUsd || "0");
+  const pc24  = currentToken.pair?.priceChange?.h24 ?? 0;
+  const cl    = pc24 >= 0 ? "#2cffc9" : "#ff4d6d";
+  const el    = document.getElementById("saFcmPriceRow");
+  if (el) {
+    el.innerHTML = `
+      <span class="sa-price-main" style="color:${cl}">${formatPrice(price)}</span>
+      <span class="sa-price-change" style="background:${pc24>=0?'rgba(44,255,201,0.12)':'rgba(255,77,109,0.12)'};color:${cl}">
+        ${pc24>=0?"+":""}${pc24.toFixed(2)}%
+      </span>`;
+  }
+  /* Feed live tick to the modal chart */
+  if (_fcmChart && price > 0) {
+    _fcmChart.tick(price, (currentToken.pair?.volume?.h1 || 0) / 2400);
+  }
+}
+
+function _fcmSyncTfBtns(activeTf) {
+  document.querySelectorAll("[data-fcm-tf]").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.fcmTf === activeTf);
+  });
+}
+
+/* Wire up modal TF buttons */
+document.addEventListener("DOMContentLoaded", () => {
+  document.querySelectorAll("[data-fcm-tf]").forEach(btn => {
+    btn.addEventListener("click", async () => {
+      if (!_fcmChart) return;
+      _fcmTf = btn.dataset.fcmTf;
+      _fcmSyncTfBtns(_fcmTf);
+      _fcmChart.setTimeframe(_fcmTf);
+      _fcmChart.startLoading();
+      await _fcmLoadCandles();
+    });
+  });
+});
+
+/* ============================================================
    TOKEN HEADER
    ============================================================ */
 /* ── Watchlist helpers ── */
@@ -1252,9 +1479,9 @@ function fmtUsdShort(n) {
 
 function toggleWatchlistFromApe() {
   if (!currentToken) return;
-  const t    = currentToken;
-  const pair = t.pair;
-  const mint = t.mint;
+  const tok  = currentToken;
+  const pair = tok.pair;
+  const mint = tok.mint;
 
   const liqUsd  = pair?.liquidity?.usd ?? 0;
   const mcapUsd = pair?.fdv ?? pair?.marketCap ?? 0;
@@ -1264,21 +1491,21 @@ function toggleWatchlistFromApe() {
   const txCount = buys + sells;
   const avgTx   = txCount > 0 ? fmtUsdShort(vol24 / txCount) : "N/A";
 
-  const riskScore = t.riskScore ?? 0;
+  const riskScore = tok.riskScore ?? 0;
   const riskLevel = riskScore >= 65 ? "LOW RUG RISK"
                   : riskScore >= 45 ? "MODERATE RISK"
                   : "HIGH RUG RISK";
 
   const entry = {
     mint,
-    name:       t.name   || "Unknown",
-    symbol:     t.symbol || "",
-    logo:       t.logo   || null,
+    name:       tok.name   || "Unknown",
+    symbol:     tok.symbol || "",
+    logo:       tok.logo   || null,
     totalScore: riskScore,
     riskLevel,
     liquidity:  fmtUsdShort(liqUsd),
     marketCap:  fmtUsdShort(mcapUsd),
-    top10:      t.holderData?.pct != null ? t.holderData.pct.toFixed(1) + "%" : "N/A",
+    top10:      tok.holderData?.pct != null ? tok.holderData.pct.toFixed(1) + "%" : "N/A",
     avgTxSize:  avgTx,
     scannedAt:  new Date().toISOString(),
   };
@@ -1305,14 +1532,14 @@ function toggleWatchlistFromApe() {
 
 window._saToggleWl = toggleWatchlistFromApe; /* expose for inline onclick */
 
-function renderTokenHeader(t) {
-  const logoUrl = t.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}` : "https://placehold.co/52x52";
-  const sm = safeMint(t.mint);
+function renderTokenHeader(tok) {
+  const logoUrl = tok.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(tok.logo)}` : "https://placehold.co/52x52";
+  const sm = safeMint(tok.mint);
   document.getElementById("saTokenHeader").innerHTML = `
     <img class="sa-token-logo" src="${logoUrl}" onerror="this.src='https://placehold.co/52x52'" />
     <div style="flex:1;min-width:0;">
-      <div class="sa-token-name">${esc(t.name)} <span style="opacity:0.5;font-size:14px">(${esc(t.symbol)})</span></div>
-      <div class="sa-token-symbol">${t("sa_risk_score_lbl")} <strong style="color:${t.riskScore>=65?'#2cffc9':t.riskScore>=45?'#ffd166':'#ff4d6d'}">${t.riskScore}/100</strong>
+      <div class="sa-token-name">${esc(tok.name)} <span style="opacity:0.5;font-size:14px">(${esc(tok.symbol)})</span></div>
+      <div class="sa-token-symbol">${t("sa_risk_score_lbl")} <strong style="color:${tok.riskScore>=65?'#2cffc9':tok.riskScore>=45?'#ffd166':'#ff4d6d'}">${tok.riskScore}/100</strong>
         <span style="font-size:9px;opacity:0.35;font-weight:400;letter-spacing:1px;margin-left:8px;">⬤ LIVE · 1.5s</span>
       </div>
       <div class="sa-token-mint">${esc(sm)}</div>
@@ -1321,8 +1548,8 @@ function renderTokenHeader(t) {
       <a href="https://dexscreener.com/solana/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">📊 DexScreener</a>
       <a href="https://solscan.io/token/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">🔎 Solscan</a>
       <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${sm}')" class="sa-token-link">🛡️ Full Scan</a>
-      <button id="saWlBtn" class="sa-token-link sa-wl-btn ${isOnWatchlist(t.mint) ? 'sa-wl-active' : ''}" onclick="window._saToggleWl()">
-        ${isOnWatchlist(t.mint) ? t("sa_wl_added") : t("sa_wl_add")}
+      <button id="saWlBtn" class="sa-token-link sa-wl-btn ${isOnWatchlist(tok.mint) ? 'sa-wl-active' : ''}" onclick="window._saToggleWl()">
+        ${isOnWatchlist(tok.mint) ? t("sa_wl_added") : t("sa_wl_add")}
       </button>
     </div>
   `;
@@ -1331,37 +1558,37 @@ function renderTokenHeader(t) {
 /* ============================================================
    RISK GATE
    ============================================================ */
-function showRiskGate(t) {
+function showRiskGate(tok) {
   document.getElementById("saRiskGate").style.display       = "block";
   document.getElementById("saTradingContent").style.display = "none";
   document.getElementById("saRiskGateMsg").innerHTML = `
-    This token's Scan2Moon Risk Score is <strong style="color:#ff4d6d">${t.riskScore}/100</strong> — ${t("sa_risk_gate_p1")}<br/><br/>
+    This token's Scan2Moon Risk Score is <strong style="color:#ff4d6d">${tok.riskScore}/100</strong> — ${t("sa_risk_gate_p1")}<br/><br/>
     ${t("sa_risk_gate_p2")}<br/><br/>
     <strong>${t("sa_risk_gate_p3")}</strong>
   `;
   document.getElementById("saRiskProceedBtn").onclick = () => {
     document.getElementById("saRiskGate").style.display = "none";
-    showTradingContent(t);
+    showTradingContent(tok);
   };
 }
 
 /* ============================================================
    TRADING CONTENT
    ============================================================ */
-function showTradingContent(t) {
+function showTradingContent(tok) {
   document.getElementById("saTradingContent").style.display = "block";
-  updateRiskPanel(t.pair);
-  updateMarketSignals(t.pair);
-  renderHoldersPanel(t);
-  renderPriceRow(t.pair);
+  updateRiskPanel(tok.pair);
+  updateMarketSignals(tok.pair);
+  renderHoldersPanel(tok);
+  renderPriceRow(tok.pair);
   updateTradeTab();
   /* Clear any rug overlay/banner from the previous token */
   document.getElementById("saRugOverlay")?.remove();
   document.getElementById("saRugBanner")?.remove();
   /* Reset rug state for the new token so detection starts fresh */
-  delete _peakPrices[t.mint];
-  delete _rugTriggered[t.mint];
-  initChart(t);
+  delete _peakPrices[tok.mint];
+  delete _rugTriggered[tok.mint];
+  initChart(tok);
 }
 
 /* ============================================================
@@ -1369,8 +1596,8 @@ function showTradingContent(t) {
    Uses real on-chain data when available (holderData from fetchTop10Pct),
    falls back to estimated distribution for tokens where RPC failed.
    ============================================================ */
-function renderHoldersPanel(t) {
-  const hd      = t.holderData;
+function renderHoldersPanel(tok) {
+  const hd      = tok.holderData;
   const hasReal = hd && hd.accounts && hd.accounts.length > 0;
 
   let holders, total, isEstimated;
@@ -1390,7 +1617,7 @@ function renderHoldersPanel(t) {
     isEstimated = false;
   } else {
     /* ── Fallback: estimated distribution based on liquidity ── */
-    const liq  = t.pair.liquidity?.usd ?? 0;
+    const liq  = tok.pair.liquidity?.usd ?? 0;
     const base = liq < 10000 ? 70 : liq < 50000 ? 50 : 30;
     const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
     const ra    = () => { const f = Array.from({length:44}, () => chars[Math.floor(Math.random()*chars.length)]).join(""); return f.slice(0,4)+"…"+f.slice(-4); };
@@ -1659,6 +1886,7 @@ window.executeSell = async function() {
       _receivedSol = _curValSol * _fraction * (1 - slippage);
     }
     showToast(`✅ Sold ${formatAmount(actualAmount)} ${currentToken.symbol} — received ${formatSol(_receivedSol)}`);
+    if (data.trade?.xpEarned > 0) setTimeout(() => showXpToast(data.trade.xpEarned), 600);
     showBadgeToasts(data.newBadges);
     showDebrief(data.trade,"sell",currentToken.riskScore);
     registerInLeaderboard(wallet);
@@ -1674,6 +1902,55 @@ window.closeDebrief    = () => { document.getElementById("debriefModal").style.d
 window.disconnectWallet = disconnectWallet;
 window.saStartFresh     = saStartFresh;
 
+/* ============================================================
+   JUPITER IFRAME MODAL
+   Opens jup.ag/swap/SOL-{mint} with referral code inside an iframe.
+   Clicking the backdrop closes it.
+   ============================================================ */
+window.openJupModal = function() {
+  if (!currentToken) return;
+  const modal = document.getElementById("simJupModal");
+  const iframe = document.getElementById("simJupIframe");
+  if (!modal || !iframe) return;
+  const mint = safeMint(currentToken.mint);
+  const jupUrl = `https://jup.ag/swap/SOL-${mint}?referralCode=${JUP_REF}`;
+  iframe.src = jupUrl;
+  modal.style.display = "flex";
+  document.body.style.overflow = "hidden";
+  document.addEventListener("keydown", _simJupEscHandler);
+};
+
+window.closeJupModal = function() {
+  const modal  = document.getElementById("simJupModal");
+  const iframe = document.getElementById("simJupIframe");
+  if (modal)  modal.style.display = "none";
+  if (iframe) iframe.src = "";
+  document.body.style.overflow = "";
+  document.removeEventListener("keydown", _simJupEscHandler);
+};
+
+function _simJupEscHandler(e) {
+  if (e.key === "Escape") window.closeJupModal();
+}
+
+window._simJupBgClick = function(e) {
+  if (e.target === document.getElementById("simJupModal")) window.closeJupModal();
+};
+
+/* ============================================================
+   XP TOAST — shown after a sell earns XP
+   ============================================================ */
+function showXpToast(xp) {
+  const old = document.getElementById("saXpToast");
+  if (old) old.remove();
+  const el = document.createElement("div");
+  el.id = "saXpToast";
+  el.className = "sa-xp-toast";
+  el.textContent = `⚡ +${xp} XP earned!`;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2600);
+}
+
 function showDebrief(trade,type,score) {
   document.getElementById("debriefModal").style.display="flex";
   let html="";
@@ -1683,7 +1960,8 @@ function showDebrief(trade,type,score) {
     const verdict=pnl>0.5?t("sa_verdict_great"):pnl>0?t("sa_verdict_profit"):pnl>-0.2?t("sa_verdict_loss"):t("sa_verdict_rug");
     const lesson=score<45?`⚠️ HIGH RISK token (${score}/100).`:pnl>=0?`✅ Good trade! Score ${score}/100.`:`📉 Loss on ${score>=65?"low":"moderate"}-risk token. Use stop-losses.`;
     const lCls=score<45?"sa-lesson-risk":pnl>=0?"sa-lesson-win":"sa-lesson-loss";
-    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">${emoji}</div><div class="sa-debrief-verdict" style="color:${isWin?'#2cffc9':'#ff4d6d'}">${verdict}</div><div class="sa-debrief-pnl ${isWin?'win':'loss'}">${pnl>=0?'+':''}${formatSol(pnl)}</div><div style="opacity:0.6;font-size:13px">${pnl>=0?'+':''}${trade.pnlPct}% return</div></div>
+    const xpLine = trade.xpEarned > 0 ? `<div style="font-size:13px;color:#ab9ff2;margin-top:6px;font-weight:700">⚡ +${trade.xpEarned} XP earned</div>` : "";
+    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">${emoji}</div><div class="sa-debrief-verdict" style="color:${isWin?'#2cffc9':'#ff4d6d'}">${verdict}</div><div class="sa-debrief-pnl ${isWin?'win':'loss'}">${pnl>=0?'+':''}${formatSol(pnl)}</div><div style="opacity:0.6;font-size:13px">${pnl>=0?'+':''}${trade.pnlPct}% return</div>${xpLine}</div>
     <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_sold_at")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_avg_buy")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.amount>0?trade.costBasis/trade.amount:0)}</div></div></div>
     <div class="sa-debrief-lesson ${lCls}">${t("sa_lesson")} ${lesson}</div>`;
   } else {

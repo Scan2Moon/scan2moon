@@ -90,7 +90,10 @@ function todayStr() {
 }
 
 async function getStore() {
-  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT;
+  // NETLIFY_BLOBS_CONTEXT is set by both `netlify dev` (local) and actual Netlify deploys.
+  // NETLIFY_DEV=true is ONLY set by `netlify dev`, never in production.
+  // So: treat as production only when we have the blob context AND are NOT in local dev mode.
+  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY_DEV;
   try {
     const { getStore } = require("@netlify/blobs");
     const store = getStore("simulator");
@@ -875,6 +878,7 @@ exports.handler = async function(event, context) {
       profile.balance     += reward;
       profile.lastLogin    = today;
       profile.loginStreak  = streak;
+      profile.tradeXp      = (profile.tradeXp || 0) + 5;  // +5 XP for daily login
 
       const dayLabel = `Day ${streak}`;
       const newBadgesLogin = awardNewBadges(profile);
@@ -1060,6 +1064,12 @@ exports.handler = async function(event, context) {
       holding.totalCost      = holding.totalCostUsd;
       if (holding.amount <= 0.000001) delete profile.holdings[mint];
 
+      const tradePnlPct = costBasisSol > 0 ? parseFloat(((pnlSol / costBasisSol) * 100).toFixed(4)) : 0;
+      // XP reward: floor((1 + pnlPct/100) * 10), min 1, max 100
+      // 0% profit → 10 XP, 100% profit → 20 XP, 400% → 50 XP, 900% → 100 XP
+      const tradeXp = Math.max(1, Math.min(100, Math.floor((1 + tradePnlPct / 100) * 10)));
+      profile.tradeXp = (profile.tradeXp || 0) + tradeXp;
+
       const trade = {
         id: Date.now(), type: "sell",
         mint, symbol: holding.symbol, name: holding.name, logo: holding.logo,
@@ -1070,7 +1080,8 @@ exports.handler = async function(event, context) {
         costBasis: soldUsdCost,            // USD cost basis for display
         pnl:    pnlSol,                    // ← now in SOL
         pnlUsd: totalReceivedUsd - soldUsdCost,
-        pnlPct: costBasisSol > 0 ? parseFloat(((pnlSol / costBasisSol) * 100).toFixed(4)) : 0,
+        pnlPct: tradePnlPct,
+        xpEarned: tradeXp,
         solPriceAtTrade: solPriceForTrade,
         slippage: slip,
         riskScore: riskScore || holding.riskScore || null,

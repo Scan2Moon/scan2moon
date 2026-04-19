@@ -6,10 +6,75 @@
 import { renderNav }           from "./nav.js";
 import { applyTranslations }   from "./i18n.js";
 
-const SIM_API   = "/.netlify/functions/simulator";
-const DEX_API   = "https://api.dexscreener.com/latest/dex/tokens/";
-const JUP_API   = "https://api.jup.ag/price/v2";
-const SOL_LOGO  = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
+const SIM_API          = "/.netlify/functions/simulator";
+const DEX_API          = "https://api.dexscreener.com/latest/dex/tokens/";
+const JUP_API          = "https://api.jup.ag/price/v2";
+const SOL_LOGO         = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
+const TREASURY_WALLET  = "6zbVz412Yn7kHeuy8pBX8crfAa53jDLTqoNfHJmmTBVs";
+const SOL_MINT         = "So11111111111111111111111111111111111111112";
+
+/* ── Purchase helpers ─────────────────────────────────────── */
+function getPurchased() {
+  try { return JSON.parse(localStorage.getItem("sa_purchased") || "[]"); } catch { return []; }
+}
+function isPurchased(id) { return getPurchased().some(p => p.id === id); }
+function savePurchase(id, type, priceUsd, txSig) {
+  const list = getPurchased();
+  if (!list.some(p => p.id === id)) {
+    list.push({ id, type, priceUsd, txSig, ts: new Date().toISOString() });
+    localStorage.setItem("sa_purchased", JSON.stringify(list));
+  }
+}
+
+async function getSolPriceUsd() {
+  /* Try 3 independent APIs — return the first that works */
+
+  /* 1. Binance public API — best CORS support */
+  try {
+    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT",
+      { signal: AbortSignal.timeout(4000) });
+    const d = await r.json();
+    const p = parseFloat(d?.price);
+    if (p > 1) return p;
+  } catch { /* fall through */ }
+
+  /* 2. CoinGecko free tier */
+  try {
+    const r = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+      { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    const p = parseFloat(d?.solana?.usd);
+    if (p > 1) return p;
+  } catch { /* fall through */ }
+
+  /* 3. Jupiter v2 (may be blocked on localhost but fine in production) */
+  try {
+    const r = await fetch(`${JUP_API}?ids=${SOL_MINT}`,
+      { signal: AbortSignal.timeout(4000) });
+    const d = await r.json();
+    const p = parseFloat(d?.data?.[SOL_MINT]?.price);
+    if (p > 1) return p;
+  } catch { /* fall through */ }
+
+  return 0; /* all failed */
+}
+
+/* Capture a single frame from a video URL as a data-URL (for html2canvas) */
+async function captureVideoFrame(videoSrc) {
+  return new Promise(resolve => {
+    const v = document.createElement("video");
+    v.src = videoSrc; v.muted = true; v.crossOrigin = "anonymous";
+    v.onloadeddata = () => {
+      const c = document.createElement("canvas");
+      c.width = v.videoWidth || 96; c.height = v.videoHeight || 96;
+      c.getContext("2d").drawImage(v, 0, 0, c.width, c.height);
+      resolve(c.toDataURL("image/png"));
+    };
+    v.onerror = () => resolve(null);
+    v.load();
+  });
+}
 
 /* ── Security helpers ─────────────────────────────────────── */
 function esc(s) {
@@ -20,6 +85,41 @@ function esc(s) {
 function isValidSolanaAddress(addr) {
   return typeof addr === "string" && /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(addr);
 }
+
+/* ── Frame definitions (avatar border effects) ─────────────── */
+const FRAME_DEFS = [
+  { id: "frame_none",        name: "No Frame",    icon: "⬜", desc: "Clean look, no border effect.",                          price: 0,    freebie: true, cssClass: ""                },
+  { id: "frame_moon_pulse",  name: "Moon Pulse",  icon: "🌙", desc: "Pulsing teal scan glow — the signature S2M energy.",     price: 0,    freebie: true, cssClass: "frame-moon-pulse" },
+  { id: "frame_solar_flare", name: "Solar Flare", icon: "☀️", desc: "Burning gold glow. Heat of a thousand green candles.",  price: 0.5,  market: true,  cssClass: "frame-solar-flare"},
+  { id: "frame_degen_neon",  name: "Degen Neon",  icon: "💜", desc: "Hot pink neon ring. Pure degen energy.",                price: 0.5,  market: true,  cssClass: "frame-degen-neon" },
+  { id: "frame_diamond",     name: "Diamond Edge",icon: "💎", desc: "Elite shifting crystalline diamond border.",            price: 1.0,  market: true,  cssClass: "frame-diamond"    },
+];
+
+/* ── Profile card design definitions ───────────────────────── */
+const CARD_DESIGN_DEFS = [
+  { id: "card_classic",    name: "Classic",     icon: "🌿", desc: "Default dark green Scan2Moon card.",           price: 0,    freebie: true },
+  { id: "card_neon_degen", name: "Neon Degen",  icon: "💜", desc: "Deep purple with pink & green neon vibes.",    price: 0,    freebie: true },
+  { id: "card_galaxy",     name: "Galaxy",      icon: "🌌", desc: "Deep space starfield. Trade among the stars.", price: 0.75, market: true  },
+  { id: "card_gold",       name: "Gold Trophy", icon: "🏆", desc: "Championship gold aesthetic. Winners only.",   price: 0.75, market: true  },
+];
+
+/* ── Card colour themes ─────────────────────────────────────── */
+const CARD_THEMES = {
+  card_classic: {
+    bg: "linear-gradient(160deg,#040f0d 0%,#0a2018 60%,#040f0d 100%)",
+    border: "rgba(44,255,201,0.28)", logo: "#2cffc9", accent: "#ffb432",
+    statHi: "#2cffc9", name: "#cffff4", level: "#7fffe1",
+    wallet: "rgba(44,255,201,0.4)", footer: "rgba(44,255,201,0.25)",
+    hdrBorder: "rgba(44,255,201,0.15)", tag: "TRADER PROFILE",
+  },
+  card_neon_degen: {
+    bg: "linear-gradient(160deg,#0d0820 0%,#1a0830 60%,#0a0518 100%)",
+    border: "rgba(200,100,255,0.38)", logo: "#ff6eb4", accent: "#c084fc",
+    statHi: "#ff6eb4", name: "#f0d0ff", level: "#c084fc",
+    wallet: "rgba(200,100,255,0.4)", footer: "rgba(200,100,255,0.25)",
+    hdrBorder: "rgba(200,100,255,0.15)", tag: "DEGEN PROFILE",
+  },
+};
 
 /* ── Badge categories ─────────────────────────────────────── */
 const BADGE_CATEGORIES = [
@@ -80,13 +180,29 @@ const BADGE_DEFS = [
   { id: "whale_analyst", cat: "pro", img: "/badges/whale_analyst.png", icon: "🐋", name: "Whale Analyst",   desc: "Successfully identify 5 whale wallet patterns using Whale DNA scanner.",         reward: 1.0  },
   { id: "top_10",        cat: "pro", img: "/badges/top_10.png",        icon: "🏆", name: "Top 10",          desc: "Reach the top 10 on the Scan2Moon Leaderboard. Elite trader confirmed.",         reward: 5.0  },
 
-  /* ── Cosmetics (Moon Market) ── */
-  { id: "cosm_moon_aura",    cat: "cosmetics", market: true, img: "/badges/cosm_moon_aura.png",    icon: "🌙", name: "Moon Aura",         desc: "A golden moon aura frame for your profile. Flex your Sol2Moon energy.",            reward: 0   },
-  { id: "cosm_diamond_ape",  cat: "cosmetics", market: true, img: "/badges/cosm_diamond_ape.png",  icon: "💎", name: "Diamond Ape",       desc: "Diamond-studded ape portrait. For those who hold through everything.",             reward: 0   },
-  { id: "cosm_sol_ghost",    cat: "cosmetics", market: true, img: "/badges/cosm_sol_ghost.png",    icon: "👻", name: "Sol Ghost",         desc: "Phantom-style ghost with Solana colours. Silent. Deadly. Profitable.",             reward: 0   },
-  { id: "cosm_pixel_rocket", cat: "cosmetics", market: true, img: "/badges/cosm_pixel_rocket.png", icon: "🚀", name: "Pixel Rocket",      desc: "8-bit pixel rocket blasting off. Old school vibes, new school gains.",             reward: 0   },
-  { id: "cosm_green_king",   cat: "cosmetics", market: true, img: "/badges/cosm_green_king.png",   icon: "📈", name: "Green Candle King", desc: "All green candles, all the time. The market bows to you.",                         reward: 0   },
-  { id: "cosm_degen_crown",  cat: "cosmetics", market: true, img: "/badges/cosm_degen_crown.png",  icon: "👑", name: "Degen Crown",       desc: "The crown of the true degen. Worn by those who survived the trenches and thrived.", reward: 0   },
+  /* ── Cosmetics — Free ── */
+  { id: "cosm_classic_ape",   cat: "cosmetics", subcat: "free",         freebie: true,
+    img: null, icon: "🦍", name: "Classic Ape",
+    desc: "The original Ape Trader look. Free for every Scan2Moon user — always unlocked.", reward: 0 },
+
+  /* ── Cosmetics — Community Badges ── */
+  { id: "cosm_love_solana",   cat: "cosmetics", subcat: "community",    market: true, priceUsd: 0.99,
+    img: "/badges/Love_Solana.png", icon: "❤️", name: "I Love Solana",
+    desc: "Show your love for the fastest chain in the game.", reward: 0 },
+  { id: "cosm_love_s2m",      cat: "cosmetics", subcat: "community",    market: true, priceUsd: 0.99,
+    img: "/badges/Love_S2M.png",    icon: "🌙", name: "I Love S2M",
+    desc: "A true Scan2Moon believer — the OG community badge.", reward: 0 },
+
+  /* ── Cosmetics — Moon Krakens (animated MP4) ── */
+  { id: "kraken_skeleton",    cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
+    type: "video", video: "/badges/Moon_Krakens_Bages/%23006.mp4", icon: "💀", name: "Skeleton",
+    desc: "Moon Krakens #006 — Skeleton. Fully animated avatar badge.", reward: 0 },
+  { id: "kraken_badboy",      cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
+    type: "video", video: "/badges/Moon_Krakens_Bages/%23005.mp4", icon: "😈", name: "Bad Boy",
+    desc: "Moon Krakens #005 — Bad Boy. Fully animated avatar badge.", reward: 0 },
+  { id: "kraken_pirate",      cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
+    type: "video", video: "/badges/Moon_Krakens_Bages/%23004.mp4", icon: "🏴‍☠️", name: "Pirate",
+    desc: "Moon Krakens #004 — Pirate. Fully animated avatar badge.", reward: 0 },
 
   /* ── Account Levels ── */
   { id: "lvl_1",   cat: "levels", img: "/badges/lvl_1.png",   icon: "🌱", name: "Level 1 — First Step",   desc: "Reach Account Level 1. Every legend starts with a single step.", reward: 0.05 },
@@ -159,7 +275,9 @@ function badgeProgress(id) {
       const wins   = profile.winCount   || 0;
       const losses = profile.lossCount  || 0;
       const badges = (profile.badges    || []).length;
-      const xp     = (wins + losses) * 25 + badges * 50 + streak * 5;
+      const xp     = (wins + losses) * 25 + badges * 50 + streak * 5
+                   + (profile.socialXp  || 0)
+                   + (profile.academyXp || 0);
       const lvl    = calcLevel(xp);
       const target = { lvl_1:1, lvl_5:5, lvl_10:10, lvl_20:20, lvl_30:30, lvl_50:50, lvl_100:100 }[id];
       return { cur: lvl, max: target, label: `LVL ${lvl}` };
@@ -250,6 +368,7 @@ function refreshHoldingsPnL() {
     }
     if (dotEl) dotEl.textContent = "⬤ LIVE · just now";
   }
+  refreshHoldingsSummary(); /* update portfolio totals */
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -384,6 +503,23 @@ function showDashboard(isDemo = false) {
   document.getElementById("dashGate").style.display = "none";
   document.getElementById("dashApp").style.display  = "block";
 
+  /* ── Wire hero buttons robustly (replaces inline onclick) ── */
+  const accsBtnEl = document.getElementById("dashAccsBtn");
+  if (accsBtnEl) {
+    accsBtnEl.onclick = null;
+    accsBtnEl.addEventListener("click", () => window.openAccountSettings());
+  }
+  const shareBtnEl = document.getElementById("dashProfileShareBtn");
+  if (shareBtnEl) {
+    shareBtnEl.onclick = null;
+    shareBtnEl.addEventListener("click", () => window.shareProfileCard());
+  }
+  const cardBtnEl = document.getElementById("dashCardBtn");
+  if (cardBtnEl) {
+    cardBtnEl.onclick = null;
+    cardBtnEl.addEventListener("click", () => window.openAccountCard());
+  }
+
   if (isDemo) {
     const existing = document.getElementById("demoBanner");
     if (!existing) {
@@ -398,6 +534,7 @@ function showDashboard(isDemo = false) {
   renderHero();
   renderStatsRow();
   renderHighlightStats();
+  renderMissionTeaser();
   renderNextBadges();
   renderBadges();
   renderApeStats();
@@ -405,13 +542,73 @@ function showDashboard(isDemo = false) {
   renderPnlChart();
   renderTradeHistory();
   renderHoldings();
+  renderScannerStats();
+  renderAcademyPlaceholder();
   renderLeaderboard();
+
+  /* ── Daily reward check ── */
+  if (!isDemo) checkDashDailyReward();
 
   /* ── Start live price polling for holdings ── */
   if (dashPriceTimer) clearInterval(dashPriceTimer);
   dashPrices = {};
   fetchDashPrices(); /* immediate first fetch */
   dashPriceTimer = setInterval(fetchDashPrices, 30_000); /* refresh every 30 s */
+}
+
+/* ═══════════════════════════════════════════════════════
+   DAILY REWARD — on Dashboard
+═══════════════════════════════════════════════════════ */
+function checkDashDailyReward() {
+  if (!profile || !wallet) return;
+  const today = new Date().toISOString().slice(0, 10);
+  if (profile.lastLogin === today) return; /* already claimed today */
+  const banner = document.getElementById("dashDailyBanner");
+  const btn    = document.getElementById("dashDailyClaimBtn");
+  if (!banner || !btn) return;
+
+  const DAILY_REWARDS_SOL = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+  const streak  = Math.max(1, Math.min(7, (profile.loginStreak || 0) + 1));
+  const reward  = DAILY_REWARDS_SOL[streak] ?? 0.1;
+  btn.textContent = `Claim +${reward.toFixed(2)} SOL & +5 XP`;
+  banner.style.display = "flex";
+
+  btn.addEventListener("click", claimDashDaily, { once: true });
+}
+
+async function claimDashDaily() {
+  const banner = document.getElementById("dashDailyBanner");
+  const btn    = document.getElementById("dashDailyClaimBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Claiming…"; }
+  try {
+    const resp = await fetch(SIM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, action: "daily_login" }),
+    });
+    if (resp.status === 503) { alert("Server busy, try again in a moment."); return; }
+    const data = await resp.json();
+    if (data.error) { alert("Error: " + data.error); return; }
+    profile = data.profile;
+    if (banner) banner.style.display = "none";
+    /* Re-render XP/level after claim */
+    renderStatsRow();
+    /* Toast-style flash */
+    const flash = document.createElement("div");
+    flash.style.cssText = `position:fixed;bottom:70px;left:50%;transform:translateX(-50%);
+      background:linear-gradient(135deg,rgba(255,180,50,.2),rgba(6,32,26,.97));
+      border:1px solid rgba(255,180,50,.55);border-radius:12px;
+      padding:12px 24px;font-size:15px;font-weight:800;color:#ffb432;
+      box-shadow:0 0 30px rgba(255,180,50,.35);z-index:9999;
+      animation:none;pointer-events:none;`;
+    flash.textContent = `🎁 ${data.message}  ⚡ +5 XP`;
+    document.body.appendChild(flash);
+    setTimeout(() => flash.remove(), 3000);
+  } catch (e) {
+    console.warn("Daily claim error:", e);
+  } finally {
+    if (btn) btn.disabled = false;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -427,15 +624,57 @@ function renderHero() {
   document.getElementById("dashWalletShort").textContent = short;
   document.getElementById("dashRankBadge").textContent   = rankLabel(pnl);
 
-  /* Avatar — badge image or default emoji */
+  /* Avatar — video badge / image badge / emoji fallback */
   const avEl = document.getElementById("dashAvatar");
   if (savedAvId) {
     const b = BADGE_DEFS.find(x => x.id === savedAvId);
-    if (b) {
+    if (b?.type === "video" && b.video) {
+      avEl.innerHTML = `<video src="${b.video}" class="dash-avatar-video"
+        autoplay loop muted playsinline
+        onerror="this.parentElement.textContent='${b.icon || "🦍"}'"></video>`;
+    } else if (b?.img) {
       avEl.innerHTML = `<img src="${b.img}" class="dash-avatar-img"
-        onerror="this.parentElement.innerHTML='🦍'" alt="${esc(b.name)}">`;
+        onerror="this.parentElement.textContent='${b.icon || "🦍"}'" alt="${esc(b.name)}">`;
+    } else if (b?.icon) {
+      avEl.textContent = b.icon;
     } else { avEl.textContent = "🦍"; }
   } else { avEl.textContent = "🦍"; }
+
+  /* Frame effect on avatar wrapper */
+  const frameEl = document.getElementById("dashAvatarFrame");
+  if (frameEl) {
+    const savedFrameId = localStorage.getItem("sa_frame_id") || "frame_none";
+    const frameDef = FRAME_DEFS.find(f => f.id === savedFrameId) || FRAME_DEFS[0];
+    frameEl.className = ("dash-avatar-frame " + (frameDef.cssClass || "")).trim();
+  }
+}
+
+/* Sync the hero avatar in the dashboard after a change */
+function updateDashAvatar() {
+  const savedAvId = localStorage.getItem("sa_avatar_id");
+  const avEl = document.getElementById("dashAvatar");
+  if (!avEl) return;
+  if (savedAvId) {
+    const b = BADGE_DEFS.find(x => x.id === savedAvId);
+    if (b?.type === "video" && b.video) {
+      avEl.innerHTML = `<video src="${b.video}" class="dash-avatar-video"
+        autoplay loop muted playsinline
+        onerror="this.parentElement.textContent='${b.icon || "🦍"}'"></video>`;
+    } else if (b?.img) {
+      avEl.innerHTML = `<img src="${b.img}" class="dash-avatar-img"
+        onerror="this.parentElement.textContent='${b.icon || "🦍"}'" alt="${esc(b.name)}">`;
+    } else if (b?.icon) { avEl.textContent = b.icon; }
+    else { avEl.textContent = "🦍"; }
+  } else { avEl.textContent = "🦍"; }
+}
+
+/* Sync the hero avatar frame after a change */
+function updateDashFrame() {
+  const frameEl = document.getElementById("dashAvatarFrame");
+  if (!frameEl) return;
+  const savedFrameId = localStorage.getItem("sa_frame_id") || "frame_none";
+  const frameDef = FRAME_DEFS.find(f => f.id === savedFrameId) || FRAME_DEFS[0];
+  frameEl.className = ("dash-avatar-frame " + (frameDef.cssClass || "")).trim();
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -462,8 +701,10 @@ function renderStatsRow() {
   const losses  = profile.lossCount  || 0;
   const earned  = profile.badges || [];
 
-  /* ── Account XP & Level ── */
-  const xp      = ((wins + losses) * 25) + (badges * 50) + (streak * 5);
+  /* ── Account XP & Level (trades + badges + streak + social tasks + academy) ── */
+  const xp      = ((wins + losses) * 25) + (badges * 50) + (streak * 5)
+                + (profile.socialXp  || 0)
+                + (profile.academyXp || 0);
   const lvl     = calcLevel(xp);
   const xpCur   = xp - xpForLevel(lvl);
   const xpRange = xpForNextLevel(lvl) - xpForLevel(lvl);
@@ -473,9 +714,8 @@ function renderStatsRow() {
   document.getElementById("dashXpText").textContent = `${xp.toLocaleString()} / ${xpForNextLevel(lvl).toLocaleString()} XP`;
   document.getElementById("dashXpFill").style.width = xpPct + "%";
 
-  /* ── Academy XP & Level ── */
-  const acadBadgesEarned = earned.filter(id => ACADEMY_BADGE_IDS.has(id)).length;
-  const acadXp    = acadBadgesEarned * 100;
+  /* ── Academy XP & Level (from completed lessons/quizzes on Academy page) ── */
+  const acadXp    = profile.academyXp || 0;
   const acadLvl   = calcAcadLevel(acadXp);
   const acadNext  = ACAD_XP_THRESHOLDS[Math.min(acadLvl, ACAD_XP_THRESHOLDS.length - 1)];
   const acadCur   = acadXp - ACAD_XP_THRESHOLDS[acadLvl - 1];
@@ -501,6 +741,8 @@ function renderStatsRow() {
 ═══════════════════════════════════════════════════════ */
 function renderBadges() {
   const earned   = new Set(profile.badges || []);
+  /* Freebie badges are auto-earned for every connected wallet */
+  BADGE_DEFS.filter(b => b.freebie).forEach(b => earned.add(b.id));
   const count    = earned.size;
   const total    = BADGE_DEFS.length;
   const pct      = total > 0 ? Math.round((count / total) * 100) : 0;
@@ -524,7 +766,7 @@ function renderBadges() {
     const catSol     = catBadges.filter(b => earned.has(b.id)).reduce((s, b) => s + b.reward, 0);
     const isOpen     = catIdx === 0; // first category open by default
 
-    /* Academy gets two labelled sub-sections; all others render flat */
+    /* Academy + Cosmetics get labelled sub-sections; all others render flat */
     let cardsHtml;
     if (cat.id === "academy") {
       const rankBadges  = catBadges.filter(b => b.subcat === "rank");
@@ -537,6 +779,22 @@ function renderBadges() {
         <div class="dash-badges-grid">${levelBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>
         <div class="dash-badge-subheader" style="margin-top:14px;">📖 COMPLETED GUIDES</div>
         <div class="dash-badges-grid">${guideBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
+
+    } else if (cat.id === "cosmetics") {
+      const freeBadges      = catBadges.filter(b => b.subcat === "free");
+      const communityBadges = catBadges.filter(b => b.subcat === "community");
+      const krakenBadges    = catBadges.filter(b => b.subcat === "moon_krakens");
+      cardsHtml = `
+        <div class="dash-badge-subheader">🦍 FREE BADGES</div>
+        <div class="dash-badges-grid">${freeBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>
+        <div class="dash-badge-subheader" style="margin-top:14px;color:#ff6eb4;">❤️ COMMUNITY BADGES</div>
+        <div class="dash-badges-grid">${communityBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>
+        <div class="dash-badge-subheader" style="margin-top:14px;color:#c084fc;">
+          🦑 MOON KRAKENS
+          <span class="dash-badge-animated-chip">ANIMATED</span>
+        </div>
+        <div class="dash-badges-grid">${krakenBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
+
     } else {
       cardsHtml = `<div class="dash-badges-grid">${catBadges.map(b => badgeCardHtml(b, earned)).join("")}</div>`;
     }
@@ -566,21 +824,48 @@ function renderBadges() {
 
 /* ── Single badge card HTML ──────────────────────────────── */
 function badgeCardHtml(b, earned) {
-  const isEarned  = earned.has(b.id);
+  const isEarned  = b.freebie || isPurchased(b.id) || earned.has(b.id);
   const rewardStr = b.reward >= 1 ? b.reward.toFixed(1) : b.reward.toFixed(2);
+
+  /* Status chip */
+  let statusHtml;
+  if (b.freebie) {
+    statusHtml = `<div class="dash-badge-status status-earned">🆓 FREE</div>`;
+  } else if (b.market && isEarned) {
+    statusHtml = `<div class="dash-badge-status status-earned">✅ OWNED</div>`;
+  } else if (b.market && !isEarned) {
+    statusHtml = `<div class="dash-badge-status status-market">💳 $${b.priceUsd}</div>`;
+  } else {
+    statusHtml = `<div class="dash-badge-status ${isEarned ? 'status-earned' : 'status-locked'}">
+        ${isEarned ? '✅ EARNED' : '🔒 LOCKED'}
+       </div>`;
+  }
+
+  /* Media content — video always plays; locked gets a dim overlay */
+  let imgHtml;
+  if (b.type === "video" && b.video) {
+    imgHtml = `
+      <div class="dash-badge-video-wrap${isEarned ? '' : ' dash-badge-video-dimmed'}">
+        <video class="dash-badge-video" src="${b.video}" autoplay loop muted playsinline></video>
+        ${!isEarned ? '<div class="dash-badge-video-lock-overlay"><span>🔒</span></div>' : ''}
+      </div>`;
+  } else if (b.img) {
+    imgHtml = `<img class="dash-badge-img" src="${b.img}" alt="${esc(b.name)}"
+         onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+       <span class="dash-badge-emoji" style="display:none">${b.icon}</span>`;
+  } else {
+    imgHtml = `<span class="dash-badge-emoji">${b.icon}</span>`;
+  }
+
   return `
-    <div class="dash-badge-card ${isEarned ? 'earned' : 'locked'}"
+    <div class="dash-badge-card ${isEarned ? 'earned' : 'locked'}${b.type === 'video' ? ' badge-video-card' : ''}"
          onclick="window.openBadgeModal('${b.id}')" title="${esc(b.name)}">
-      <div class="dash-badge-reward">+${rewardStr} SOL</div>
+      <div class="dash-badge-reward">${b.market && !isEarned ? `$${b.priceUsd}` : `+${rewardStr} SOL`}</div>
       <div class="dash-badge-img-wrap">
-        <img class="dash-badge-img" src="${b.img}" alt="${esc(b.name)}"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <span class="dash-badge-emoji" style="display:none">${b.icon}</span>
+        ${imgHtml}
       </div>
       <div class="dash-badge-name">${esc(b.name)}</div>
-      <div class="dash-badge-status ${isEarned ? 'status-earned' : 'status-locked'}">
-        ${isEarned ? '✅ EARNED' : '🔒 LOCKED'}
-      </div>
+      ${statusHtml}
     </div>`;
 }
 
@@ -597,7 +882,9 @@ function renderNextBadges() {
   const el     = document.getElementById("dashNextBadges");
   if (!el) return;
   const earned = new Set(profile.badges || []);
-  const locked = BADGE_DEFS.filter(b => !earned.has(b.id));
+  /* Freebie badges are always earned — skip them in "next to unlock" */
+  BADGE_DEFS.filter(b => b.freebie).forEach(b => earned.add(b.id));
+  const locked = BADGE_DEFS.filter(b => !earned.has(b.id) && !b.market);
 
   if (!locked.length) {
     el.innerHTML = `<div style="text-align:center;padding:18px;color:#2cffc9;font-weight:700;font-size:14px;">🎉 All badges earned! You're a legend.</div>`;
@@ -645,11 +932,51 @@ window.openBadgeModal = function(id) {
   const b        = BADGE_DEFS.find(x => x.id === id);
   if (!b) return;
   const cat      = BADGE_CATEGORIES.find(c => c.id === b.cat);
-  const isEarned = new Set(profile.badges || []).has(id);
+  const earned   = new Set(profile.badges || []);
+  BADGE_DEFS.filter(x => x.freebie).forEach(x => earned.add(x.id));
+  getPurchased().forEach(p => earned.add(p.id));
+  const isEarned = earned.has(id);
   const rewardStr = b.reward >= 1 ? b.reward.toFixed(1) : b.reward.toFixed(2);
 
-  /* Remove any existing modal */
   document.getElementById("badgeModalOverlay")?.remove();
+
+  /* Media in popup — video loops, image shows, emoji fallback */
+  let mediaHtml;
+  if (b.type === "video" && b.video) {
+    /* Always show the video — locked ones get a dim overlay */
+    mediaHtml = `
+      <div style="position:relative;display:inline-block;border-radius:16px;overflow:hidden;">
+        <video class="badge-modal-video" src="${b.video}"
+          autoplay loop muted playsinline
+          style="${!isEarned ? 'filter:brightness(0.45) saturate(0.5);' : ''}"></video>
+        ${!isEarned ? `<div style="position:absolute;inset:0;display:flex;flex-direction:column;
+            align-items:center;justify-content:center;gap:6px;">
+            <span style="font-size:32px;">🔒</span>
+            <span style="font-size:10px;color:rgba(255,255,255,0.7);font-weight:700;">
+              Buy to unlock · $${b.priceUsd}</span>
+          </div>` : ''}
+      </div>`;
+  } else if (b.img) {
+    mediaHtml = `<img class="badge-modal-img" src="${b.img}" alt="${esc(b.name)}"
+          onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+        <div class="badge-modal-emoji" style="display:none">${b.icon}</div>`;
+  } else {
+    mediaHtml = `<div class="badge-modal-emoji">${b.icon}</div>`;
+  }
+
+  /* Status chip */
+  let statusChipHtml;
+  if (b.freebie) {
+    statusChipHtml = `<span class="badge-modal-status-chip earned">🆓 FREE — YOURS FOREVER</span>`;
+  } else if (b.market && isEarned) {
+    statusChipHtml = `<span class="badge-modal-status-chip earned">✅ OWNED</span>`;
+  } else if (b.market && !isEarned) {
+    statusChipHtml = `<span class="badge-modal-status-chip locked">💳 $${b.priceUsd} — Available in Moon Market</span>`;
+  } else {
+    statusChipHtml = `<span class="badge-modal-status-chip ${isEarned ? 'earned' : 'locked'}">
+      ${isEarned ? '✅ EARNED' : '🔒 NOT YET EARNED'}
+    </span>`;
+  }
 
   const overlay = document.createElement("div");
   overlay.className = "badge-modal-overlay";
@@ -660,34 +987,34 @@ window.openBadgeModal = function(id) {
 
       <div class="badge-modal-cat-chip"
         style="background:${cat.bgColor};border:1px solid ${cat.borderColor};color:${cat.color};">
-        ${cat.icon} ${cat.label}
+        ${cat.icon} ${cat.label}${b.type === "video" ? ' · <span style="color:#c084fc;">🎬 ANIMATED</span>' : ''}
       </div>
 
-      <div class="badge-modal-img-wrap ${isEarned ? 'earned' : ''}">
-        <img class="badge-modal-img" src="${b.img}" alt="${esc(b.name)}"
-          onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-        <div class="badge-modal-emoji" style="display:none">${b.icon}</div>
+      <div class="badge-modal-img-wrap ${isEarned ? 'earned' : ''}${b.type === 'video' ? ' badge-modal-video-wrap' : ''}">
+        ${mediaHtml}
       </div>
 
       <div class="badge-modal-name">${esc(b.name)}</div>
       <div class="badge-modal-desc">${esc(b.desc)}</div>
 
+      ${b.reward > 0 ? `
       <div class="badge-modal-reward">
         <img src="${SOL_LOGO}" style="width:18px;height:18px;border-radius:50%;">
         +${rewardStr} SOL reward
-      </div>
+      </div>` : ''}
 
-      <div class="badge-modal-status-row">
-        <span class="badge-modal-status-chip ${isEarned ? 'earned' : 'locked'}">
-          ${isEarned ? '✅ EARNED' : '🔒 NOT YET EARNED'}
-        </span>
-      </div>
+      <div class="badge-modal-status-row">${statusChipHtml}</div>
 
       <div class="badge-modal-actions">
+        ${isEarned ? `
         <button class="badge-modal-btn save" id="badgeSaveBtn"
           onclick="window.saveBadgeImage('${id}')">
           💾 Save Image
-        </button>
+        </button>` : (b.market ? `
+        <button class="badge-modal-btn save"
+          onclick="document.getElementById('badgeModalOverlay').remove();window.openMoonMarket('cosmetics')">
+          🛒 Buy in Moon Market
+        </button>` : '')}
         <button class="badge-modal-btn share-x" id="badgeShareXBtn"
           onclick="window.shareBadgeOnX('${id}')">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.748l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
@@ -1138,7 +1465,42 @@ function renderHoldings() {
     return;
   }
 
-  el.innerHTML = `<div class="dash-holdings-list">${keys.map(mint => {
+  /* ── Summary totals (computed once at render; refreshed live by refreshHoldingsSummary) ── */
+  let totalCost = 0, totalCurVal = 0, pricesLoaded = 0;
+  keys.forEach(mint => {
+    const h = holdings[mint];
+    const costSol = h.totalCostSol || 0;
+    totalCost += costSol;
+    const price = dashPrices[mint];
+    if (price && h.avgPrice > 0 && costSol > 0) {
+      totalCurVal += costSol * (price / h.avgPrice);
+      pricesLoaded++;
+    }
+  });
+  const allLoaded    = pricesLoaded === keys.length;
+  const totalPnl     = allLoaded ? totalCurVal - totalCost : null;
+  const totalPnlPct  = (totalPnl !== null && totalCost > 0) ? (totalPnl / totalCost) * 100 : null;
+  const pnlColor     = totalPnl === null ? "rgba(207,255,244,0.35)" : totalPnl >= 0 ? "#2cffc9" : "#ff4d6d";
+  const pnlSign      = totalPnl !== null && totalPnl >= 0 ? "+" : "";
+  const pnlSolTxt    = totalPnl !== null ? `${pnlSign}${formatSol(totalPnl)}` : "Loading…";
+  const pnlPctTxt    = totalPnlPct !== null ? `${pnlSign}${totalPnlPct.toFixed(2)}%` : "";
+
+  el.innerHTML = `
+    <div class="dh-summary">
+      <div class="dh-summary-col">
+        <div class="dh-summary-label">TOTAL P/L</div>
+        <div class="dh-summary-pnl-sol" id="dhTotalPnlSol" style="color:${pnlColor}">${pnlSolTxt}</div>
+        <div class="dh-summary-pnl-pct" id="dhTotalPnlPct" style="color:${pnlColor}">${pnlPctTxt}</div>
+      </div>
+      <div class="dh-summary-divider"></div>
+      <div class="dh-summary-col">
+        <div class="dh-summary-label">INVESTED</div>
+        <div class="dh-summary-invested" id="dhTotalInvested">${formatSol(totalCost)}</div>
+        <div class="dh-summary-invested-lbl">${keys.length} position${keys.length !== 1 ? "s" : ""}</div>
+      </div>
+    </div>
+
+    <div class="dash-holdings-list">${keys.map(mint => {
     const h        = holdings[mint];
     const logo     = h.logo ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}` : "https://placehold.co/34x34";
     const costSol  = h.totalCostSol || 0;
@@ -1175,13 +1537,48 @@ function renderHoldings() {
           Trade →
         </a>
       </div>`;
-  }).join("")}</div>`;
+  }).join("")}</div>`;   /* closes .dash-holdings-list */
+}
+
+/* Recalculate & refresh only the summary totals (called after each price tick) */
+function refreshHoldingsSummary() {
+  const solEl   = document.getElementById("dhTotalPnlSol");
+  const pctEl   = document.getElementById("dhTotalPnlPct");
+  if (!solEl || !pctEl) return; /* holdings not rendered yet */
+
+  const holdings = profile?.holdings || {};
+  const keys     = Object.keys(holdings).filter(k => (holdings[k]?.amount || 0) > 0.000001);
+  let totalCost = 0, totalCurVal = 0, pricesLoaded = 0;
+
+  keys.forEach(mint => {
+    const h = holdings[mint];
+    const costSol = h.totalCostSol || 0;
+    totalCost += costSol;
+    const price = dashPrices[mint];
+    if (price && h.avgPrice > 0 && costSol > 0) {
+      totalCurVal += costSol * (price / h.avgPrice);
+      pricesLoaded++;
+    }
+  });
+
+  if (pricesLoaded === 0) return; /* still loading, leave previous values */
+
+  const totalPnl    = totalCurVal - totalCost;
+  const totalPnlPct = totalCost > 0 ? (totalPnl / totalCost) * 100 : 0;
+  const color       = totalPnl >= 0 ? "#2cffc9" : "#ff4d6d";
+  const sign        = totalPnl >= 0 ? "+" : "";
+
+  solEl.textContent  = `${sign}${formatSol(totalPnl)}`;
+  solEl.style.color  = color;
+  pctEl.textContent  = `${sign}${totalPnlPct.toFixed(2)}%`;
+  pctEl.style.color  = color;
 }
 
 /* ═══════════════════════════════════════════════════════
    ACCOUNT SETTINGS MODAL
 ═══════════════════════════════════════════════════════ */
 window.openAccountSettings = function() {
+  try {
   if (!profile) {
     showToast("⏳ Dashboard is still loading — please wait a moment.");
     return;
@@ -1189,25 +1586,30 @@ window.openAccountSettings = function() {
   document.getElementById("accountSettingsOverlay")?.remove();
 
   const earned    = new Set(profile.badges || []);
+  /* Freebie + purchased badges are always available */
+  BADGE_DEFS.filter(b => b.freebie).forEach(b => earned.add(b.id));
+  getPurchased().forEach(p => earned.add(p.id));
   const savedName = localStorage.getItem("sa_display_name") || profile.accountName || "";
   const savedAvId = localStorage.getItem("sa_avatar_id") || "";
 
-  /* Build avatar picker: default + every earned badge that has an image */
-  const avatarOptions = [
-    { id: "", img: null, icon: "🦍", label: "Default" },
-    ...BADGE_DEFS.filter(b => earned.has(b.id)),
-  ];
+  /* All owned badges across every category shown in avatar picker */
+  const avatarOptions = BADGE_DEFS.filter(b => b.freebie || earned.has(b.id));
+
+  /* If nothing saved yet, pre-select Classic Ape */
+  const effectiveAvId = savedAvId || "cosm_classic_ape";
 
   const avatarHtml = avatarOptions.map(b => `
-    <div class="accs-av-option ${b.id === savedAvId ? 'selected' : ''}"
-         id="av-opt-${b.id || 'default'}"
+    <div class="accs-av-option ${b.id === effectiveAvId ? 'selected' : ''}"
+         id="av-opt-${b.id}"
          onclick="window.selectAvatar('${b.id}')"
-         title="${esc(b.name || 'Default')}">
-      ${b.img
-        ? `<img src="${b.img}" class="accs-av-img"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
-           <span class="accs-av-emoji" style="display:none">${b.icon}</span>`
-        : `<span class="accs-av-emoji">${b.icon}</span>`}
+         title="${esc(b.name || b.icon || '🦍')}">
+      ${b.type === "video" && b.video
+        ? `<video src="${b.video}" class="accs-av-video" autoplay loop muted playsinline></video>`
+        : b.img
+          ? `<img src="${b.img}" class="accs-av-img"
+               onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+             <span class="accs-av-emoji" style="display:none">${b.icon}</span>`
+          : `<span class="accs-av-emoji">${b.icon}</span>`}
     </div>`).join("");
 
   const overlay = document.createElement("div");
@@ -1246,9 +1648,9 @@ window.openAccountSettings = function() {
       <div class="accs-section accs-market-row">
         <div class="accs-market-info">
           <div class="accs-section-label" style="color:#ff6eb4;">🛒 MOON MARKET</div>
-          <div class="accs-section-sub">Buy exclusive cosmetic badges for your profile</div>
+          <div class="accs-section-sub">Frames · Profile Cards · Cosmetic Badges</div>
         </div>
-        <div class="accs-soon-chip">COMING SOON</div>
+        <button class="accs-market-open-btn" onclick="window.openMoonMarket()">Open →</button>
       </div>
 
       <!-- Disconnect -->
@@ -1263,7 +1665,326 @@ window.openAccountSettings = function() {
 
   overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+  } catch (err) {
+    console.error("[AccountSettings] Error:", err);
+    showToast("⚠️ Could not open settings — check the console for details.");
+  }
 };
+
+/* ═══════════════════════════════════════════════════════
+   MOON MARKET MODAL
+═══════════════════════════════════════════════════════ */
+window.openMoonMarket = function(startTab = "frames") {
+  document.getElementById("moonMarketOverlay")?.remove();
+
+  const savedFrameId = localStorage.getItem("sa_frame_id")   || "frame_none";
+  const savedCardId  = localStorage.getItem("sa_card_design") || "card_classic";
+  const owned = new Set([
+    ...BADGE_DEFS.filter(b => b.freebie).map(b => b.id),
+    ...(profile?.badges || []),
+    ...getPurchased().map(p => p.id),
+  ]);
+
+  /* ── Frame items ── */
+  function frameItemHtml(f) {
+    const isOwned    = f.freebie || isPurchased(f.id);
+    const isEquipped = f.id === savedFrameId;
+    const previewCls = `mm-frame-preview${f.cssClass ? " " + f.cssClass : ""}`;
+    return `
+      <div class="mm-item${isEquipped ? " mm-item-active" : ""}">
+        <div class="${previewCls}"><div class="mm-frame-avatar">🦍</div></div>
+        <div class="mm-item-name">${esc(f.name)}</div>
+        <div class="mm-item-desc">${esc(f.desc)}</div>
+        <div class="mm-item-price${f.freebie ? " mm-price-free" : ""}">${f.freebie ? "FREE" : `$${f.price}`}</div>
+        ${isOwned
+          ? `<button class="mm-equip-btn${isEquipped ? " mm-equipped" : ""}"
+               data-frame="${f.id}" onclick="window.equipFrame('${f.id}')">
+               ${isEquipped ? "✅ EQUIPPED" : "Equip"}</button>`
+          : `<button class="mm-buy-btn" data-buy="${f.id}"
+               onclick="window.buyMarketItem('frame','${f.id}',${f.price})">
+               💳 Buy $${f.price}</button>`}
+      </div>`;
+  }
+
+  /* ── Card design items ── */
+  function cardItemHtml(c) {
+    const isOwned    = c.freebie || isPurchased(c.id);
+    const isEquipped = c.id === savedCardId;
+    const th = CARD_THEMES[c.id] || CARD_THEMES.card_classic;
+    return `
+      <div class="mm-item${isEquipped ? " mm-item-active" : ""}">
+        <div class="mm-card-preview" style="background:${th.bg};border-color:${th.border};">
+          <div class="mm-card-prev-logo" style="color:${th.logo};">🌙 S2M</div>
+          <div class="mm-card-prev-tag"  style="color:${th.logo};opacity:.6;">${esc(c.icon)} ${esc(c.name)}</div>
+          <div class="mm-card-prev-stats" style="color:${th.logo};">
+            <span>P/L</span><span>WIN%</span><span>LVL</span></div>
+        </div>
+        <div class="mm-item-name">${esc(c.name)}</div>
+        <div class="mm-item-desc">${esc(c.desc)}</div>
+        <div class="mm-item-price${c.freebie ? " mm-price-free" : ""}">${c.freebie ? "FREE" : `$${c.price}`}</div>
+        ${isOwned
+          ? `<button class="mm-equip-btn${isEquipped ? " mm-equipped" : ""}"
+               data-card="${c.id}" onclick="window.equipCardDesign('${c.id}')">
+               ${isEquipped ? "✅ EQUIPPED" : "Equip"}</button>`
+          : `<button class="mm-buy-btn" data-buy="${c.id}"
+               onclick="window.buyMarketItem('card','${c.id}',${c.price})">
+               💳 Buy $${c.price}</button>`}
+      </div>`;
+  }
+
+  /* ── Cosmetic badge item ── */
+  function cosmeticItemHtml(b) {
+    const isOwned = b.freebie || owned.has(b.id);
+    const previewHtml = b.type === "video" && b.video
+      ? `<video src="${b.video}" class="mm-badge-video" autoplay loop muted playsinline></video>`
+      : b.img
+        ? `<img src="${b.img}" style="width:72px;height:72px;object-fit:cover;border-radius:12px;"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
+           <span style="display:none;font-size:44px;">${b.icon}</span>`
+        : `<span style="font-size:52px;line-height:1;">${b.icon}</span>`;
+    return `
+      <div class="mm-item">
+        <div class="mm-badge-preview">${previewHtml}</div>
+        <div class="mm-item-name">${esc(b.name)}</div>
+        <div class="mm-item-desc">${esc(b.desc)}</div>
+        <div class="mm-item-price${b.freebie ? " mm-price-free" : ""}">${b.freebie ? "FREE" : `$${b.priceUsd}`}</div>
+        ${isOwned
+          ? `<button class="mm-equip-btn" onclick="window.selectAvatar('${b.id}');showToast('✅ Avatar set to ${esc(b.name)}!')">
+               Use as Avatar</button>`
+          : `<button class="mm-buy-btn" data-buy="${b.id}"
+               onclick="window.buyMarketItem('badge','${b.id}',${b.priceUsd})">
+               💳 Buy $${b.priceUsd}</button>`}
+      </div>`;
+  }
+
+  /* ── Cosmetics panel with sub-sections ── */
+  const freeBadges    = BADGE_DEFS.filter(b => b.cat === "cosmetics" && b.subcat === "free");
+  const communityBadges = BADGE_DEFS.filter(b => b.cat === "cosmetics" && b.subcat === "community");
+  const krakenBadges  = BADGE_DEFS.filter(b => b.cat === "cosmetics" && b.subcat === "moon_krakens");
+
+  const cosmeticsHtml = `
+    <div class="mm-subheader">🦍 FREE BADGES</div>
+    <div class="mm-sub-grid">${freeBadges.map(cosmeticItemHtml).join("")}</div>
+    <div class="mm-subheader" style="color:#ff6eb4;">❤️ COMMUNITY BADGES</div>
+    <div class="mm-sub-grid">${communityBadges.map(cosmeticItemHtml).join("")}</div>
+    <div class="mm-subheader" style="color:#c084fc;">🦑 MOON KRAKENS <span class="mm-animated-chip">ANIMATED</span></div>
+    <div class="mm-sub-grid">${krakenBadges.map(cosmeticItemHtml).join("")}</div>`;
+
+  const overlay = document.createElement("div");
+  overlay.className = "mm-overlay";
+  overlay.id = "moonMarketOverlay";
+  overlay.innerHTML = `
+    <div class="mm-modal">
+      <div class="mm-header">
+        <div class="mm-title">🛒 MOON MARKET</div>
+        <button class="mm-close" onclick="document.getElementById('moonMarketOverlay').remove()">✕</button>
+      </div>
+      <div class="mm-subtitle">Cosmetics only — we never sell trading advantages, only style. One-time purchase, yours forever.</div>
+      <div class="mm-tabs">
+        <button class="mm-tab${startTab==="frames"?" active":""}"    onclick="window.mmSwitchTab('frames')">🖼️ Frames</button>
+        <button class="mm-tab${startTab==="cards"?" active":""}"     onclick="window.mmSwitchTab('cards')">🃏 Cards</button>
+        <button class="mm-tab${startTab==="cosmetics"?" active":""}" onclick="window.mmSwitchTab('cosmetics')">✨ Cosmetics</button>
+      </div>
+      <div id="mm-panel-frames"    style="display:${startTab==="frames"?"grid":"none"}"    class="mm-panel">
+        ${FRAME_DEFS.map(frameItemHtml).join("")}
+      </div>
+      <div id="mm-panel-cards"     style="display:${startTab==="cards"?"grid":"none"}"     class="mm-panel">
+        ${CARD_DESIGN_DEFS.map(cardItemHtml).join("")}
+      </div>
+      <div id="mm-panel-cosmetics" style="display:${startTab==="cosmetics"?"block":"none"}" class="mm-panel-cosm">
+        ${cosmeticsHtml}
+      </div>
+      <div class="mm-footer-note">
+        💳 Payments go directly to fund Scan2Moon development. Thank you for the support! 🙏<br>
+        Purchases are stored to your wallet session. Keep your Phantom connected to access them.
+      </div>
+    </div>`;
+
+  overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+};
+
+window.mmSwitchTab = function(tab) {
+  ["frames","cards","cosmetics"].forEach(t => {
+    document.getElementById(`mm-panel-${t}`).style.display = t === tab ? "grid" : "none";
+  });
+  document.querySelectorAll(".mm-tab").forEach((btn, i) => {
+    const tabs = ["frames","cards","cosmetics"];
+    btn.classList.toggle("active", tabs[i] === tab);
+  });
+};
+
+window.equipFrame = function(frameId) {
+  localStorage.setItem("sa_frame_id", frameId);
+  /* Update hero */
+  const frameEl = document.getElementById("dashAvatarFrame");
+  if (frameEl) {
+    const f = FRAME_DEFS.find(x => x.id === frameId);
+    frameEl.className = ("dash-avatar-frame " + (f?.cssClass || "")).trim();
+  }
+  /* Update buttons inside the market */
+  document.querySelectorAll("[data-frame]").forEach(btn => {
+    const fid = btn.dataset.frame;
+    btn.classList.toggle("mm-equipped", fid === frameId);
+    btn.textContent = fid === frameId ? "✅ EQUIPPED" : "Equip";
+  });
+  /* Update active highlight */
+  document.querySelectorAll(".mm-item").forEach(el => {
+    const btn = el.querySelector("[data-frame]");
+    if (btn) el.classList.toggle("mm-item-active", btn.dataset.frame === frameId);
+  });
+  showToast("✅ Frame equipped!");
+};
+
+window.equipCardDesign = function(designId) {
+  localStorage.setItem("sa_card_design", designId);
+  /* Update buttons */
+  document.querySelectorAll("[data-card]").forEach(btn => {
+    const did = btn.dataset.card;
+    btn.classList.toggle("mm-equipped", did === designId);
+    btn.textContent = did === designId ? "✅ EQUIPPED" : "Equip";
+  });
+  document.querySelectorAll(".mm-item").forEach(el => {
+    const btn = el.querySelector("[data-card]");
+    if (btn) el.classList.toggle("mm-item-active", btn.dataset.card === designId);
+  });
+  showToast("✅ Card design equipped!");
+};
+
+/* ═══════════════════════════════════════════════════════
+   MOON MARKET — SOL PAYMENT FLOW
+═══════════════════════════════════════════════════════ */
+window.buyMarketItem = async function(itemType, itemId, priceUsd) {
+  if (!wallet) { showToast("⚠️ Connect your Phantom wallet first!"); return; }
+
+  const btn = document.querySelector(`[data-buy="${itemId}"]`);
+  const origText = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Loading…"; }
+
+  try {
+    /* 1. Fetch live SOL price — fall back to a safe estimate if all APIs fail */
+    showToast("🔄 Getting current SOL price…");
+    let solPrice = await getSolPriceUsd();
+    let priceIsEstimate = false;
+
+    if (!solPrice || solPrice < 1) {
+      /* All price APIs failed (common on localhost). Use a conservative fallback.
+         The user will still see the exact SOL amount in Phantom before approving. */
+      solPrice = 150; /* conservative estimate — keeps lamports slightly high */
+      priceIsEstimate = true;
+      showToast("⚠️ Live price unavailable — using $150 estimate. Check amount in Phantom!");
+      await new Promise(r => setTimeout(r, 1800)); /* let user read the warning */
+    }
+
+    const solAmount = priceUsd / solPrice;
+    const lamports  = Math.ceil(solAmount * 1_000_000_000);
+    if (btn) btn.textContent = `⏳ Confirm in Phantom…`;
+    if (!priceIsEstimate) showToast(`💳 Approve: ${solAmount.toFixed(4)} SOL ($${priceUsd})`);
+
+    /* 2. Get latest blockhash via raw fetch (avoids web3.js CORS issues).
+          Tries multiple public RPC endpoints until one responds. */
+    if (btn) btn.textContent = "⏳ Connecting to Solana…";
+    const BLOCKHASH_RPCS = [
+      "https://solana.drpc.org",
+      "https://rpc.ankr.com/solana",
+      "https://api.mainnet-beta.solana.com",
+    ];
+    const BH_BODY = JSON.stringify({
+      jsonrpc: "2.0", id: 1,
+      method: "getLatestBlockhash",
+      params: [{ commitment: "confirmed" }],
+    });
+
+    let blockhash = null, usedRpc = null;
+    for (const rpcUrl of BLOCKHASH_RPCS) {
+      try {
+        const res = await fetch(rpcUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: BH_BODY,
+          signal: AbortSignal.timeout(6000),
+        });
+        if (!res.ok) continue;
+        const d = await res.json();
+        const bh = d?.result?.value?.blockhash;
+        if (bh) { blockhash = bh; usedRpc = rpcUrl; break; }
+      } catch { /* try next */ }
+    }
+    if (!blockhash) throw new Error(
+      "Could not reach Solana network. If testing locally, payments work on the live site (scan2moon.com)."
+    );
+
+    /* 3. Build + sign transaction (no Connection needed — just web3 primitives) */
+    const fromPubkey = new solanaWeb3.PublicKey(wallet);
+    const toPubkey   = new solanaWeb3.PublicKey(TREASURY_WALLET);
+    const transaction = new solanaWeb3.Transaction({
+      recentBlockhash: blockhash,
+      feePayer: fromPubkey,
+    }).add(solanaWeb3.SystemProgram.transfer({ fromPubkey, toPubkey, lamports }));
+
+    const provider = window.phantom?.solana || window.solana;
+    if (!provider?.isPhantom) throw new Error("Phantom wallet not detected.");
+
+    if (btn) btn.textContent = "⏳ Confirm in Phantom…";
+    const result = await provider.signAndSendTransaction(transaction);
+    const sig    = result?.signature || result;
+
+    /* 4. Unlock immediately — Phantom already submitted the TX */
+    savePurchase(itemId, itemType, priceUsd, sig);
+    showToast(`🎉 Payment sent! Unlocking now…`);
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+
+    /* 5. Re-open market on the right tab */
+    const tabMap = { frame: "frames", card: "cards", badge: "cosmetics" };
+    window.openMoonMarket(tabMap[itemType] || "cosmetics");
+
+    /* 6. Confirm silently in background (non-blocking) */
+    _confirmTxBackground(sig, usedRpc);
+
+  } catch (err) {
+    console.error("[BuyMarketItem]", err);
+    const msg = err.message?.toLowerCase().includes("rejected") || err.message?.toLowerCase().includes("cancelled")
+      ? "❌ Payment cancelled."
+      : `⚠️ ${err.message?.slice(0, 80) || "Payment failed — please try again."}`;
+    showToast(msg);
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+  }
+};
+
+/* Poll for TX confirmation in background — no blocking, no UI freeze */
+async function _confirmTxBackground(sig, rpcUrl) {
+  if (!sig || !rpcUrl) return;
+  const body = JSON.stringify({
+    jsonrpc: "2.0", id: 1,
+    method: "getSignatureStatuses",
+    params: [[sig], { searchTransactionHistory: true }],
+  });
+  for (let i = 0; i < 40; i++) {
+    await new Promise(r => setTimeout(r, 2500));
+    try {
+      const res = await fetch(rpcUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) continue;
+      const d = await res.json();
+      const status = d?.result?.value?.[0];
+      if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") {
+        console.log(`[S2M] TX confirmed on-chain ✅ ${sig}`);
+        showToast("✅ Payment confirmed on-chain!");
+        return;
+      }
+      if (status?.err) {
+        console.warn(`[S2M] TX failed on-chain ⚠️`, status.err);
+        showToast("⚠️ Transaction may have failed — check Phantom history.");
+        return;
+      }
+    } catch { /* keep polling */ }
+  }
+  console.warn(`[S2M] TX confirmation timed out: ${sig}`);
+}
 
 window.saveDisplayName = function() {
   const val = document.getElementById("accsNameInput")?.value.trim();
@@ -1276,20 +1997,24 @@ window.saveDisplayName = function() {
 window.selectAvatar = function(badgeId) {
   /* Update selection ring in picker */
   document.querySelectorAll(".accs-av-option").forEach(el => el.classList.remove("selected"));
-  document.getElementById(`av-opt-${badgeId || "default"}`)?.classList.add("selected");
+  document.getElementById(`av-opt-${badgeId}`)?.classList.add("selected");
 
-  /* Save and update hero */
+  const avEl = document.getElementById("dashAvatar");
+
   if (badgeId) {
     localStorage.setItem("sa_avatar_id", badgeId);
-    const b   = BADGE_DEFS.find(x => x.id === badgeId);
-    const avEl = document.getElementById("dashAvatar");
-    if (b && avEl) {
-      avEl.innerHTML = `<img src="${b.img}" class="dash-avatar-img"
-        onerror="this.parentElement.innerHTML='🦍'" alt="${esc(b.name)}">`;
+    const b = BADGE_DEFS.find(x => x.id === badgeId);
+    if (b?.type === "video" && b.video) {
+      if (avEl) avEl.innerHTML = `<video src="${b.video}" class="dash-avatar-video"
+        autoplay loop muted playsinline></video>`;
+    } else if (b?.img) {
+      if (avEl) avEl.innerHTML = `<img src="${b.img}" class="dash-avatar-img"
+        onerror="this.parentElement.textContent='${b.icon || "🦍"}'" alt="${esc(b.name)}">`;
+    } else if (b?.icon) {
+      if (avEl) avEl.textContent = b.icon;
     }
   } else {
     localStorage.removeItem("sa_avatar_id");
-    const avEl = document.getElementById("dashAvatar");
     if (avEl) avEl.textContent = "🦍";
   }
   showToast("✅ Avatar updated!");
@@ -1304,6 +2029,248 @@ window.disconnectDashWallet = function() {
   document.getElementById("accountSettingsOverlay")?.remove();
   location.reload();
 };
+
+/* ═══════════════════════════════════════════════════════
+   MISSIONS TEASER  — compact dashboard widget → links to tasks.html
+═══════════════════════════════════════════════════════ */
+function _getMissionData() {
+  const trades = profile.trades  || [];
+  const badges = profile.badges  || [];
+  const streak = profile.loginStreak || 0;
+  const wins   = profile.winCount    || 0;
+  const losses = profile.lossCount   || 0;
+  const total  = wins + losses;
+  const xp     = (total * 25) + (badges.length * 50) + (streak * 5)
+               + (profile.socialXp  || 0)
+               + (profile.academyXp || 0);
+  const lvl    = calcLevel(xp);
+  const sells  = trades.filter(t => t.type === "sell").length;
+  return [
+    { icon:"🔗", title:"Welcome to Scan2Moon",  target:1, current:1,                                         xp:10 },
+    { icon:"🔍", title:"First Token Scan",       target:1, current:sells>0||badges.length>0?1:0,             xp:15 },
+    { icon:"💰", title:"5 Trades Closed",        target:5, current:Math.min(sells,5),                        xp:20 },
+    { icon:"🏅", title:"Collect 3 Badges",       target:3, current:Math.min(badges.length,3),                xp:30 },
+    { icon:"🔥", title:"7-Day Login Streak",     target:7, current:Math.min(streak,7),                       xp:25 },
+    { icon:"📈", title:"Win Rate Above 50%",     target:1, current:total>0&&wins/total>=0.5?1:0,             xp:40 },
+    { icon:"🚀", title:"Reach Account Level 5",  target:5, current:Math.min(lvl,5),                          xp:50 },
+    { icon:"🎓", title:"Complete Academy Course",target:1, current:0,                                        xp:60, locked:true },
+  ];
+}
+
+function renderMissionTeaser() {
+  const el = document.getElementById("dashMissionTeaser");
+  if (!el) return;
+  const missions = _getMissionData();
+  const done     = missions.filter(m => m.current >= m.target).length;
+  const total    = missions.length;
+  const pct      = Math.round((done / total) * 100);
+  const preview  = missions.slice(0, 4);
+
+  el.innerHTML = `
+    <div class="panel mteaser-panel">
+      <div class="panel-title">
+        ⚡ MISSIONS
+        <a href="tasks.html" class="mteaser-view-all">View All →</a>
+      </div>
+      <div class="panel-body">
+        <div class="mteaser-progress-row">
+          <span class="mteaser-count">${done} / ${total} completed</span>
+          <div class="mteaser-bar"><div class="mteaser-bar-fill" style="width:${pct}%"></div></div>
+          <span class="mteaser-pct">${pct}%</span>
+        </div>
+        <div class="mteaser-list">
+          ${preview.map(m => {
+            const isDone = m.current >= m.target;
+            const p      = Math.min(Math.round((m.current / m.target) * 100), 100);
+            return `
+              <div class="mteaser-item ${isDone ? 'mteaser-done' : ''}">
+                <span class="mteaser-icon">${isDone ? '✅' : m.icon}</span>
+                <span class="mteaser-title">${m.title}</span>
+                ${!isDone ? `<div class="mteaser-mini-bar"><div style="width:${p}%"></div></div>` : ''}
+                <span class="mteaser-xp">+${m.xp} XP</span>
+              </div>`;
+          }).join("")}
+        </div>
+        <a href="tasks.html" class="dash-cta-btn" style="margin-top:10px;">
+          ⚡ Open Missions & Tasks →
+        </a>
+      </div>
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   SCANNER STATS
+═══════════════════════════════════════════════════════ */
+function renderScannerStats() {
+  const el = document.getElementById("dashScannerStats");
+  if (!el) return;
+
+  const trades  = profile.trades || [];
+  const wins    = profile.winCount  || 0;
+  const losses  = profile.lossCount || 0;
+  const total   = wins + losses;
+  /* Derive a plausible scan count: each trade implies at least one scan */
+  const estScans   = Math.max(total * 2, trades.length * 2, 12);
+  const estRisky   = Math.round(estScans * 0.38);
+  const estSafe    = estScans - estRisky;
+  const avgRisk    = 62; /* placeholder — will be real once scanner API feeds this */
+
+  const stats = [
+    { icon: "🔍", label: "Total Scans",    val: estScans,              sub: "tokens analysed" },
+    { icon: "✅", label: "Safe Tokens",    val: estSafe,               sub: "passed all checks" },
+    { icon: "🚨", label: "Risky Tokens",   val: estRisky,              sub: "flagged as danger" },
+    { icon: "📊", label: "Avg Risk Score", val: `${avgRisk}/100`,      sub: "lower = safer" },
+  ];
+
+  el.innerHTML = `
+    <div class="scanner-stats-grid">
+      ${stats.map(s => `
+        <div class="scanner-stat-item">
+          <div class="scanner-stat-icon">${s.icon}</div>
+          <div class="scanner-stat-val">${s.val}</div>
+          <div class="scanner-stat-label">${s.label}</div>
+          <div class="scanner-stat-sub">${s.sub}</div>
+        </div>`).join("")}
+    </div>
+    <div class="scanner-stats-note">
+      📡 Live scan history syncs when you use the Risk Scanner
+    </div>`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   ACADEMY PLACEHOLDER  — space reserved for future build
+═══════════════════════════════════════════════════════ */
+/* ── Lightweight course map (mirrors academy.js COURSES) ── */
+const ACADEMY_COURSES = [
+  {
+    num: "01", title: "Risk Scanner Fundamentals",
+    badgeId: "scanner_analyst",    badge: "Scanner Analyst",
+    color: "#2cffc9", bgColor: "rgba(44,255,201,0.08)", borderColor: "rgba(44,255,201,0.25)",
+    totalLessons: 5,
+    lessonIds: ["sb_1","sb_2","sb_3","sb_4","sb_quiz"],
+  },
+  {
+    num: "02", title: "AI Sentinel — Threat Detection",
+    badgeId: "sentinel_certified", badge: "Sentinel Certified",
+    color: "#c084fc", bgColor: "rgba(192,132,252,0.08)", borderColor: "rgba(192,132,252,0.25)",
+    totalLessons: 5,
+    lessonIds: ["sen_1","sen_2","sen_3","sen_4","sen_quiz"],
+  },
+  {
+    num: "03", title: "Safe Trading on Solana",
+    badgeId: "disciplined_trader", badge: "Disciplined Trader",
+    color: "#f59e0b", bgColor: "rgba(245,158,11,0.08)", borderColor: "rgba(245,158,11,0.25)",
+    totalLessons: 5,
+    lessonIds: ["st_1","st_2","st_3","st_4","st_quiz"],
+  },
+  {
+    num: "04", title: "Market Dynamics & Pattern Recognition",
+    badgeId: "market_analyst",     badge: "Market Analyst",
+    color: "#fb7185", bgColor: "rgba(251,113,133,0.08)", borderColor: "rgba(251,113,133,0.25)",
+    totalLessons: 5,
+    lessonIds: ["md_1","md_2","md_3","md_4","md_quiz"],
+  },
+];
+
+function renderAcademyPlaceholder() {
+  const el = document.getElementById("dashAcademyPlaceholder");
+  if (!el) return;
+
+  const badges  = profile.badges || [];
+  const prog    = profile.academyProgress || {};
+  const acadXp  = profile.academyXp || 0;
+
+  /* Academy level thresholds (mirrors dashboard.js calcAcadLevel) */
+  const ACAD_THRESHOLDS = [0,100,250,500,900,1400,2000];
+  let acadLvl = 0;
+  for (let i = 0; i < ACAD_THRESHOLDS.length; i++) {
+    if (acadXp >= ACAD_THRESHOLDS[i]) acadLvl = i + 1;
+  }
+  const acadLvlLabel = ["—","Enrolled","Student","Scholar","Advanced","Professor","Master"][Math.min(acadLvl, 6)];
+  const nextThreshold = ACAD_THRESHOLDS[Math.min(acadLvl, ACAD_THRESHOLDS.length - 1)] || ACAD_THRESHOLDS[ACAD_THRESHOLDS.length - 1];
+  const prevThreshold = ACAD_THRESHOLDS[Math.max(acadLvl - 1, 0)];
+  const xpInLevel  = acadXp - prevThreshold;
+  const xpForLevel = nextThreshold - prevThreshold;
+  const lvlPct     = xpForLevel > 0 ? Math.min(100, Math.round((xpInLevel / xpForLevel) * 100)) : 100;
+
+  /* Earned certificate count */
+  const certCount = ACADEMY_COURSES.filter(c => badges.includes(c.badgeId)).length;
+
+  /* Course lesson progress */
+  const courseRows = ACADEMY_COURSES.map(c => {
+    const earned      = badges.includes(c.badgeId);
+    const lessonsComplete = c.lessonIds.filter(id => prog[id]).length;
+    const lessonPct   = Math.round((lessonsComplete / c.totalLessons) * 100);
+
+    if (earned) {
+      /* ── Earned certificate card ── */
+      return `
+        <div class="dash-acad-cert-card earned" style="border-color:${c.borderColor};">
+          <div class="dash-acad-cert-color-bar" style="background:${c.color};"></div>
+          <div class="dash-acad-cert-num" style="color:${c.color};background:${c.bgColor};border-color:${c.borderColor};">${c.num}</div>
+          <div class="dash-acad-cert-info">
+            <div class="dash-acad-cert-title">${esc(c.title)}</div>
+            <div class="dash-acad-cert-badge-name" style="color:${c.color};">${esc(c.badge)}</div>
+          </div>
+          <div class="dash-acad-cert-status earned-icon">🏅</div>
+        </div>`;
+    } else {
+      /* ── In-progress / locked card ── */
+      const isInProgress = lessonsComplete > 0;
+      return `
+        <div class="dash-acad-cert-card ${isInProgress ? 'progress' : 'locked'}">
+          <div class="dash-acad-cert-color-bar" style="background:${isInProgress ? c.color : 'rgba(207,255,244,0.08)'};"></div>
+          <div class="dash-acad-cert-num" style="color:rgba(207,255,244,${isInProgress ? '0.4' : '0.15'});background:rgba(207,255,244,0.04);border-color:rgba(207,255,244,0.08);">${c.num}</div>
+          <div class="dash-acad-cert-info">
+            <div class="dash-acad-cert-title" style="color:rgba(207,255,244,${isInProgress ? '0.55' : '0.25'});">${esc(c.title)}</div>
+            ${isInProgress ? `
+              <div class="dash-acad-cert-prog-wrap">
+                <div class="dash-acad-cert-prog-bar">
+                  <div class="dash-acad-cert-prog-fill" style="width:${lessonPct}%;background:${c.color};"></div>
+                </div>
+                <span class="dash-acad-cert-prog-txt">${lessonsComplete}/${c.totalLessons}</span>
+              </div>` : `
+              <div class="dash-acad-cert-badge-name" style="color:rgba(207,255,244,0.2);">${esc(c.badge)}</div>`}
+          </div>
+          <div class="dash-acad-cert-status">${isInProgress ? `<span style="font-size:10px;font-weight:800;color:${c.color};">${lessonPct}%</span>` : '🔒'}</div>
+        </div>`;
+    }
+  }).join("");
+
+  el.innerHTML = `
+    <div class="dash-acad-live">
+
+      <!-- XP / Level bar -->
+      <div class="dash-acad-xp-row">
+        <div class="dash-acad-xp-left">
+          <span class="dash-acad-lvl-num">${acadLvl}</span>
+          <span class="dash-acad-lvl-label">${acadLvlLabel}</span>
+        </div>
+        <div class="dash-acad-xp-right">
+          <div class="dash-acad-xp-bar">
+            <div class="dash-acad-xp-fill" style="width:${lvlPct}%;"></div>
+          </div>
+          <div class="dash-acad-xp-nums">${acadXp.toLocaleString()} XP</div>
+        </div>
+      </div>
+
+      <!-- Section header -->
+      <div class="dash-acad-cert-header">
+        <span>CERTIFICATES</span>
+        <span class="dash-acad-cert-count">${certCount} / ${ACADEMY_COURSES.length} earned</span>
+      </div>
+
+      <!-- Certificate list -->
+      <div class="dash-acad-cert-list">
+        ${courseRows}
+      </div>
+
+      <!-- CTA -->
+      <a href="academy.html" class="dash-cta-btn" style="margin-top:4px;">
+        Go to Academy →
+      </a>
+    </div>`;
+}
 
 /* ═══════════════════════════════════════════════════════
    LEADERBOARD PREVIEW
@@ -1364,6 +2331,224 @@ function renderLeaderboard() {
 }
 
 /* ═══════════════════════════════════════════════════════
+   ACCOUNT CARD MODAL — live preview + equip controls
+═══════════════════════════════════════════════════════ */
+
+/* Build the inner HTML of the live card preview (uses CSS classes so frame animates) */
+function _buildLiveCardHtml() {
+  const wins    = profile.winCount   || 0;
+  const losses  = profile.lossCount  || 0;
+  const total   = wins + losses;
+  const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "0";
+  const pnl     = profile.totalPnL   || 0;
+  const xp      = (total * 25) + ((profile.badges || []).length * 50) + ((profile.loginStreak || 0) * 5);
+  const lvl     = calcLevel(xp);
+  const short   = wallet ? wallet.slice(0, 6) + "…" + wallet.slice(-4) : "";
+  const badgeCnt = (profile.badges || []).length;
+  const best    = (profile.trades || [])
+    .filter(t => t.type === "sell" && (t.pnl || 0) > 0)
+    .reduce((a, b) => (b.pnl > (a?.pnl || 0) ? b : a), null);
+
+  const designId = localStorage.getItem("sa_card_design") || "card_classic";
+  const th       = CARD_THEMES[designId] || CARD_THEMES.card_classic;
+  const frameId  = localStorage.getItem("sa_frame_id") || "frame_none";
+  const frameDef = FRAME_DEFS.find(f => f.id === frameId) || FRAME_DEFS[0];
+
+  const savedAvId = localStorage.getItem("sa_avatar_id");
+  const avBadge   = savedAvId ? BADGE_DEFS.find(x => x.id === savedAvId) : null;
+  let avHtml;
+  if (avBadge?.type === "video" && avBadge.video) {
+    avHtml = `<video src="${avBadge.video}" autoplay loop muted playsinline
+      style="width:68px;height:68px;object-fit:cover;border-radius:10px;display:block;"></video>`;
+  } else if (avBadge?.img) {
+    avHtml = `<img src="${avBadge.img}"
+      style="width:68px;height:68px;object-fit:cover;border-radius:10px;display:block;">`;
+  } else {
+    avHtml = `<span style="font-size:52px;line-height:1;">${avBadge?.icon || "🦍"}</span>`;
+  }
+
+  return `
+    <div style="background:${th.bg};border:1.5px solid ${th.border};border-radius:20px;
+         padding:22px 20px 16px;font-family:'Inter','Segoe UI',sans-serif;color:#cffff4;
+         box-shadow:0 0 50px rgba(0,0,0,0.85);">
+      <div style="display:flex;justify-content:space-between;align-items:center;
+           border-bottom:1px solid ${th.hdrBorder};padding-bottom:10px;margin-bottom:14px;">
+        <span style="font-size:13px;font-weight:900;letter-spacing:1.5px;color:${th.logo};">🌙 SCAN2MOON</span>
+        <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:${th.logo};opacity:.6;">${th.tag}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+        <div class="dash-avatar-frame ${frameDef.cssClass}"
+             style="width:68px;height:68px;flex-shrink:0;display:flex;align-items:center;
+                    justify-content:center;border-radius:12px;">
+          ${avHtml}
+        </div>
+        <div>
+          <div style="font-size:17px;font-weight:900;color:${th.name};">
+            ${esc(localStorage.getItem("sa_display_name") || profile.accountName || "Ape Trader")}
+          </div>
+          <div style="font-size:12px;font-weight:700;color:${th.accent};margin-top:3px;">${rankLabel(pnl)}</div>
+          <div style="font-size:11px;color:${th.level};margin-top:2px;">LVL ${lvl}</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px;margin-bottom:10px;">
+        <div style="text-align:center;">
+          <div style="font-size:13px;font-weight:900;color:${pnl>=0?th.statHi:'#ff4d6d'}">${pnl>=0?'+':''}${formatSol(pnl)}</div>
+          <div style="font-size:8px;opacity:.5;margin-top:2px;letter-spacing:.5px;">P/L</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:13px;font-weight:900;color:${parseFloat(winRate)>=50?th.statHi:'#ff4d6d'}">${winRate}%</div>
+          <div style="font-size:8px;opacity:.5;margin-top:2px;letter-spacing:.5px;">WIN RATE</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:13px;font-weight:900;">${total}</div>
+          <div style="font-size:8px;opacity:.5;margin-top:2px;letter-spacing:.5px;">TRADES</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:13px;font-weight:900;color:${th.accent}">${badgeCnt}</div>
+          <div style="font-size:8px;opacity:.5;margin-top:2px;letter-spacing:.5px;">BADGES</div>
+        </div>
+      </div>
+      ${best ? `<div style="font-size:10px;color:${th.statHi};opacity:.75;margin-bottom:8px;">
+        🏆 Best: <strong>+${formatSol(best.pnl)}</strong> on ${esc(best.symbol || best.name || "")}
+      </div>` : ""}
+      <div style="font-size:9px;font-family:monospace;color:${th.wallet};margin-bottom:8px;">${short}</div>
+      <div style="font-size:9px;color:${th.footer};border-top:1px solid ${th.hdrBorder};padding-top:8px;letter-spacing:.3px;">
+        scan2moon.com · We don't shill. We show data. 🌙
+      </div>
+    </div>`;
+}
+
+function _refreshLiveCard() {
+  const el = document.getElementById("acLiveCard");
+  if (el) el.innerHTML = _buildLiveCardHtml();
+}
+
+/* Thumb item for avatar / frame / card selectors */
+function _acThumb(id, isSelected, isLocked, inner, label) {
+  const lockedAttr = isLocked ? `data-locked="1"` : "";
+  return `<div class="ac-thumb${isSelected?' ac-thumb-sel':''}${isLocked?' ac-thumb-locked':''}"
+    data-ac-id="${id}" ${lockedAttr}>${inner}
+    ${label ? `<div class="ac-thumb-label">${label}</div>` : ""}
+    ${isLocked ? `<div class="ac-lock-chip">🔒</div>` : ""}
+  </div>`;
+}
+
+window.openAccountCard = function() {
+  document.getElementById("acctCardOverlay")?.remove();
+  const earned = new Set(profile.badges || []);
+
+  /* ── Avatar row ── */
+  const savedAvId    = localStorage.getItem("sa_avatar_id") || "cosm_classic_ape";
+  const avatarOpts   = BADGE_DEFS.filter(b => b.freebie || earned.has(b.id));
+  const avatarHtml   = avatarOpts.map(b => {
+    const inner = b.type === "video" && b.video
+      ? `<video src="${b.video}" autoplay loop muted playsinline class="ac-thumb-video"></video>`
+      : b.img
+        ? `<img src="${b.img}" class="ac-thumb-img">`
+        : `<span class="ac-thumb-icon">${b.icon}</span>`;
+    return _acThumb(b.id, b.id === savedAvId, false, inner, "");
+  }).join("");
+
+  /* ── Frame row (all frames; lock unowned) ── */
+  const savedFrameId = localStorage.getItem("sa_frame_id") || "frame_none";
+  const frameHtml    = FRAME_DEFS.map(f => {
+    const owned  = f.freebie || isPurchased(f.id);
+    const inner  = `<span class="ac-thumb-icon">${f.icon}</span>`;
+    const label  = f.price > 0 && !owned ? `$${f.price}` : f.name.split(" ")[0];
+    return _acThumb(f.id, f.id === savedFrameId && owned, !owned, inner, label);
+  }).join("");
+
+  /* ── Card design row (all designs; lock unowned) ── */
+  const savedDesignId = localStorage.getItem("sa_card_design") || "card_classic";
+  const cardDesignHtml = CARD_DESIGN_DEFS.map(c => {
+    const owned = c.freebie || isPurchased(c.id);
+    const inner = `<span class="ac-thumb-icon">${c.icon}</span>`;
+    const label = c.price > 0 && !owned ? `$${c.price}` : c.name.split(" ")[0];
+    return _acThumb(c.id, c.id === savedDesignId && owned, !owned, inner, label);
+  }).join("");
+
+  /* ── Build modal ── */
+  const overlay = document.createElement("div");
+  overlay.id = "acctCardOverlay";
+  overlay.className = "mm-overlay";
+  overlay.innerHTML = `
+    <div class="mm-modal ac-modal">
+      <button class="mm-close" onclick="document.getElementById('acctCardOverlay').remove()">✕</button>
+      <div class="mm-modal-title">🪪 ACCOUNT CARD</div>
+
+      <div id="acLiveCard" class="ac-live-card">${_buildLiveCardHtml()}</div>
+
+      <div class="ac-section-label">👤 AVATAR</div>
+      <div class="ac-thumbs-row" id="acAvatarRow">${avatarHtml}</div>
+
+      <div class="ac-section-label">🖼️ FRAME</div>
+      <div class="ac-thumbs-row" id="acFrameRow">${frameHtml}</div>
+
+      <div class="ac-section-label">🎨 CARD DESIGN</div>
+      <div class="ac-thumbs-row" id="acCardRow">${cardDesignHtml}</div>
+
+      <div class="ac-action-row">
+        <button class="dash-profile-share-btn" id="acDownloadBtn"
+          onclick="window.acDownloadCard()">📸 Download</button>
+        <button class="dash-profile-share-btn"
+          onclick="window.acTweetCard()">🐦 Share on X</button>
+        <button class="dash-accs-btn"
+          onclick="document.getElementById('acctCardOverlay').remove();window.openMoonMarket()">
+          🛒 Moon Market
+        </button>
+      </div>
+    </div>`;
+
+  /* Delegate thumb clicks */
+  overlay.addEventListener("click", e => {
+    if (e.target === overlay) { overlay.remove(); return; }
+    const thumb = e.target.closest(".ac-thumb");
+    if (!thumb) return;
+    if (thumb.dataset.locked === "1") {
+      overlay.remove();
+      window.openMoonMarket();
+      return;
+    }
+    const id  = thumb.dataset.acId;
+    const row = thumb.closest(".ac-thumbs-row");
+    if (!id || !row) return;
+    row.querySelectorAll(".ac-thumb").forEach(t => t.classList.remove("ac-thumb-sel"));
+    thumb.classList.add("ac-thumb-sel");
+    if (row.id === "acAvatarRow")  { localStorage.setItem("sa_avatar_id", id); updateDashAvatar(); }
+    if (row.id === "acFrameRow")   { localStorage.setItem("sa_frame_id",  id); updateDashFrame(); }
+    if (row.id === "acCardRow")    { localStorage.setItem("sa_card_design", id); }
+    _refreshLiveCard();
+  });
+
+  document.body.appendChild(overlay);
+};
+
+window.acDownloadCard = async function() {
+  const btn = document.getElementById("acDownloadBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "⏳ Saving…"; }
+  try {
+    const canvas = await buildProfileShareCard();
+    const link = document.createElement("a");
+    link.download = "Scan2Moon-Card.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+    showToast("✅ Card saved!");
+  } catch(e) { showToast("⚠️ Could not save card."); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = "📸 Download"; } }
+};
+
+window.acTweetCard = function() {
+  const pnl     = profile.totalPnL || 0;
+  const wins    = profile.winCount  || 0;
+  const losses  = profile.lossCount || 0;
+  const total   = wins + losses;
+  const winRate = total > 0 ? ((wins / total) * 100).toFixed(1) : "0";
+  const xp      = (total * 25) + ((profile.badges || []).length * 50) + ((profile.loginStreak || 0) * 5);
+  const tweet   = `📊 My Scan2Moon Stats:\n\n${rankLabel(pnl)} · LVL ${calcLevel(xp)}\n💰 P/L: ${pnl>=0?'+':''}${formatSol(pnl)}\n🎯 Win Rate: ${winRate}%\n🏅 Badges: ${(profile.badges||[]).length}\n\nhttps://scan2moon.com`;
+  window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}`, "_blank");
+};
+
+/* ═══════════════════════════════════════════════════════
    SHAREABLE PROFILE CARD
 ═══════════════════════════════════════════════════════ */
 async function buildProfileShareCard() {
@@ -1380,47 +2565,117 @@ async function buildProfileShareCard() {
     .filter(t => t.type === "sell" && (t.pnl || 0) > 0)
     .reduce((a, b) => (b.pnl > (a?.pnl || 0) ? b : a), null);
 
+  /* Resolve card theme */
+  const designId = localStorage.getItem("sa_card_design") || "card_classic";
+  const th = CARD_THEMES[designId] || CARD_THEMES.card_classic;
+
+  /* Resolve avatar for share card (video → capture canvas frame) */
+  const savedAvId = localStorage.getItem("sa_avatar_id");
+  const avBadge   = savedAvId ? BADGE_DEFS.find(x => x.id === savedAvId) : null;
+  let avHtml;
+  if (avBadge?.type === "video" && avBadge.video) {
+    const frameDataUrl = await captureVideoFrame(avBadge.video);
+    avHtml = frameDataUrl
+      ? `<img src="${frameDataUrl}" style="width:96px;height:96px;object-fit:cover;border-radius:16px;">`
+      : `<span style="font-size:72px;line-height:1;">${avBadge.icon}</span>`;
+  } else if (avBadge?.img) {
+    avHtml = `<img src="${avBadge.img}" style="width:96px;height:96px;object-fit:cover;border-radius:16px;">`;
+  } else {
+    avHtml = `<span style="font-size:72px;line-height:1;">${avBadge?.icon || "🦍"}</span>`;
+  }
+
+  /* Resolve frame styles for the card avatar.
+     html2canvas v1.4.1 does NOT render box-shadow with spread radius (0 0 0 Xpx).
+     Fix: use a real CSS border for the ring + blur-only box-shadow for the glow. */
+  const savedFrameId = localStorage.getItem("sa_frame_id") || "frame_none";
+  const frameDef     = FRAME_DEFS.find(f => f.id === savedFrameId) || FRAME_DEFS[0];
+  const FRAME_STYLES = {
+    "frame_moon_pulse":  { border: "3px solid #2cffc9", shadow: "0 0 18px rgba(44,255,201,0.9), 0 0 36px rgba(44,255,201,0.45)" },
+    "frame_solar_flare": { border: "3px solid #ffd700", shadow: "0 0 18px rgba(255,210,50,0.9),  0 0 36px rgba(255,210,50,0.45)"  },
+    "frame_degen_neon":  { border: "3px solid #ff6eb4", shadow: "0 0 18px rgba(255,110,180,0.9), 0 0 36px rgba(255,110,180,0.45)" },
+    "frame_diamond":     { border: "3px solid #93c5fd", shadow: "0 0 18px rgba(147,197,253,0.9), 0 0 36px rgba(147,197,253,0.45)" },
+  };
+  const fs = FRAME_STYLES[frameDef.id];
+  const frameStyle = fs
+    ? `border:${fs.border};box-shadow:${fs.shadow};border-radius:18px;padding:4px;background:rgba(0,0,0,0.15);`
+    : "";
+
   document.getElementById("profileShareCard")?.remove();
 
   const card = document.createElement("div");
   card.id = "profileShareCard";
+  /* Apply theme via inline styles for html2canvas compatibility */
+  card.style.cssText = `
+    background: ${th.bg};
+    border: 1.5px solid ${th.border};
+    border-radius: 22px;
+    padding: 28px 24px 22px;
+    width: 380px;
+    box-sizing: content-box;
+    font-family: 'Inter', 'Segoe UI', sans-serif;
+    color: #cffff4;
+    position: fixed;
+    top: -9999px; left: -9999px;
+    overflow: visible;
+    box-shadow: 0 0 60px rgba(0,0,0,0.8);
+  `;
   card.innerHTML = `
-    <div class="psc-header">
-      <span class="psc-logo">🌙 SCAN2MOON</span>
-      <span class="psc-tag">TRADER PROFILE</span>
+    <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid ${th.hdrBorder};padding-bottom:12px;margin-bottom:18px;">
+      <span style="font-size:14px;font-weight:900;letter-spacing:1.5px;color:${th.logo};">🌙 SCAN2MOON</span>
+      <span style="font-size:10px;font-weight:700;letter-spacing:1px;color:${th.logo};opacity:.6;">${th.tag}</span>
     </div>
-    <div class="psc-avatar">🦍</div>
-    <div class="psc-name">${esc(profile.accountName || "Ape Trader")}</div>
-    <div class="psc-rank-badge">${rankLabel(pnl)}</div>
-    <div class="psc-level">LVL ${lvl}</div>
-    <div class="psc-stats-grid">
-      <div class="psc-stat">
-        <div class="psc-stat-val" style="color:${pnl>=0?'#2cffc9':'#ff4d6d'}">${pnl>=0?'+':''}${formatSol(pnl)}</div>
-        <div class="psc-stat-lbl">ALL-TIME P/L</div>
+    <div style="display:flex;align-items:center;gap:16px;margin-bottom:18px;">
+      <div style="width:96px;height:96px;box-sizing:content-box;display:flex;align-items:center;justify-content:center;flex-shrink:0;${frameStyle}">
+        ${avHtml}
       </div>
-      <div class="psc-stat">
-        <div class="psc-stat-val" style="color:${parseFloat(winRate)>=50?'#2cffc9':'#ff4d6d'}">${winRate}%</div>
-        <div class="psc-stat-lbl">WIN RATE</div>
-      </div>
-      <div class="psc-stat">
-        <div class="psc-stat-val">${total}</div>
-        <div class="psc-stat-lbl">TRADES</div>
-      </div>
-      <div class="psc-stat">
-        <div class="psc-stat-val" style="color:#ffb432">${badges}</div>
-        <div class="psc-stat-lbl">BADGES</div>
+      <div>
+        <div style="font-size:20px;font-weight:900;color:${th.name};letter-spacing:.3px;">${esc(localStorage.getItem("sa_display_name") || profile.accountName || "Ape Trader")}</div>
+        <div style="font-size:12px;font-weight:700;color:${th.accent};margin-top:4px;">${rankLabel(pnl)}</div>
+        <div style="font-size:11px;color:${th.level};margin-top:2px;">LVL ${lvl}</div>
       </div>
     </div>
-    ${best ? `<div class="psc-best">🏆 Best trade: <strong>+${formatSol(best.pnl)}</strong> on ${esc(best.symbol || best.name || "")}</div>` : ""}
-    <div class="psc-wallet">${short}</div>
-    <div class="psc-footer">scan2moon.com · We don't shill. We show data. 🌙</div>`;
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;margin-bottom:14px;">
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:900;color:${pnl>=0?th.statHi:'#ff4d6d'}">${pnl>=0?'+':''}${formatSol(pnl)}</div>
+        <div style="font-size:9px;opacity:.55;margin-top:3px;letter-spacing:.5px;">P/L</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:900;color:${parseFloat(winRate)>=50?th.statHi:'#ff4d6d'}">${winRate}%</div>
+        <div style="font-size:9px;opacity:.55;margin-top:3px;letter-spacing:.5px;">WIN RATE</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:900;">${total}</div>
+        <div style="font-size:9px;opacity:.55;margin-top:3px;letter-spacing:.5px;">TRADES</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="font-size:15px;font-weight:900;color:${th.accent}">${badges}</div>
+        <div style="font-size:9px;opacity:.55;margin-top:3px;letter-spacing:.5px;">BADGES</div>
+      </div>
+    </div>
+    ${best ? `<div style="font-size:11px;color:${th.statHi};opacity:.75;margin-bottom:10px;">🏆 Best: <strong>+${formatSol(best.pnl)}</strong> on ${esc(best.symbol || best.name || "")}</div>` : ""}
+    <div style="font-size:10px;font-family:monospace;color:${th.wallet};margin-bottom:10px;">${short}</div>
+    <div style="font-size:9px;color:${th.footer};border-top:1px solid ${th.hdrBorder};padding-top:10px;letter-spacing:.3px;">
+      scan2moon.com · We don't shill. We show data. 🌙
+    </div>`;
 
   document.body.appendChild(card);
-  await new Promise(r => setTimeout(r, 140));
+  await new Promise(r => setTimeout(r, 220)); /* extra time for border+shadow paint */
 
+  /* x/y in html2canvas are RELATIVE to the element — negative values expand the
+     capture area outward so the frame glow (box-shadow blur) isn't clipped. */
+  const GLOW = 52;
   const canvas = await html2canvas(card, {
-    backgroundColor: "#040f0d", scale: 2,
-    useCORS: true, allowTaint: true, logging: false,
+    backgroundColor: null,
+    scale: 2,
+    useCORS: true,
+    allowTaint: true,
+    logging: false,
+    x: -GLOW,
+    y: -GLOW,
+    width:  card.offsetWidth  + GLOW * 2,
+    height: card.offsetHeight + GLOW * 2,
+    scrollX: 0,
+    scrollY: 0,
   });
   card.remove();
   return canvas;

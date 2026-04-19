@@ -85,8 +85,11 @@
           <span class="sa-balance-label">SOL Balance</span>
           <span class="sa-balance-val" id="heroBalance">10.00 SOL</span>
         </div>
+        <div class="sa-xp-pill">
+          <span class="sa-xp-label">⚡ XP</span>
+          <span class="sa-xp-val" id="heroXp">0</span>
+        </div>
         <div class="sa-streak-pill" id="heroStreak">🔥 Streak: 0</div>
-        <a href="safe-ape-profile.html" class="sa-profile-btn">👤 Profile</a>
         <button class="sa-disconnect-btn" id="disconnectBtn" data-i18n="sa_disconnect">Disconnect</button>
       </div>
     </div>
@@ -147,10 +150,14 @@
                   <button class="sa-tf-btn active" data-tf="5m">5M</button>
                   <button class="sa-tf-btn" data-tf="15m">15M</button>
                   <button class="sa-tf-btn" data-tf="1h">1H</button>
-                  <button class="sa-tf-btn" data-tf="4h">4H</button>
-                  <button class="sa-tf-btn" data-tf="1d">1D</button>
-                  <button class="sa-tf-btn" data-tf="max" title="All-time history (daily candles)">MAX</button>
                 </div>
+                <button class="sa-chart-expand-btn" onclick="window.openChartModal()" title="Open fullscreen chart">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>
+                  </svg>
+                  Expand
+                </button>
               </div>
               <!-- Lightweight Charts fills the rest of the panel -->
               <div class="sa-candle-wrap">
@@ -196,6 +203,7 @@
                   </div>
                   <div class="sa-trade-info" id="buyInfo"></div>
                   <button class="sa-buy-btn" id="saBuyBtn" data-i18n="sa_buy_btn" onclick="executeBuy()">🦍 APE IN (BUY)</button>
+                  <button class="sa-jup-btn" id="saJupBuyBtn" onclick="openJupModal()">⚡ Swap on Jupiter</button>
                 </div>
 
                 <!-- SELL PANEL -->
@@ -215,6 +223,7 @@
                   </div>
                   <div class="sa-trade-info" id="sellInfo"></div>
                   <button class="sa-sell-btn" id="saSellBtn" data-i18n="sa_sell_btn" onclick="executeSell()">🔴 EXIT POSITION (SELL)</button>
+                  <button class="sa-jup-btn" id="saJupSellBtn" onclick="openJupModal()">⚡ Sell on Jupiter</button>
                 </div>
 
                 <!-- SLIPPAGE -->
@@ -245,7 +254,7 @@
     <div class="panel" id="saPortfolioPanel">
       <div class="panel-header">
         <div class="panel-title" data-i18n="sa_holdings">💼 YOUR HOLDINGS</div>
-        <a href="safe-ape-profile.html" style="font-size:12px;color:#2cffc9;padding-right:14px;text-decoration:none;">View Full Profile →</a>
+        <span id="saPortfolioXpBadge" style="font-size:12px;color:#ab9ff2;padding-right:14px;opacity:0.7;"></span>
       </div>
       <div id="saPortfolioSummary"></div>
       <div class="panel-body" id="saPortfolioBody">
@@ -281,6 +290,54 @@
     </footer>
 
   </div><!-- end simulatorApp -->
+
+  <!-- JUPITER IFRAME MODAL -->
+  <div id="simJupModal" class="sim-jup-overlay" style="display:none;" onclick="window._simJupBgClick(event)">
+    <div class="sim-jup-panel">
+      <div class="sim-jup-header">
+        <div class="sim-jup-title">⚡ Jupiter Swap</div>
+        <button class="sim-jup-close" onclick="closeJupModal()">✕</button>
+      </div>
+      <div class="sim-jup-note">🔗 Real swap via Jupiter — uses your actual wallet &amp; SOL</div>
+      <div class="sim-jup-iframe-wrap">
+        <iframe id="simJupIframe" src="" allow="clipboard-write" loading="lazy" title="Jupiter Swap"></iframe>
+      </div>
+    </div>
+  </div>
+
+  <!-- FULLSCREEN CHART MODAL -->
+  <div id="saChartModal" class="sa-fcm-overlay" style="display:none;" onclick="window._fcmBgClick(event)">
+    <div class="sa-fcm-inner">
+
+      <!-- Header bar -->
+      <div class="sa-fcm-header">
+        <div class="sa-fcm-title">
+          <span id="saFcmTokenName">—</span>
+          <span class="sa-fcm-live-dot" title="Live price update">⬤ LIVE</span>
+        </div>
+        <div id="saFcmPriceRow" class="sa-fcm-price-row"></div>
+
+        <!-- Timeframes — more options than the mini chart -->
+        <div class="sa-fcm-tfs">
+          <button class="sa-tf-btn" data-fcm-tf="1m">1M</button>
+          <button class="sa-tf-btn active" data-fcm-tf="5m">5M</button>
+          <button class="sa-tf-btn" data-fcm-tf="15m">15M</button>
+          <button class="sa-tf-btn" data-fcm-tf="1h">1H</button>
+          <button class="sa-tf-btn" data-fcm-tf="4h">4H</button>
+          <button class="sa-tf-btn" data-fcm-tf="12h">12H</button>
+          <button class="sa-tf-btn" data-fcm-tf="1d">1D</button>
+        </div>
+
+        <button class="sa-fcm-close" onclick="window.closeChartModal()" title="Close (Esc)">✕</button>
+      </div>
+
+      <!-- Chart canvas -->
+      <div class="sa-fcm-body">
+        <div id="saFcmChart"></div>
+      </div>
+
+    </div>
+  </div>
 
   <!-- POST-TRADE DEBRIEF MODAL -->
   <div id="debriefModal" class="sa-modal-overlay" style="display:none;">
