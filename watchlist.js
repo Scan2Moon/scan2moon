@@ -1978,6 +1978,7 @@ window._ltOpenChart = async function(mint) {
 
   /* Build chart */
   _ltChartInst = new window.CandleChart("ltChartContainer");
+  _ltChartInst.setTimeframe(_ltChartTf);  /* set correct tfMs before any tick() */
   _ltChartInst.startLoading();
   _ltChartInst.setToken(name, symbol);
   if (pair) _ltChartInst.seedFromPair(pair);
@@ -2385,8 +2386,15 @@ async function _ltChartTick() {
       _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
     }
 
+    /* Estimate per-candle volume from pair's 5-minute volume.
+       vol5m / (300_000 / tfMs) scales it to the candle's timeframe.
+       1m → vol5m/5, 5m → vol5m, 15m → vol5m*3, etc.               */
+    const vol5m  = parseFloat(pair.volume?.m5 || "0");
+    const tfMs   = _ltChartInst.tfMs || 900_000;
+    const volEst = vol5m > 0 ? vol5m / (300_000 / tfMs) : 0;
+
     /* Drive the live candle */
-    _ltChartInst.tick(price, 0);
+    _ltChartInst.tick(price, volEst);
   } catch (e) {
     console.warn("[ltChartTick]", e.message);
   }

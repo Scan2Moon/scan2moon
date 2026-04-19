@@ -1,11 +1,15 @@
 /* ============================================================
-   Scan2Moon – candleChart.js  (V3.0 — TradingView Lightweight Charts)
+   Scan2Moon – candleChart.js  (V4.0 — Drawing Tools)
 
-   Switched from custom Canvas2D to TradingView Lightweight Charts —
-   the exact same open-source library used by DexScreener.
-   Handles auto-scaling, scroll, zoom and live-candle updates natively.
+   Built on TradingView Lightweight Charts (same engine as DexScreener).
+   V4 adds a professional drawing toolbar:
+     • Horizontal lines  — click once to lock a price level
+     • Trend lines       — click two points to draw an angle
+     • Manual Buy/Sell   — click a candle to stamp an arrow
+     • Eraser            — click a line/marker to remove it
+     • Clear All         — wipe all drawings in one click
 
-   Public API is identical to V2.1 so safe-ape.js needs no changes:
+   Public API (unchanged from V3):
      new CandleChart(containerId)
      .startLoading()
      .loadCandles(ohlcvList)   // [[ts_sec, o, h, l, c, v], ...]
@@ -13,6 +17,9 @@
      .setTimeframe(tf)
      .setToken(name, symbol)
      .seedFromPair(pair)
+     .setTradeMarkers(trades, mint)
+     .addTradeMarker(type)
+     .clearDrawings()
      .destroy()
    ============================================================ */
 
@@ -22,6 +29,7 @@ const TF_MS = {
   "15m": 900_000,
   "1h":  3_600_000,
   "4h":  14_400_000,
+  "12h": 43_200_000,
   "1d":  86_400_000,
 };
 
@@ -45,6 +53,24 @@ function fmtVol(v) {
   return v.toFixed(0);
 }
 
+/* SVG icons for toolbar */
+const ICONS = {
+  cursor:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M5 3l14 9-7 1-4 7L5 3z"/></svg>`,
+  hline:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="2" y1="12" x2="22" y2="12"/><line x1="19" y1="8" x2="19" y2="16"/><line x1="5" y1="8" x2="5" y2="16"/></svg>`,
+  trendline: `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="20" x2="20" y2="4"/><circle cx="4" cy="20" r="2.2" fill="currentColor"/><circle cx="20" cy="4" r="2.2" fill="currentColor"/></svg>`,
+  eraser:    `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 20H7L3 16l11-11 6 6-3.5 3.5"/><path d="M6.5 17.5l4-4"/></svg>`,
+  trash:     `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
+};
+
+const TOOL_HINTS = {
+  cursor:      "",
+  hline:       "Click on chart to place a horizontal price level",
+  trendline:   "Click first point — then click second point to complete",
+  buy_marker:  "Click on a candle to stamp a BUY entry arrow",
+  sell_marker: "Click on a candle to stamp a SELL / EXIT arrow",
+  eraser:      "Click a line or marker to remove it",
+};
+
 export class CandleChart {
 
   constructor(containerId) {
@@ -54,10 +80,19 @@ export class CandleChart {
     this.tfMs          = TF_MS["5m"];
     this.isLoading     = false;
     this.liveCandle    = null;
-    this._volData      = {};   // ts_sec → accumulated volume for live candle
-    this._lastClose    = 0;    // close of last HISTORICAL candle (kept for reference, not used as live open)
-    this._priceEma     = 0;    // exponential moving average — used for spike filter
-    this._markers      = [];   // trade markers [{time, type}]
+    this._volData      = {};
+    this._lastClose    = 0;
+    this._priceEma     = 0;
+
+    /* Trade markers (from profile.trades) */
+    this._markers      = [];
+
+    /* Manual drawing tools state */
+    this._drawings     = [];        // [{type:'hline'|'trendline', ref, price?}]
+    this._manualMarkers = [];       // [{rawMs, type:'buy'|'sell'}]
+    this._drawingTool  = "cursor";  // current active tool
+    this._trendStart   = null;      // first click for trend line
+
     this.tokenName     = "";
     this.tokenSymbol   = "";
 
@@ -65,16 +100,25 @@ export class CandleChart {
   }
 
   /* ══════════════════════════════════════
-     BUILD — create chart + series + legend
+     BUILD — chart + toolbar + overlays
   ══════════════════════════════════════ */
 
   _buildChart() {
     const el = this._container;
-    el.style.position = "relative";   // needed for absolute overlay
+    /* Container becomes a flex column: toolbar on top, chart canvas below */
+    el.style.cssText = "display:flex;flex-direction:column;width:100%;height:100%;position:relative;";
 
-    /* ── Lightweight Charts instance ── */
-    this._chart = LightweightCharts.createChart(el, {
-      autoSize: true,                  // fills container automatically on resize
+    /* ── Drawing toolbar (above the chart canvas) ── */
+    this._buildToolbar();
+
+    /* ── Inner canvas div — chart renders here, not on the full container ── */
+    this._chartEl = document.createElement("div");
+    this._chartEl.style.cssText = "flex:1;min-height:0;width:100%;position:relative;overflow:hidden;";
+    el.appendChild(this._chartEl);
+
+    /* ── Lightweight Charts instance (on inner div, not the toolbar container) ── */
+    this._chart = LightweightCharts.createChart(this._chartEl, {
+      autoSize: true,
       layout: {
         background: { type: "solid", color: "#040d0b" },
         textColor:  "rgba(207,255,244,0.45)",
@@ -94,11 +138,6 @@ export class CandleChart {
         borderColor:  "rgba(44,255,201,0.12)",
         textColor:    "rgba(207,255,244,0.45)",
         scaleMargins: { top: 0.06, bottom: 0.22 },
-        /* Logarithmic scale keeps post-pump candles readable — on linear
-           scale a 5× pump spike forces the Y-axis to include the spike top,
-           squashing all subsequent candles to near-invisible horizontal lines.
-           Log scale shows percentage moves proportionally, the same way
-           TradingView and DexScreener display micro-cap tokens. */
         mode: LightweightCharts.PriceScaleMode.Logarithmic,
       },
       timeScale: {
@@ -122,8 +161,8 @@ export class CandleChart {
       wickUpColor:     "#26c98a",
       wickDownColor:   "#ef5350",
       priceFormat: {
-        type:    "custom",
-        minMove: 0.000000001,
+        type:      "custom",
+        minMove:   0.000000001,
         formatter: (p) => fmtPrice(p),
       },
     });
@@ -140,7 +179,7 @@ export class CandleChart {
       scaleMargins: { top: 0.80, bottom: 0 },
     });
 
-    /* ── OHLCV legend bar (HTML overlay — pointer-events:none) ── */
+    /* ── OHLCV legend bar ── */
     this._legend = document.createElement("div");
     this._legend.style.cssText = [
       "position:absolute", "top:0", "left:0", "right:72px",
@@ -152,7 +191,7 @@ export class CandleChart {
       "display:flex", "align-items:center", "gap:10px",
       "white-space:nowrap", "overflow:hidden",
     ].join(";");
-    el.appendChild(this._legend);
+    this._chartEl.appendChild(this._legend);
     this._setLegendLoading();
 
     /* ── Loading overlay ── */
@@ -167,7 +206,7 @@ export class CandleChart {
     ].join(";");
     this._loadingEl.textContent = "Loading chart data…";
     this._loadingEl.style.display = "none";
-    el.appendChild(this._loadingEl);
+    this._chartEl.appendChild(this._loadingEl);
 
     /* ── Crosshair → legend sync ── */
     this._chart.subscribeCrosshairMove((param) => {
@@ -180,13 +219,251 @@ export class CandleChart {
         this._renderLegend(this.liveCandle, this._volData[ts] ?? 0);
       }
     });
+
+    /* ── Chart click → drawing tools ── */
+    this._chart.subscribeClick((param) => {
+      this._handleChartClick(param);
+    });
+  }
+
+  /* ══════════════════════════════════════
+     DRAWING TOOLBAR
+  ══════════════════════════════════════ */
+
+  _buildToolbar() {
+    const tb = document.createElement("div");
+    tb.className = "sa-draw-toolbar";
+    tb.innerHTML = `
+      <div class="sa-draw-group">
+        <button class="sa-draw-btn active" data-tool="cursor" title="Select / Crosshair">${ICONS.cursor}</button>
+        <button class="sa-draw-btn" data-tool="hline"     title="Horizontal Level">${ICONS.hline}</button>
+        <button class="sa-draw-btn" data-tool="trendline" title="Trend Line">${ICONS.trendline}</button>
+      </div>
+      <div class="sa-draw-sep"></div>
+      <div class="sa-draw-group">
+        <button class="sa-draw-btn sa-draw-buy"  data-tool="buy_marker"  title="Mark Buy Entry">B▲</button>
+        <button class="sa-draw-btn sa-draw-sell" data-tool="sell_marker" title="Mark Sell / Exit">S▼</button>
+      </div>
+      <div class="sa-draw-sep"></div>
+      <div class="sa-draw-group">
+        <button class="sa-draw-btn" data-tool="eraser" title="Erase drawing">${ICONS.eraser}</button>
+        <button class="sa-draw-btn sa-draw-clear" data-action="clear" title="Clear all drawings">${ICONS.trash}</button>
+      </div>
+      <div class="sa-draw-hint" id="${this._containerId}-hint"></div>
+    `;
+
+    /* Tool button listeners */
+    tb.querySelectorAll(".sa-draw-btn[data-tool]").forEach(btn => {
+      btn.addEventListener("click", () => this._setTool(btn.dataset.tool));
+    });
+
+    /* Clear all */
+    tb.querySelector("[data-action='clear']")
+      ?.addEventListener("click", () => this.clearDrawings());
+
+    this._toolbar = tb;
+    this._container.appendChild(tb);
+  }
+
+  _setTool(tool) {
+    this._drawingTool = tool;
+    this._trendStart  = null;
+
+    /* Highlight active button */
+    this._toolbar.querySelectorAll(".sa-draw-btn[data-tool]").forEach(btn => {
+      btn.classList.toggle("active", btn.dataset.tool === tool);
+    });
+
+    /* Hint text */
+    const hintEl = document.getElementById(`${this._containerId}-hint`);
+    if (hintEl) hintEl.textContent = TOOL_HINTS[tool] || "";
+
+    /* Reset trend-line hint if we switch away */
+    if (tool !== "trendline") this._trendStart = null;
+  }
+
+  /* ══════════════════════════════════════
+     CLICK HANDLER
+  ══════════════════════════════════════ */
+
+  _handleChartClick(param) {
+    if (this._drawingTool === "cursor") return;
+    if (!param?.point) return;
+
+    const price = this._candleSeries.coordinateToPrice(param.point.y);
+    if (!price || price <= 0) return;
+
+    const time  = param.time ?? Math.floor(Date.now() / 1000);
+
+    switch (this._drawingTool) {
+      case "hline":
+        this._drawHLine(price);
+        break;
+
+      case "trendline":
+        this._handleTrendClick(time, price);
+        break;
+
+      case "buy_marker":
+      case "sell_marker": {
+        const type = this._drawingTool === "buy_marker" ? "buy" : "sell";
+        this._manualMarkers.push({ rawMs: time * 1000, type });
+        this._applyMarkers();
+        break;
+      }
+
+      case "eraser":
+        this._eraseNear(price, time);
+        break;
+    }
+  }
+
+  /* ── Horizontal line ── */
+  _drawHLine(price) {
+    /* Cycle through 4 colours for multiple levels */
+    const PALETTE = [
+      "rgba(255,180,50,0.8)",   // amber
+      "rgba(44,255,201,0.75)",  // mint
+      "rgba(192,132,252,0.8)",  // purple
+      "rgba(251,113,133,0.8)",  // pink
+    ];
+    const col = PALETTE[this._drawings.filter(d => d.type === "hline").length % PALETTE.length];
+
+    const priceLine = this._candleSeries.createPriceLine({
+      price,
+      color:            col,
+      lineWidth:        1,
+      lineStyle:        LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true,
+      title:            fmtPrice(price),
+    });
+    this._drawings.push({ type: "hline", ref: priceLine, price });
+  }
+
+  /* ── Trend line — two-click ── */
+  _handleTrendClick(time, price) {
+    const hintEl = document.getElementById(`${this._containerId}-hint`);
+
+    if (!this._trendStart) {
+      /* First point — save and wait */
+      this._trendStart = { time, price };
+      if (hintEl) hintEl.textContent = "✓ First point set — click second point to finish";
+
+      /* Visual indicator dot */
+      this._trendDot = this._chart.addLineSeries({
+        color:                   "rgba(192,132,252,0.6)",
+        lineWidth:               1,
+        lastValueVisible:        false,
+        priceLineVisible:        false,
+        crosshairMarkerVisible:  false,
+        crosshairMarkerRadius:   4,
+      });
+      this._trendDot.setData([{ time, value: price }]);
+      return;
+    }
+
+    /* Second point — draw line */
+    const start = this._trendStart;
+    this._trendStart = null;
+    if (hintEl) hintEl.textContent = TOOL_HINTS.trendline;
+
+    /* Remove dot */
+    if (this._trendDot) {
+      try { this._chart.removeSeries(this._trendDot); } catch {}
+      this._trendDot = null;
+    }
+
+    /* Don't draw a zero-length line */
+    if (start.time === time) return;
+
+    const lineSeries = this._chart.addLineSeries({
+      color:                  "rgba(192,132,252,0.8)",
+      lineWidth:              1,
+      lineStyle:              LightweightCharts.LineStyle.Solid,
+      lastValueVisible:       false,
+      priceLineVisible:       false,
+      crosshairMarkerVisible: false,
+    });
+
+    const pts = [
+      { time: start.time, value: start.price },
+      { time,             value: price        },
+    ].sort((a, b) => a.time - b.time);
+
+    lineSeries.setData(pts);
+    this._drawings.push({ type: "trendline", ref: lineSeries });
+  }
+
+  /* ── Eraser ── */
+  _eraseNear(price, time) {
+    /* 1. Try horizontal lines by price proximity (within 1.5%) */
+    let bestIdx  = -1;
+    let bestDist = Infinity;
+
+    this._drawings.forEach((d, i) => {
+      if (d.type === "hline" && d.price > 0) {
+        const dist = Math.abs(d.price - price) / d.price;
+        if (dist < 0.015 && dist < bestDist) { bestDist = dist; bestIdx = i; }
+      }
+    });
+
+    if (bestIdx >= 0) {
+      const d = this._drawings[bestIdx];
+      try { this._candleSeries.removePriceLine(d.ref); } catch {}
+      this._drawings.splice(bestIdx, 1);
+      return;
+    }
+
+    /* 2. Try trend lines by end-point proximity */
+    bestIdx = -1; bestDist = Infinity;
+    this._drawings.forEach((d, i) => {
+      if (d.type === "trendline") { bestIdx = i; }  // last trendline is most likely target
+    });
+    if (bestIdx >= 0) {
+      const d = this._drawings[bestIdx];
+      try { this._chart.removeSeries(d.ref); } catch {}
+      this._drawings.splice(bestIdx, 1);
+      return;
+    }
+
+    /* 3. Try manual markers */
+    if (this._manualMarkers.length) {
+      let markerIdx = -1; let markerDist = Infinity;
+      const tfSec = this.tfMs / 1000;
+      this._manualMarkers.forEach((m, i) => {
+        const mTime = Math.floor(Math.floor(m.rawMs / this.tfMs) * this.tfMs / 1000);
+        const dist  = Math.abs(mTime - time);
+        if (dist < tfSec * 2 && dist < markerDist) { markerDist = dist; markerIdx = i; }
+      });
+      if (markerIdx >= 0) {
+        this._manualMarkers.splice(markerIdx, 1);
+        this._applyMarkers();
+      }
+    }
+  }
+
+  /* ── Clear all ── */
+  clearDrawings() {
+    this._drawings.forEach(d => {
+      try {
+        if (d.type === "hline")     this._candleSeries.removePriceLine(d.ref);
+        if (d.type === "trendline") this._chart.removeSeries(d.ref);
+      } catch {}
+    });
+    this._drawings      = [];
+    this._manualMarkers = [];
+    this._trendStart    = null;
+    if (this._trendDot) {
+      try { this._chart.removeSeries(this._trendDot); } catch {}
+      this._trendDot = null;
+    }
+    this._applyMarkers();
   }
 
   /* ══════════════════════════════════════
      PUBLIC API
   ══════════════════════════════════════ */
 
-  /** Call before fetching OHLCV — shows "Loading…" and blocks ticks */
   startLoading() {
     this.isLoading  = true;
     this.liveCandle = null;
@@ -197,9 +474,9 @@ export class CandleChart {
     this._volSeries.setData([]);
     this._loadingEl.style.display = "flex";
     this._setLegendLoading();
+    /* Re-apply drawings on new token load */
   }
 
-  /** Load real OHLCV candles [[ts_sec, o, h, l, c, v], ...] */
   loadCandles(ohlcvList) {
     this.isLoading  = false;
     this.liveCandle = null;
@@ -208,7 +485,6 @@ export class CandleChart {
 
     if (!ohlcvList?.length) return;
 
-    /* Parse and sort */
     const raw = ohlcvList
       .map(([ts, o, h, l, c, v]) => ({
         time:  Number(ts),
@@ -221,7 +497,7 @@ export class CandleChart {
       .filter(c => c.open > 0 && c.time > 0)
       .sort((a, b) => a.time - b.time);
 
-    /* Remove duplicate timestamps — keep the latest occurrence */
+    /* Remove duplicate timestamps */
     const deduped = [];
     const seen = new Set();
     for (let i = raw.length - 1; i >= 0; i--) {
@@ -231,58 +507,26 @@ export class CandleChart {
       }
     }
 
-    /* ── CRITICAL: exclude the current (still-open) period's candle ──
-       GeckoTerminal/DexScreener include the partial current period in
-       their OHLCV response. That candle's Low/Open may reflect a tick
-       that doesn't match DexScreener's live price feed, producing a
-       giant wick. We strip it out and let tick() build the live candle
-       entirely from DexScreener price ticks instead.
-       Also prevents LightweightCharts "update timestamp ≤ last bar"
-       error which silently stops live candle updates. */
-    const nowTs    = Math.floor(Math.floor(Date.now() / this.tfMs) * this.tfMs / 1000);
+    /* Exclude the still-open current-period candle */
+    const nowTs      = Math.floor(Math.floor(Date.now() / this.tfMs) * this.tfMs / 1000);
     const historical = deduped.filter(c => c.time < nowTs);
 
-    /* Remember last historical close — live candle will open here */
-    this._lastClose = historical.length > 0
-      ? historical[historical.length - 1].close
-      : 0;
+    this._lastClose = historical.length > 0 ? historical[historical.length - 1].close : 0;
 
-    /* ── Historical wick normalisation ────────────────────────────────
-       GeckoTerminal (and occasionally DexScreener) include candles where
-       a single thin-liquidity trade caused a massive wick that immediately
-       reversed — these show as giant spikes that don't appear on DexScreener.
-       We clip each candle's upper/lower wicks if they exceed 4× the rolling
-       median candle range for the surrounding 20 candles.  This is a
-       relative filter (adapts to the token's actual volatility) so it won't
-       clip real wicks on genuinely volatile tokens. */
-    const WINDOW = 20;
-    /* 8× median range — raised from 4× so legitimate wicks during
-       low-volatility consolidation don't get clipped.  True ghost-spike
-       wicks (thin-liquidity data artefacts) are typically 30-100×, so
-       8× still removes them while preserving real price action. */
-    const WICK_LIMIT = 8;
-
+    /* Wick normalisation — clip spikes > 8× rolling median range */
+    const WINDOW = 20, WICK_LIMIT = 8;
     const normalised = historical.map((c, i) => {
-      /* Build a window of surrounding candles (avoid mutating the source) */
       const start  = Math.max(0, i - WINDOW);
       const ranges = historical.slice(start, i + 1)
-        .map(w => w.high - w.low)
-        .sort((a, b) => a - b);
-      /* Use 60th-percentile range so genuine large-wick candles don't
-         inflate the baseline and hide the true outliers */
+        .map(w => w.high - w.low).sort((a, b) => a - b);
       const medRange = ranges[Math.floor(ranges.length * 0.6)] || 0;
       if (medRange <= 0) return c;
-
       const maxWick = medRange * WICK_LIMIT;
       const bodyTop = Math.max(c.open, c.close);
       const bodyBot = Math.min(c.open, c.close);
-
       const newHigh = (c.high - bodyTop) > maxWick ? bodyTop + maxWick : c.high;
       const newLow  = (bodyBot - c.low)  > maxWick ? bodyBot - maxWick : c.low;
-
-      return (newHigh !== c.high || newLow !== c.low)
-        ? { ...c, high: newHigh, low: newLow }
-        : c;
+      return (newHigh !== c.high || newLow !== c.low) ? { ...c, high: newHigh, low: newLow } : c;
     });
 
     const candleData = normalised.map(({ time, open, high, low, close }) => ({ time, open, high, low, close }));
@@ -297,75 +541,52 @@ export class CandleChart {
     this._candleSeries.setData(candleData);
     this._volSeries.setData(volData);
 
-    /* Scroll to the right edge first, then constrain the visible window
-       to the most recent 80 bars.  Without this, LW charts shows ALL
-       loaded candles (up to 1 000 for MAX), making each candle only a
-       few pixels wide and leaving the Y-axis dominated by a spike from
-       hours/days ago.  Users can still scroll/zoom to see older data. */
-    this._chart.timeScale().scrollToRealTime();
     if (historical.length > 0) {
-      const viewBars = 80;
+      /* Show last ~60 bars by default so recent candles are large and readable.
+         User can freely scroll left to see full history.
+         1m → 60 bars = 1 hour, 5m → 60 bars = 5 hours, 15m → 60 bars = 15 hours */
+      const viewBars = Math.min(60, historical.length);
       this._chart.timeScale().setVisibleLogicalRange({
         from: Math.max(0, historical.length - viewBars),
-        to:   historical.length + 5,   // +5 matches rightOffset empty space
+        to:   historical.length + 2,
       });
+    } else {
+      this._chart.timeScale().scrollToRealTime();
     }
 
-    /* Re-apply trade markers after data reload */
     this._applyMarkers();
 
-    /* Show last historical candle in legend */
     if (normalised.length > 0) {
       const last = normalised[normalised.length - 1];
       this._renderLegend(last, last.vol);
     }
   }
 
-  /** Feed a live price tick — builds/updates the current-period candle */
   tick(price, volume) {
     if (!price || price <= 0) return;
     if (this.isLoading) return;
 
-    /* ── Spike filter ──────────────────────────────────────────────────
-       DexScreener REST API polling (every 5s) can occasionally return
-       a stale or momentary bad price (e.g. 0.00452 when true price is
-       0.00637).  We maintain an EMA of recent ticks and ignore ANY
-       candle update (open/high/low/close) when the price deviates >8%
-       from the EMA.  This prevents the candle BODY from jumping, not
-       just the wicks.
-
-       For genuine sustained moves: spikes still slowly shift the EMA
-       (0.10 weight) so after ~5–6 consistent ticks at the new price
-       the deviation shrinks below 8% and the candle updates normally.
-
-       IMPORTANT: EMA is NOT reset at period boundaries — this ensures
-       the filter stays active for the very first tick of each new candle. */
     if (!this._priceEma || this._priceEma <= 0) this._priceEma = price;
     const deviation = Math.abs(price - this._priceEma) / this._priceEma;
     const isSpike   = deviation > 0.08;
 
     if (isSpike) {
-      /* Slowly adapt EMA toward even spiked prices so genuine multi-tick
-         moves are eventually accepted; but don't update the candle at all. */
       this._priceEma = this._priceEma * 0.90 + price * 0.10;
-      return; // ← discard this tick entirely — no candle update
+      return;
     }
-
-    /* Non-spike: update EMA normally */
     this._priceEma = this._priceEma * 0.75 + price * 0.25;
 
     const ts_sec = Math.floor(Math.floor(Date.now() / this.tfMs) * this.tfMs / 1000);
 
     if (!this.liveCandle || this.liveCandle.time !== ts_sec) {
-      /* New period — open from previous live candle's close for continuity,
-         or the current price if this is the very first tick after loading. */
-      const prev = this.liveCandle ? this.liveCandle.close : price;
-      this.liveCandle = { time: ts_sec, open: prev, high: price, low: price, close: price };
+      /* Open the new live candle at the last historical close so there's no gap.
+         Fall back to current price only if we have no prior close data.        */
+      const prev = this.liveCandle
+        ? this.liveCandle.close
+        : (this._lastClose > 0 ? this._lastClose : price);
+      this.liveCandle = { time: ts_sec, open: prev, high: Math.max(prev, price), low: Math.min(prev, price), close: price };
       this._volData[ts_sec] = volume || 0;
-      /* Re-apply markers now that the live candle bar exists — markers placed
-         at the current period during loadCandles() had no bar to attach to yet,
-         causing them to snap to the wrong (last historical) candle. */
-      if (this._markers.length) this._applyMarkers();
+      if (this._markers.length || this._manualMarkers.length) this._applyMarkers();
     } else {
       this.liveCandle.high  = Math.max(this.liveCandle.high, price);
       this.liveCandle.low   = Math.min(this.liveCandle.low,  price);
@@ -380,14 +601,10 @@ export class CandleChart {
       color: price >= this.liveCandle.open ? "rgba(38,201,138,0.40)" : "rgba(239,83,80,0.38)",
     });
 
-    /* Keep legend live */
     this._renderLegend(this.liveCandle, this._volData[ts_sec]);
   }
 
-  /** Switch timeframe — clears chart so new OHLCV will be loaded.
-   *  "max" is a virtual TF: uses 1d candle buckets for the live ticker. */
   setTimeframe(tf) {
-    /* "max" maps to 1d intervals for live-candle period calculation */
     const effectiveTf = (tf === "max") ? "1d" : tf;
     if (!TF_MS[effectiveTf]) return;
     this.tf         = tf;
@@ -396,26 +613,26 @@ export class CandleChart {
     this._volData   = {};
     this._lastClose = 0;
     this._priceEma  = 0;
-    /* Markers persist across TF changes — _applyMarkers() is called
-       again inside loadCandles() once the new data arrives. */
+    this._trendStart = null;
   }
 
   setToken(name, symbol) {
     this.tokenName   = name;
     this.tokenSymbol = symbol;
+    /* Clear drawings when switching tokens */
+    this.clearDrawings();
   }
 
-  /** Fallback: approximate candles from DexScreener percentage changes */
   seedFromPair(pair) {
     this.isLoading = false;
     this._loadingEl.style.display = "none";
     const price = parseFloat(pair.priceUsd || "0");
     if (!price) return;
 
-    const pc1h  = pair.priceChange?.h1  ?? 0;
-    const pc6h  = pair.priceChange?.h6  ?? 0;
-    const pc24h = pair.priceChange?.h24 ?? 0;
-    const vol24h= pair.volume?.h24      ?? 0;
+    const pc1h   = pair.priceChange?.h1  ?? 0;
+    const pc6h   = pair.priceChange?.h6  ?? 0;
+    const pc24h  = pair.priceChange?.h24 ?? 0;
+    const vol24h = pair.volume?.h24      ?? 0;
 
     const now     = Date.now();
     const numC    = this.tf === "1m" ? 60 : this.tf === "5m" ? 60
@@ -435,8 +652,8 @@ export class CandleChart {
       const t    = firstTs + i * this.tfMs;
       const ago  = now - t;
       let base;
-      if      (ago > 6 * 3_600_000) base = p24h + (p6h - p24h) * ((ago - 6*3_600_000) / (18*3_600_000));
-      else if (ago > 1 * 3_600_000) base = p6h  + (p1h - p6h)  * ((ago - 1*3_600_000) / (5*3_600_000));
+      if      (ago > 6 * 3_600_000) base = p24h + (p6h  - p24h) * ((ago - 6*3_600_000) / (18*3_600_000));
+      else if (ago > 1 * 3_600_000) base = p6h  + (p1h  - p6h)  * ((ago - 1*3_600_000) / (5*3_600_000));
       else                           base = p1h  + (price - p1h) * (1 - ago / 3_600_000);
 
       const o  = base * (1 + (Math.random() * n - n / 2));
@@ -457,59 +674,49 @@ export class CandleChart {
 
   destroy() {
     if (this._chart)     this._chart.remove();
-    if (this._legend     && this._legend.parentElement)    this._legend.remove();
-    if (this._loadingEl  && this._loadingEl.parentElement) this._loadingEl.remove();
+    if (this._toolbar    && this._toolbar.parentElement)    this._toolbar.remove();
+    if (this._chartEl    && this._chartEl.parentElement)    this._chartEl.remove();
+    if (this._legend     && this._legend.parentElement)     this._legend.remove();
+    if (this._loadingEl  && this._loadingEl.parentElement)  this._loadingEl.remove();
+    /* Reset container style so next init starts clean */
+    if (this._container) this._container.style.cssText = "";
   }
 
   /* ══════════════════════════════════════
-     TRADE MARKERS  (B / S on the chart)
+     TRADE MARKERS (profile.trades)
   ══════════════════════════════════════ */
 
-  /**
-   * Load all trade markers for the current token at once.
-   * Call this after initChart() when profile data is available.
-   * Stores the original epoch-ms timestamp so markers can be correctly
-   * re-snapped whenever the timeframe changes.
-   * @param {Array}  trades  — profile.trades array
-   * @param {string} mint    — current token mint address
-   */
   setTradeMarkers(trades, mint) {
     if (!trades || !mint) return;
     this._markers = trades
       .filter(t => t.mint === mint)
       .map(t => ({
-        rawMs: new Date(t.timestamp).getTime(), // original epoch ms — never TF-specific
-        type:  t.type, // 'buy' | 'sell'
+        rawMs: new Date(t.timestamp).getTime(),
+        type:  t.type,
       }));
     this._applyMarkers();
   }
 
-  /**
-   * Add a single marker right now (called on live trade).
-   * @param {'buy'|'sell'} type
-   */
   addTradeMarker(type) {
     this._markers.push({ rawMs: Date.now(), type });
     this._applyMarkers();
   }
 
-  /** Internal — snaps marker times to the CURRENT TF period boundary and
-   *  pushes to LightweightCharts.  Called after every data load and after
-   *  every trade, so markers always sit on the correct candle regardless
-   *  of which timeframe the user has selected. */
   _applyMarkers() {
-    if (!this._markers.length) return;
+    /* Combine profile trade markers + manually drawn markers */
+    const allRaw = [...this._markers, ...this._manualMarkers];
+    if (!allRaw.length) {
+      try { this._candleSeries.setMarkers([]); } catch {}
+      return;
+    }
 
-    /* Snap each raw epoch-ms to the start of its candle period in the
-       current timeframe, then deduplicate same-candle+same-type entries
-       (keep last occurrence so the most recent trade "wins"). */
-    const snapped = this._markers.map(m => ({
+    const snapped = allRaw.map(m => ({
       time:  Math.floor(Math.floor(m.rawMs / this.tfMs) * this.tfMs / 1000),
       type:  m.type,
-      rawMs: m.rawMs,   // keep for dedup: "last wins"
+      rawMs: m.rawMs,
     }));
 
-    /* Deduplicate: for the same (time, type) pair keep only the latest rawMs */
+    /* Dedup: same (time, type) → keep latest */
     const dedupMap = new Map();
     for (const m of snapped) {
       const key = `${m.time}:${m.type}`;
@@ -528,9 +735,8 @@ export class CandleChart {
         text:     m.type === "buy" ? "B"        : "S",
         size:     1.2,
       }));
-    try {
-      this._candleSeries.setMarkers(lwMarkers);
-    } catch {}  // silently ignore if chart was just destroyed
+
+    try { this._candleSeries.setMarkers(lwMarkers); } catch {}
   }
 
   /* ══════════════════════════════════════
