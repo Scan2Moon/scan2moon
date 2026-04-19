@@ -56,7 +56,7 @@ function _syncHotTokens() {
   }, 2000); // debounce 2s so rapid toggles don't spam the endpoint
 }
 
-const FAV_DASH_MAX = 9;
+const FAV_DASH_MAX = 6;
 
 window.toggleFavorite = function(mint) {
   const favs = loadFavorites();
