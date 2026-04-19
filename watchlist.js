@@ -1612,23 +1612,28 @@ function _ltGetOpenHoldings() {
     .slice(0, 12);
 }
 
-/* ── Fetch prices for the Live Trades portfolio (uses DexScreener for bulk multi-token price check) ── */
+/* ── Fetch prices for the Live Trades portfolio — Birdeye only ──────────────
+   Uses _wlBirdeyeCache first (populated by liveRefreshTick every 30s, 120s TTL).
+   Live-trade holdings are always watchlisted, so this is almost always instant.
+   Falls back to fetchBirdeyeScore for any mint not yet in the cache.           */
 async function _ltFetchPrices(mints) {
   if (!mints.length) return;
-  try {
-    const r = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mints.join(",")}`);
-    if (!r.ok) return;
-    const d = await r.json();
-    for (const pair of d.pairs || []) {
-      const mint = pair.baseToken?.address;
-      if (!mint) continue;
-      const cur = _ltPairCache[mint];
-      /* Keep highest-liquidity pair per mint */
-      if (!cur || (pair.liquidity?.usd || 0) > (cur.liquidity?.usd || 0)) {
-        _ltPairCache[mint] = pair;
-      }
+
+  const toFetch = [];
+  for (const mint of mints) {
+    const cached = _wlBirdeyeCache[mint];
+    if (cached?.pair) {
+      _ltPairCache[mint] = cached.pair;   /* instant cache hit */
+    } else {
+      toFetch.push(mint);                 /* not in watchlist cache yet */
     }
-  } catch {}
+  }
+
+  /* Fetch any stragglers sequentially — shouldn't happen in normal usage */
+  for (const mint of toFetch) {
+    const entry = await fetchBirdeyeScore(mint, 0);
+    if (entry?.pair) _ltPairCache[mint] = entry.pair;
+  }
 }
 
 /* ── Formatting helpers ── */
@@ -1831,6 +1836,8 @@ function _ltUpdateInPlace(trades) {
       const cpEl = document.getElementById("ltChartPriceEl");
       if (cpEl) cpEl.textContent = _ltFmtPrice(t.curPx);
       _ltUpdateChartPnlBadge(t);
+      /* Push new price into the live candle so the chart actually moves */
+      if (_ltChartInst && t.curPx > 0) _ltChartInst.tick(t.curPx, 0);
     }
   }
 
