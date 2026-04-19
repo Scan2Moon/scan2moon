@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="scanner-hero.css" />
   <link rel="stylesheet" href="watchlist.css" />
+  <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
 <div class="app">
@@ -42,16 +43,21 @@
     </div>
     <div class="scanner-hero-right">
       <div class="scanner-stat-pill" id="wlCountPill">0 tokens</div>
+      <div class="wl-refresh-badge" id="wlRefreshBadge" title="Auto-refreshes every 30 seconds">↻ 30s</div>
       <button class="wl-clear-all-btn" id="wlClearAll" data-i18n="wl_clear_all">🗑️ Clear All</button>
     </div>
   </div>
 
-  <!-- WATCHLIST PANEL -->
+  <!-- WATCHLIST + LIVE TRADES PANEL (tab navigation) -->
   <div class="panel">
-    <div class="panel-title" data-i18n="wl_saved_tokens">⭐ SAVED TOKENS</div>
-    <div class="panel-body" id="watchlistBody">
-      <!-- filled by watchlist.js -->
+    <div class="wl-tab-nav">
+      <button class="wl-tab-btn wl-tab-active" id="wlTabSaved" onclick="window._ltSwitchTab('saved')">⭐ SAVED TOKENS</button>
+      <button class="wl-tab-btn" id="wlTabLive" onclick="window._ltSwitchTab('live')"><span class="lt-tab-dot" id="ltTabDot"></span>📊 LIVE TRADES</button>
     </div>
+    <!-- Saved tokens panel -->
+    <div class="panel-body" id="watchlistBody"></div>
+    <!-- Live trades panel -->
+    <div class="panel-body" id="liveTradesBody" style="display:none"></div>
   </div>
 
   <!-- COMMUNITY -->
@@ -70,6 +76,97 @@
   </footer>
 
 </div>
+<!-- ════════════════════════════════════════════════════
+     LIVE TRADES — FULL-SCREEN CANDLE CHART MODAL
+     ════════════════════════════════════════════════════ -->
+<div id="ltChartOverlay" class="lt-chart-overlay" style="display:none">
+  <div class="lt-chart-header">
+    <div class="lt-chart-token-info">
+      <img class="lt-chart-logo" id="ltChartLogoEl" src="https://placehold.co/40x40"
+           onerror="this.src='https://placehold.co/40x40'" referrerpolicy="no-referrer"/>
+      <div>
+        <div class="lt-chart-title" id="ltChartNameEl">—</div>
+        <div class="lt-chart-sym"   id="ltChartSymEl">—</div>
+      </div>
+      <div class="lt-chart-price-live" id="ltChartPriceEl">—</div>
+    </div>
+    <div class="lt-chart-header-right">
+      <div class="lt-chart-pnl-badge" id="ltChartPnlBadge"></div>
+      <button class="lt-chart-screenshot-btn" onclick="window._ltChartScreenshot()" title="Save chart as PNG">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        PNG
+      </button>
+      <button class="lt-chart-close-btn" onclick="window._ltCloseChart()" title="Close">✕</button>
+    </div>
+  </div>
+  <!-- Timeframe switcher bar -->
+  <div class="lt-chart-tf-bar">
+    <button class="lt-chart-tf-btn" data-tf="1m"  onclick="window._ltSwitchChartTf('1m')">1m</button>
+    <button class="lt-chart-tf-btn" data-tf="5m"  onclick="window._ltSwitchChartTf('5m')">5m</button>
+    <button class="lt-chart-tf-btn active" data-tf="15m" onclick="window._ltSwitchChartTf('15m')">15m</button>
+    <button class="lt-chart-tf-btn" data-tf="1h"  onclick="window._ltSwitchChartTf('1h')">1h</button>
+    <button class="lt-chart-tf-btn" data-tf="4h"  onclick="window._ltSwitchChartTf('4h')">4h</button>
+    <button class="lt-chart-tf-btn" data-tf="1d"  onclick="window._ltSwitchChartTf('1d')">1d</button>
+  </div>
+  <div class="lt-chart-body">
+    <div id="ltChartContainer"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     BUY / SELL SIMULATOR TRADE MODAL
+     ════════════════════════════════════════════════════ -->
+<div id="ltTradeModal" class="lt-trade-overlay" style="display:none" onclick="window._ltBgCloseTrade(event)">
+  <div class="lt-trade-panel">
+    <div class="lt-trade-panel-header">
+      <img class="lt-trade-panel-logo" id="ltTradeLogo" src="https://placehold.co/40x40"
+           onerror="this.src='https://placehold.co/40x40'" referrerpolicy="no-referrer"/>
+      <div class="lt-trade-panel-info">
+        <div class="lt-trade-panel-name" id="ltTradeName">—</div>
+        <div class="lt-trade-panel-sym"  id="ltTradeSym">—</div>
+      </div>
+      <div class="lt-trade-panel-price-col">
+        <div class="lt-trade-panel-px"   id="ltTradePx">—</div>
+        <div class="lt-trade-panel-mode" id="ltTradeMode"></div>
+      </div>
+      <button class="lt-trade-panel-close" onclick="document.getElementById('ltTradeModal').style.display='none'">✕</button>
+    </div>
+    <div class="lt-trade-position-strip" id="ltTradePosition"></div>
+    <div class="lt-trade-form-body" id="ltTradeForm"></div>
+    <div class="lt-trade-msg" id="ltTradeMsg" style="display:none"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     FAVORITES LIVE DASHBOARD MODAL
+     ════════════════════════════════════════════════════ -->
+<div id="favDashModal" class="fav-dash-overlay" style="display:none" onclick="window._fdBgClick(event)">
+  <div class="fav-dash-inner">
+
+    <!-- Header bar -->
+    <div class="fav-dash-header">
+      <div class="fav-dash-title">
+        <span class="fav-dash-live-dot"></span>
+        <span>⭐ FAVORITES LIVE DASHBOARD</span>
+        <span class="fav-dash-sub" id="fdSubLabel"></span>
+      </div>
+      <div class="fav-dash-header-right">
+        <div class="fav-dash-clock" id="fdClock"></div>
+        <button class="fav-dash-close" onclick="closeFavDashboard()" title="Close (ESC)">✕</button>
+      </div>
+    </div>
+
+    <!-- 3×3 token grid -->
+    <div class="fav-dash-grid" id="favDashGrid"></div>
+
+  </div>
+</div>
+
+<!-- Max-9 toast -->
+<div id="fdMaxToast" class="fd-max-toast" style="display:none">
+  🔒 Max 9 favorites — Dashboard is full!
+</div>
+
 <script type="module" src="watchlist.js"></script>
 </body>
 </html>
