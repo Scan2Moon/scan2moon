@@ -2077,15 +2077,15 @@ function renderRecentTrades() {
   const body=document.getElementById("saTradesBody");
   const trades=profile?.trades?.slice(0,15)||[];
   if (!trades.length) { body.innerHTML=`<div style="text-align:center;opacity:0.5;padding:30px;">${t("sa_no_trades")}</div>`; return; }
-  body.innerHTML=trades.map(t=>{
-    const isBuy=t.type==="buy";
-    const logo=t.logo?`/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`:"https://placehold.co/28x28";
+  body.innerHTML=trades.map(tr=>{
+    const isBuy=tr.type==="buy";
+    const logo=tr.logo?`/.netlify/functions/logoProxy?url=${encodeURIComponent(tr.logo)}`:"https://placehold.co/28x28";
     const amountSol=isBuy
-      ?(t.totalCostSol||(solPrice>0?t.totalCost/solPrice:null))
-      :(t.totalReceivedSol||(solPrice>0?t.totalReceived/solPrice:null));
-    const amountFmt=amountSol!==null?formatSol(amountSol):(isBuy?formatUsd(t.totalCost):formatUsd(t.totalReceived));
-    const pnlHtml=!isBuy&&t.pnl!==undefined?`<span style="color:${t.pnl>=0?'#2cffc9':'#ff4d6d'};font-weight:700">${t.pnl>=0?'+':''}${formatSol(t.pnl)}</span>`:`<span style="opacity:0.45">—</span>`;
-    return `<div class="sa-trade-row"><div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?t("sa_trade_buy"):t("sa_trade_sell")}</span></div><div class="sa-trade-token-cell"><img class="sa-trade-token-logo" src="${logo}" onerror="this.src='https://placehold.co/28x28'" /><div><div class="sa-trade-token-name">${esc(t.name||t.symbol)}</div><div class="sa-trade-token-symbol">${esc(t.symbol)}</div></div></div><div>${amountFmt}</div><div class="sa-trade-pnl">${pnlHtml}</div><div class="sa-trade-time">${new Date(t.timestamp).toLocaleString()}</div></div>`;
+      ?(tr.totalCostSol||(solPrice>0?tr.totalCost/solPrice:null))
+      :(tr.totalReceivedSol||(solPrice>0?tr.totalReceived/solPrice:null));
+    const amountFmt=amountSol!==null?formatSol(amountSol):(isBuy?formatUsd(tr.totalCost):formatUsd(tr.totalReceived));
+    const pnlHtml=!isBuy&&tr.pnl!==undefined?`<span style="color:${tr.pnl>=0?'#2cffc9':'#ff4d6d'};font-weight:700">${tr.pnl>=0?'+':''}${formatSol(tr.pnl)}</span>`:`<span style="opacity:0.45">—</span>`;
+    return `<div class="sa-trade-row"><div><span class="sa-trade-type-badge ${isBuy?'sa-trade-buy':'sa-trade-sell'}">${isBuy?t("sa_trade_buy"):t("sa_trade_sell")}</span></div><div class="sa-trade-token-cell"><img class="sa-trade-token-logo" src="${logo}" onerror="this.src='https://placehold.co/28x28'" /><div><div class="sa-trade-token-name">${esc(tr.name||tr.symbol)}</div><div class="sa-trade-token-symbol">${esc(tr.symbol)}</div></div></div><div>${amountFmt}</div><div class="sa-trade-pnl">${pnlHtml}</div><div class="sa-trade-time">${new Date(tr.timestamp).toLocaleString()}</div></div>`;
   }).join("");
 }
 
