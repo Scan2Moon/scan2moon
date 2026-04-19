@@ -2354,31 +2354,29 @@ window._ltExecuteTrade = async function() {
 };
 
 /* ── Dedicated chart price ticker ───────────────────────────────────────────
-   Calls scanToken every 10s (bypasses _wlBirdeyeCache) so the live candle
-   actually moves rather than showing the same price for 120s.                */
-async function _ltChartTick() {
+   Two-speed design:
+   • Fast loop (3s) — calls priceOnly (Birdeye /defi/price, 5s Redis TTL)
+     → drives the live candle so the chart updates in near-real-time
+   • Slow loop (30s) — calls scanToken (full pair data)
+     → refreshes P/L badge, priceChange, volume estimates                     */
+
+let _ltChartSlowInterval = null;  /* 30s full scanToken refresh */
+
+/* ── Fast 3s price tick — only fetches the current price ── */
+async function _ltChartFastTick() {
   if (!_ltChartInst || !_ltChartMint) return;
   try {
-    const r = await fetch(`/.netlify/functions/scanToken?mint=${encodeURIComponent(_ltChartMint)}`);
+    const r = await fetch(`/.netlify/functions/priceOnly?mint=${encodeURIComponent(_ltChartMint)}`);
     if (!r.ok) return;
     const d = await r.json();
-    const pair  = d?.pair;
-    if (!pair) return;
-    const price = parseFloat(pair.priceUsd || "0");
-    if (price <= 0) return;
-
-    /* Freshen the caches so _ltUpdateInPlace also picks up the new price */
-    _ltPairCache[_ltChartMint] = pair;
-    if (_wlBirdeyeCache[_ltChartMint]) {
-      _wlBirdeyeCache[_ltChartMint].pair = pair;
-      _wlBirdeyeCache[_ltChartMint].ts   = Date.now();
-    }
+    const price = d?.price;
+    if (!price || price <= 0) return;
 
     /* Update header price */
     const cpEl = document.getElementById("ltChartPriceEl");
     if (cpEl) cpEl.textContent = _ltFmtPrice(price);
 
-    /* Update P/L badge */
+    /* Quickly refresh P/L badge using cached pair data */
     const holding = _simProfile?.holdings?.[_ltChartMint];
     if (holding && price > 0 && holding.avgPrice > 0 && holding.totalCostSol > 0) {
       const cost   = holding.totalCostSol;
@@ -2386,29 +2384,54 @@ async function _ltChartTick() {
       _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
     }
 
-    /* Estimate per-candle volume from pair's 5-minute volume.
-       vol5m / (300_000 / tfMs) scales it to the candle's timeframe.
-       1m → vol5m/5, 5m → vol5m, 15m → vol5m*3, etc.               */
-    const vol5m  = parseFloat(pair.volume?.m5 || "0");
-    const tfMs   = _ltChartInst.tfMs || 900_000;
-    const volEst = vol5m > 0 ? vol5m / (300_000 / tfMs) : 0;
-
-    /* Drive the live candle */
+    /* Drive the live candle (volume estimated from cached pair data) */
+    const cachedPair = _ltPairCache[_ltChartMint];
+    const vol5m      = parseFloat(cachedPair?.volume?.m5 || "0");
+    const tfMs       = _ltChartInst.tfMs || 900_000;
+    const volEst     = vol5m > 0 ? vol5m / (300_000 / tfMs) : 0;
     _ltChartInst.tick(price, volEst);
+
+    /* Also keep _ltPairCache price in sync for _ltUpdateInPlace */
+    if (cachedPair) cachedPair.priceUsd = String(price);
+
   } catch (e) {
-    console.warn("[ltChartTick]", e.message);
+    console.warn("[ltChartFastTick]", e.message);
+  }
+}
+
+/* ── Slow 30s full tick — fetches complete pair data ── */
+async function _ltChartSlowTick() {
+  if (!_ltChartMint) return;
+  try {
+    const r = await fetch(`/.netlify/functions/scanToken?mint=${encodeURIComponent(_ltChartMint)}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    const pair = d?.pair;
+    if (!pair) return;
+
+    /* Freshen caches */
+    _ltPairCache[_ltChartMint] = pair;
+    if (_wlBirdeyeCache[_ltChartMint]) {
+      _wlBirdeyeCache[_ltChartMint].pair = pair;
+      _wlBirdeyeCache[_ltChartMint].ts   = Date.now();
+    }
+  } catch (e) {
+    console.warn("[ltChartSlowTick]", e.message);
   }
 }
 
 function _ltStartChartTicker() {
   _ltStopChartTicker();
-  /* Fire immediately, then every 10s */
-  _ltChartTick();
-  _ltChartInterval = setInterval(_ltChartTick, 10_000);
+  /* Fire both loops immediately, then on their respective intervals */
+  _ltChartFastTick();
+  _ltChartSlowTick();
+  _ltChartInterval      = setInterval(_ltChartFastTick, 3_000);
+  _ltChartSlowInterval  = setInterval(_ltChartSlowTick, 30_000);
 }
 
 function _ltStopChartTicker() {
-  if (_ltChartInterval) { clearInterval(_ltChartInterval); _ltChartInterval = null; }
+  if (_ltChartInterval)     { clearInterval(_ltChartInterval);     _ltChartInterval     = null; }
+  if (_ltChartSlowInterval) { clearInterval(_ltChartSlowInterval); _ltChartSlowInterval = null; }
 }
 
 window._ltCloseChart = function() {
