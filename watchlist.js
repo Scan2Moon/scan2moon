@@ -1562,15 +1562,16 @@ function _updateRefreshBadge() {
    actual buy/sell markers.
    ============================================================ */
 
-let _ltActiveTab     = "saved";
-let _ltTicker        = null;          /* 3-second refresh interval */
-let _ltPairCache     = {};            /* mint → Birdeye pair object */
-let _ltChartInst     = null;          /* CandleChart instance (chart popup) */
-let _ltChartMint     = null;          /* mint currently open in chart popup */
-let _ltChartTf       = "15m";         /* active TF in chart popup */
-let _ltRenderedMints = "";            /* comma list of displayed mints — triggers full rebuild when changed */
-let _ltTradeMint     = null;          /* mint open in buy/sell modal */
-let _ltTradeMode     = null;          /* "buy" | "sell" */
+let _ltActiveTab      = "saved";
+let _ltTicker         = null;          /* 3-second refresh interval */
+let _ltPairCache      = {};            /* mint → Birdeye pair object */
+let _ltChartInst      = null;          /* CandleChart instance (chart popup) */
+let _ltChartMint      = null;          /* mint currently open in chart popup */
+let _ltChartTf        = "15m";         /* active TF in chart popup */
+let _ltRenderedMints  = "";            /* comma list of displayed mints — triggers full rebuild when changed */
+let _ltTradeMint      = null;          /* mint open in buy/sell modal */
+let _ltTradeMode      = null;          /* "buy" | "sell" */
+let _ltChartInterval  = null;          /* dedicated 10s price-refresh loop for the open chart */
 
 /* ── Tab switching ── */
 window._ltSwitchTab = function(tab) {
@@ -1997,6 +1998,11 @@ window._ltOpenChart = async function(mint) {
       }
     }
   } catch {}
+
+  /* Start dedicated 10s price ticker so the live candle actually moves.
+     This bypasses the 120s _wlBirdeyeCache so every 10s the chart gets a
+     real fresh price from scanToken (Redis 90s → Neon → Birdeye).          */
+  _ltStartChartTicker();
 };
 
 /* ── Chart TF switcher ── */
@@ -2006,6 +2012,9 @@ window._ltSwitchChartTf = async function(tf) {
     btn.classList.toggle("active", btn.dataset.tf === tf)
   );
   if (!_ltChartInst || !_ltChartMint) return;
+
+  /* Pause ticker while loading new TF — restarts below */
+  _ltStopChartTicker();
 
   const pair     = _ltPairCache[_ltChartMint];
   const pairAddr = pair?.pairAddress;
@@ -2042,6 +2051,9 @@ window._ltSwitchChartTf = async function(tf) {
   }
 
   if (_simProfile?.trades?.length) _ltChartInst.setTradeMarkers(_simProfile.trades, _ltChartMint);
+
+  /* Restart dedicated price ticker for the new TF */
+  _ltStartChartTicker();
 };
 
 /* ── Chart screenshot → downloads PNG with token info header ── */
@@ -2340,10 +2352,62 @@ window._ltExecuteTrade = async function() {
   }
 };
 
+/* ── Dedicated chart price ticker ───────────────────────────────────────────
+   Calls scanToken every 10s (bypasses _wlBirdeyeCache) so the live candle
+   actually moves rather than showing the same price for 120s.                */
+async function _ltChartTick() {
+  if (!_ltChartInst || !_ltChartMint) return;
+  try {
+    const r = await fetch(`/.netlify/functions/scanToken?mint=${encodeURIComponent(_ltChartMint)}`);
+    if (!r.ok) return;
+    const d = await r.json();
+    const pair  = d?.pair;
+    if (!pair) return;
+    const price = parseFloat(pair.priceUsd || "0");
+    if (price <= 0) return;
+
+    /* Freshen the caches so _ltUpdateInPlace also picks up the new price */
+    _ltPairCache[_ltChartMint] = pair;
+    if (_wlBirdeyeCache[_ltChartMint]) {
+      _wlBirdeyeCache[_ltChartMint].pair = pair;
+      _wlBirdeyeCache[_ltChartMint].ts   = Date.now();
+    }
+
+    /* Update header price */
+    const cpEl = document.getElementById("ltChartPriceEl");
+    if (cpEl) cpEl.textContent = _ltFmtPrice(price);
+
+    /* Update P/L badge */
+    const holding = _simProfile?.holdings?.[_ltChartMint];
+    if (holding && price > 0 && holding.avgPrice > 0 && holding.totalCostSol > 0) {
+      const cost   = holding.totalCostSol;
+      const curVal = cost * (price / holding.avgPrice);
+      _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
+    }
+
+    /* Drive the live candle */
+    _ltChartInst.tick(price, 0);
+  } catch (e) {
+    console.warn("[ltChartTick]", e.message);
+  }
+}
+
+function _ltStartChartTicker() {
+  _ltStopChartTicker();
+  /* Fire immediately, then every 10s */
+  _ltChartTick();
+  _ltChartInterval = setInterval(_ltChartTick, 10_000);
+}
+
+function _ltStopChartTicker() {
+  if (_ltChartInterval) { clearInterval(_ltChartInterval); _ltChartInterval = null; }
+}
+
 window._ltCloseChart = function() {
   const overlay = document.getElementById("ltChartOverlay");
   if (overlay) overlay.style.display = "none";
   document.body.style.overflow = "";
+  _ltStopChartTicker();
   if (_ltChartInst) { try { _ltChartInst.destroy(); } catch {} _ltChartInst = null; }
   _ltChartMint = null;
 };
