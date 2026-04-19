@@ -9,13 +9,17 @@
 const { getDb, redisGet, redisSet, CORS } = require("./db");
 
 // ── Timeframe config ──────────────────────────────────────────────────────
+// redisTtl: seconds to serve from Redis without hitting Birdeye.
+//   Longer = fewer Birdeye calls = fast dashboard opens for repeat users.
+//   15m candle closes every 15 min → 5 min (300s) cache is always accurate.
+// staleAfterSec: how long Neon data is considered fresh (falls back to Birdeye when exceeded).
 const TF_CONFIG = {
-  "1m":  { birdeyeType: "1m",  redisTtl: 10,   barSec: 60,     limit: 500, staleAfterSec: 15   },
-  "5m":  { birdeyeType: "5m",  redisTtl: 15,   barSec: 300,    limit: 300, staleAfterSec: 60   },
-  "15m": { birdeyeType: "15m", redisTtl: 45,   barSec: 900,    limit: 200, staleAfterSec: 180  },
-  "1h":  { birdeyeType: "1H",  redisTtl: 120,  barSec: 3600,   limit: 200, staleAfterSec: 600  },
-  "4h":  { birdeyeType: "4H",  redisTtl: 480,  barSec: 14400,  limit: 200, staleAfterSec: 3600 },
-  "1d":  { birdeyeType: "1D",  redisTtl: 1800, barSec: 86400,  limit: 200, staleAfterSec: 7200 },
+  "1m":  { birdeyeType: "1m",  redisTtl: 20,   barSec: 60,     limit: 500, staleAfterSec: 30    },
+  "5m":  { birdeyeType: "5m",  redisTtl: 60,   barSec: 300,    limit: 300, staleAfterSec: 120   },
+  "15m": { birdeyeType: "15m", redisTtl: 300,  barSec: 900,    limit: 200, staleAfterSec: 600   },
+  "1h":  { birdeyeType: "1H",  redisTtl: 600,  barSec: 3600,   limit: 200, staleAfterSec: 1800  },
+  "4h":  { birdeyeType: "4H",  redisTtl: 1800, barSec: 14400,  limit: 200, staleAfterSec: 7200  },
+  "1d":  { birdeyeType: "1D",  redisTtl: 7200, barSec: 86400,  limit: 200, staleAfterSec: 86400 },
 };
 
 // ── Birdeye fetch with 429 retry ──────────────────────────────────────────

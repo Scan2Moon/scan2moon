@@ -550,6 +550,48 @@ async function startLiveRefresh() {
   _liveRefreshTimer = setInterval(liveRefreshTick, 30000);
   /* Keep SOL price fresh for P/L calculations */
   setInterval(fetchSolPrice, 30000);
+
+  /* ── Background OHLCV prefetch ─────────────────────────────────────────────
+     After liveRefreshTick finishes warming the scanToken cache, silently
+     pre-fetch 15m OHLCV for all favorite tokens.  This warms the ohlcvData
+     Redis cache so the next openFavDashboard() is instant (cache hits < 100ms).
+     Runs sequentially at 1100ms per token so it stays under the Birdeye
+     rate limit.  _fdBarCache is populated so TF switching is also instant.    */
+  _fdPrefetchFavoritesOhlcv();
+}
+
+async function _fdPrefetchFavoritesOhlcv() {
+  const favMints = [...loadFavorites()].slice(0, FAV_DASH_MAX);
+  if (!favMints.length) return;
+
+  /* Wait a tick for the browser to be idle */
+  await new Promise(r => setTimeout(r, 500));
+
+  for (const mint of favMints) {
+    if (_liveRefreshRunning) {
+      /* liveRefreshTick fired mid-prefetch — pause until it finishes */
+      await new Promise(r => setTimeout(r, 1500));
+    }
+    const key = `${mint}_ohlcv_15m`;
+    if (_fdBarCache[key]) continue;   /* already in memory — skip */
+    try {
+      const t0 = Date.now();
+      const r = await fetch(`/.netlify/functions/ohlcvData?mint=${encodeURIComponent(mint)}&tf=15m`);
+      if (r.ok) {
+        const d = await r.json();
+        const bars = (d.bars || []).filter(b => b.time > 0 && b.close > 0).sort((a,b) => a.time - b.time);
+        if (bars.length >= 2) {
+          _fdBarCache[key] = bars;
+          console.log(`[Prefetch] 15m ${mint.slice(0,8)}…: ${bars.length} bars cached (${d.source || "?"}, ${Date.now()-t0}ms)`);
+        }
+      }
+      const elapsed = Date.now() - t0;
+      if (elapsed < 250) continue;  /* cache hit — no wait */
+      const gap = 1100 - elapsed;
+      if (gap > 0) await new Promise(r => setTimeout(r, gap));
+    } catch { /* non-fatal: prefetch failure just means first open is slower */ }
+  }
+  console.log("[Prefetch] OHLCV prefetch complete — dashboard open will be fast.");
 }
 
 function injectPnlStrip(card, pnlSol, pnlPct) {
@@ -964,21 +1006,39 @@ async function _fdBuild(favMints) {
   /* Show/hide stale warning banner */
   _fdShowStaleBanner(anyStale);
 
-  /* ── Create LightweightCharts candlestick chart for each card ──────────────
-     ohlcvData and scanToken share the same Birdeye API key rate limit.
-     Wait for liveRefreshTick to finish before firing any ohlcvData calls,
-     then space them at 1100ms (≤ 1 req/sec to stay under the rate limit).  */
-  await new Promise(r => setTimeout(r, 200)); /* let browser finish grid layout */
+  /* ── Create LightweightCharts charts + load OHLCV ───────────────────────────
+     Smart-delay pattern:
+       • Cache hit  (< 250ms) → next chart starts immediately — no wait
+       • Birdeye call (≥ 250ms) → enforce 1100ms total spacing so we stay
+         under the 1 req/sec rate limit
+     This means: on warm ohlcvData cache all 9 charts appear in < 1 second.
+     On cold cache they load sequentially but still as fast as the rate limit
+     allows.                                                                   */
+  await new Promise(r => setTimeout(r, 100)); /* let browser paint grid first */
 
-  /* Wait until liveRefreshTick is done (max 30s) before starting chart loads */
+  /* Wait until liveRefreshTick is done (max 30s) — shares same Birdeye budget */
   const waitStart = Date.now();
   while (_liveRefreshRunning && (Date.now() - waitStart) < 30000) {
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 200));
   }
 
   for (const t of tokens) {
-    _fdInitChart(t);
-    await new Promise(r => setTimeout(r, 1100)); /* 1100ms = ≤ 1 Birdeye call/sec */
+    const pa = _fdPairMap[t.mint];
+    if (!pa) continue;                          /* no pair = chart stays "No chart data" */
+
+    const loadEl = _fdInitChart(t);             /* sync: creates chart container only */
+    if (!loadEl) continue;                      /* _fdInitChart returns null if no pair */
+
+    const t0 = Date.now();
+    await _fdLoadChartData(t.mint, pa, "15m", loadEl); /* awaited — we time it */
+
+    const elapsed = Date.now() - t0;
+    if (elapsed >= 250) {
+      /* Real Birdeye call — enforce 1100ms total gap to respect rate limit */
+      const remaining = 1100 - elapsed;
+      if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
+    }
+    /* Cache hit (< 250ms): no extra wait — browser paints immediately */
   }
 }
 
@@ -1228,8 +1288,7 @@ function _fdInitChart(t, tf = "15m") {
 
   _fdCharts[t.mint] = { chart, candleSeries, tf };
 
-  /* Async: fetch data and populate */
-  _fdLoadChartData(t.mint, pairAddr, tf, loadEl);
+  return loadEl;  /* caller handles the data fetch — no fire-and-forget here */
 }
 
 /* ── Fetch OHLCV and render into an existing chart ── */
