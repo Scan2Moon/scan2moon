@@ -546,6 +546,9 @@ function showDashboard(isDemo = false) {
   renderAcademyPlaceholder();
   renderLeaderboard();
 
+  /* ── Last scanned tokens ── */
+  renderLastScans();
+
   /* ── Daily reward check ── */
   if (!isDemo) checkDashDailyReward();
 
@@ -555,6 +558,106 @@ function showDashboard(isDemo = false) {
   fetchDashPrices(); /* immediate first fetch */
   dashPriceTimer = setInterval(fetchDashPrices, 30_000); /* refresh every 30 s */
 }
+
+/* ═══════════════════════════════════════════════════════
+   LAST SCANNED TOKENS — reads same localStorage as home.js
+═══════════════════════════════════════════════════════ */
+const DASH_SCANS_KEY  = "s2m_last_scans";
+const DASH_SCANS_MAX  = 8;
+
+function _scanTimeAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diff / 60000);
+  if (m < 1)  return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
+
+function _scanScoreColor(score) {
+  if (score >= 65) return "#2cffc9";
+  if (score >= 45) return "#ffd166";
+  return "#ff4d6d";
+}
+
+function _scanRiskLabel(score) {
+  if (score >= 65) return "LOW RISK";
+  if (score >= 45) return "MODERATE";
+  return "HIGH RISK";
+}
+
+function renderLastScans() {
+  const panel = document.getElementById("dashLastScansPanel");
+  const grid  = document.getElementById("dashScansGrid");
+  const btn   = document.getElementById("dashClearScansBtn");
+  if (!panel || !grid) return;
+
+  let scans = [];
+  try { scans = JSON.parse(localStorage.getItem(DASH_SCANS_KEY) || "[]"); } catch {}
+  scans = scans.slice(0, DASH_SCANS_MAX);
+
+  if (!scans.length) { panel.style.display = "none"; return; }
+  panel.style.display = "block";
+
+  grid.innerHTML = scans.map(s => {
+    const logo      = s.logo
+      ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(s.logo)}`
+      : "https://placehold.co/40x40";
+    const score     = s.totalScore ?? "—";
+    const scoreCol  = typeof score === "number" ? _scanScoreColor(score) : "#7fffe1";
+    const riskLabel = typeof score === "number" ? _scanRiskLabel(score) : "";
+    const ago       = _scanTimeAgo(s.scannedAt);
+    const name      = esc(s.name || "Unknown");
+    const sym       = esc(s.symbol || "");
+    const mc        = esc(s.marketCap  || "—");
+    const liq       = esc(s.liquidity  || "—");
+    const mint      = esc(s.mint);
+
+    return `
+      <div class="dash-scan-card" onclick="window._dashGoToScan('${mint}')" title="Re-scan ${name}">
+        <div class="dash-scan-card-top">
+          <img class="dash-scan-logo" src="${logo}" onerror="this.src='https://placehold.co/40x40'" referrerpolicy="no-referrer" />
+          <div class="dash-scan-info">
+            <div class="dash-scan-name">${name}</div>
+            <div class="dash-scan-sym">${sym}</div>
+          </div>
+          <div class="dash-scan-ago">${ago}</div>
+        </div>
+        <div class="dash-scan-score-row">
+          <span class="dash-scan-score" style="color:${scoreCol};text-shadow:0 0 10px ${scoreCol}66">${score}<span class="dash-scan-score-max">/100</span></span>
+          <span class="dash-scan-risk" style="color:${scoreCol};border-color:${scoreCol}44;background:${scoreCol}12">${riskLabel}</span>
+        </div>
+        <div class="dash-scan-metrics">
+          <div class="dash-scan-metric"><div class="dash-scan-metric-lbl">Mkt Cap</div><div class="dash-scan-metric-val">${mc}</div></div>
+          <div class="dash-scan-metric"><div class="dash-scan-metric-lbl">Liquidity</div><div class="dash-scan-metric-val">${liq}</div></div>
+        </div>
+        <div class="dash-scan-card-actions">
+          <button class="dash-scan-rescan-btn" onclick="event.stopPropagation();window._dashGoToScan('${mint}')">🔍 Re-scan</button>
+          <button class="dash-scan-ape-btn" onclick="event.stopPropagation();window._dashGoToApe('${mint}')">🦍 Ape</button>
+        </div>
+      </div>`;
+  }).join("");
+
+  /* Wire up clear button */
+  if (btn) {
+    btn.onclick = () => {
+      if (!confirm("Clear all scan history?")) return;
+      localStorage.removeItem(DASH_SCANS_KEY);
+      panel.style.display = "none";
+    };
+  }
+}
+
+window._dashGoToScan = function(mint) {
+  localStorage.setItem("s2m_prefill_mint", mint);
+  window.location.href = "risk-scanner.html";
+};
+
+window._dashGoToApe = function(mint) {
+  localStorage.setItem("s2m_sa_mint", mint);
+  window.location.href = "safe-ape.html";
+};
 
 /* ═══════════════════════════════════════════════════════
    DAILY REWARD — on Dashboard
