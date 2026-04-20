@@ -1,30 +1,34 @@
 // netlify/functions/topGainers.js
 // GET /.netlify/functions/topGainers?tf=1h&min_liq=10000
 //
-// Returns Solana top gainers from Birdeye tokenlist sorted by price change,
-// with a quick Scan2Moon risk score computed server-side.
+// Returns Solana top gainers from Birdeye tokenlist sorted by price change.
+// NOTE: Birdeye tokenlist only accepts "price_change_24h_percent" as a valid
+// sort_by value. We always fetch 100 tokens sorted by 24h, then re-sort
+// server-side by the requested timeframe field (30m / 1h / 12h / 24h).
 // Redis TTL: 90s per tf+liq combo.
 
 const { redisGet, redisSet, CORS } = require("./db");
 
-/* ── Birdeye sort_by field per timeframe ── */
-const TF_SORT = {
+/* ── Timeframe → response field name ── */
+const TF_FIELD = {
   "30m": "price_change_30m_percent",
   "1h":  "price_change_1h_percent",
   "12h": "price_change_12h_percent",
   "24h": "price_change_24h_percent",
 };
 
+/* ── The only sort_by value Birdeye tokenlist accepts for price change ── */
+const BIRDEYE_SORT = "price_change_24h_percent";
+
 /* ── Quick risk score from Birdeye tokenlist fields ─────────────────
    Approximates the full computeRiskScore() without needing an RPC call.
-   Inputs available: liquidity, mc/fdv, price_change_24h_percent, vol24h.
    ------------------------------------------------------------------- */
 function quickRisk(tok) {
-  const liq  = tok.liquidity        || 0;
-  const mc   = tok.mc || tok.fdv    || 0;
-  const pc24 = tok.price_change_24h_percent || 0;
-  const vol24 = tok.volume_24h_usd  || 0;
-  const holders = tok.holder        || 0;
+  const liq     = tok.liquidity                  || 0;
+  const mc      = tok.mc || tok.fdv              || 0;
+  const pc24    = tok.price_change_24h_percent   || 0;
+  const vol24   = tok.volume_24h_usd             || 0;
+  const holders = tok.holder                     || 0;
 
   let score = 50;
 
@@ -76,10 +80,10 @@ exports.handler = async (event) => {
     return { statusCode: 204, headers: CORS, body: "" };
   }
 
-  const qs      = event.queryStringParameters || {};
-  const tf      = TF_SORT[qs.tf] ? qs.tf : "1h";
-  const minLiq  = Math.max(0, parseInt(qs.min_liq || "10000", 10) || 10000);
-  const sortBy  = TF_SORT[tf];
+  const qs       = event.queryStringParameters || {};
+  const tf       = TF_FIELD[qs.tf] ? qs.tf : "1h";
+  const tfField  = TF_FIELD[tf];
+  const minLiq   = Math.max(0, parseInt(qs.min_liq || "10000", 10) || 10000);
   const cacheKey = `topgain:${tf}:${minLiq}`;
 
   /* ── Redis cache ── */
@@ -96,20 +100,25 @@ exports.handler = async (event) => {
 
   const KEY = process.env.BIRDEYE_API_KEY;
   if (!KEY) {
-    return { statusCode: 500, headers: CORS, body: JSON.stringify({ ok: false, error: "BIRDEYE_API_KEY not set" }) };
+    return {
+      statusCode: 500,
+      headers: CORS,
+      body: JSON.stringify({ ok: false, error: "BIRDEYE_API_KEY not set" }),
+    };
   }
 
   try {
+    /* Always sort by 24h change — only valid price-change sort in Birdeye tokenlist.
+       Fetch 100 so we have enough after re-sorting by the requested TF field. */
     const params = new URLSearchParams({
-      sort_by:       sortBy,
+      sort_by:       BIRDEYE_SORT,
       sort_type:     "desc",
       offset:        "0",
-      limit:         "50",
+      limit:         "100",
       min_liquidity: String(minLiq),
     });
 
     const url = `https://public-api.birdeye.so/defi/tokenlist?${params}`;
-    console.log(`topGainers: fetching ${url}`);
 
     const res = await fetch(url, {
       headers: { "X-API-KEY": KEY, "x-chain": "solana" },
@@ -118,50 +127,55 @@ exports.handler = async (event) => {
 
     if (!res.ok) {
       const txt = await res.text();
-      console.error(`topGainers: Birdeye ${res.status} for sort_by=${sortBy} — ${txt.slice(0, 400)}`);
+      console.error(`topGainers: Birdeye ${res.status} — ${txt.slice(0, 300)}`);
       if (txt.includes("Compute units") || txt.includes("quota")) {
         return { statusCode: 429, headers: CORS, body: JSON.stringify({ ok: false, error: "quota_exceeded" }) };
       }
       return {
         statusCode: 502,
         headers: CORS,
-        body: JSON.stringify({
-          ok:      false,
-          error:   `Birdeye ${res.status}: ${txt.slice(0, 200)}`,
-          sort_by: sortBy,
-          tf,
-        }),
+        body: JSON.stringify({ ok: false, error: `Birdeye ${res.status}: ${txt.slice(0, 200)}` }),
       };
     }
 
     const data   = await res.json();
-    const tokens = data?.data?.tokens || [];
+    let tokens   = data?.data?.tokens || [];
+
+    /* ── Re-sort by the requested timeframe field ── */
+    if (tf !== "24h") {
+      tokens = tokens
+        .filter(t => t[tfField] != null)
+        .sort((a, b) => (b[tfField] || 0) - (a[tfField] || 0));
+    }
+
+    /* ── Keep top 50 after re-sort ── */
+    tokens = tokens.slice(0, 50);
 
     /* ── Build result ── */
     const result = {
-      ok: true,
+      ok:        true,
       tf,
       updatedAt: Date.now(),
-      tokens: tokens.map((t, i) => {
+      tokens:    tokens.map((t, i) => {
         const rs = quickRisk(t);
         return {
-          rank:     i + 1,
-          mint:     t.address,
-          name:     t.name    || "Unknown",
-          symbol:   t.symbol  || "",
-          logo:     t.logoURI || null,
-          price:    t.price   || 0,
+          rank:      i + 1,
+          mint:      t.address,
+          name:      t.name    || "Unknown",
+          symbol:    t.symbol  || "",
+          logo:      t.logoURI || null,
+          price:     t.price   || 0,
           changes: {
             m30: t.price_change_30m_percent ?? null,
             h1:  t.price_change_1h_percent  ?? null,
             h12: t.price_change_12h_percent ?? null,
             h24: t.price_change_24h_percent ?? null,
           },
-          mc:       t.mc       || t.fdv || 0,
-          fdv:      t.fdv      || 0,
+          mc:        t.mc        || t.fdv || 0,
+          fdv:       t.fdv       || 0,
           liquidity: t.liquidity || 0,
-          vol24h:   t.volume_24h_usd || 0,
-          holders:  t.holder   || 0,
+          vol24h:    t.volume_24h_usd || 0,
+          holders:   t.holder    || 0,
           riskScore: rs,
           riskLevel: rs >= 65 ? "LOW" : rs >= 45 ? "MED" : "HIGH",
         };
