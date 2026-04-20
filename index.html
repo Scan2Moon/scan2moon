@@ -36,27 +36,99 @@
 
   <!-- NAV injected by nav.js -->
 
-  <!-- LAST SCANS PANEL -->
-  <div class="panel">
-    <div class="panel-header">
-      <div class="panel-title" data-i18n="home_last_scanned">🕐 LAST SCANNED TOKENS</div>
-      <div class="home-sub" data-i18n="home_last_scanned_sub">Last 10 Risk Scanner results — click any to re-scan</div>
+  <!-- ═══════════════════════════════════════
+       TOP GAINERS PANEL
+  ═══════════════════════════════════════ -->
+  <div class="panel tg-panel">
+
+    <!-- Panel title bar -->
+    <div class="tg-titlebar">
+      <div class="tg-title">🚀 TOP GAINERS</div>
+
+      <!-- ── SURPRISE: Solana live badge ── -->
+      <div class="tg-chain-badge">
+        <div class="tg-chain-dot"></div>
+        <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+          class="tg-chain-logo" alt="SOL" />
+        <span class="tg-chain-name">SOLANA</span>
+        <span class="tg-chain-live">LIVE</span>
+        <div class="tg-refresh-ring" id="tgRefreshRing" title="Refreshes every 90s"></div>
+      </div>
+
+      <!-- Timeframe tabs -->
+      <div class="tg-tf-tabs" id="tgTfTabs">
+        <button class="tg-tf-btn" data-tf="30m">30M</button>
+        <button class="tg-tf-btn tg-tf-active" data-tf="1h">1H</button>
+        <button class="tg-tf-btn" data-tf="12h">12H</button>
+        <button class="tg-tf-btn" data-tf="24h">24H</button>
+      </div>
     </div>
-    <div class="panel-body" id="lastScansPanel"></div>
+
+    <!-- Stats bar (populated by JS) -->
+    <div class="tg-stats-bar" id="tgStatsBar" style="display:none;">
+      <div class="tg-stat-chip" id="tgStatGainers"></div>
+      <div class="tg-stat-chip" id="tgStatAvgGain"></div>
+      <div class="tg-stat-chip" id="tgStatTopGain"></div>
+      <div class="tg-stat-chip tg-stat-updated" id="tgStatUpdated"></div>
+    </div>
+
+    <!-- Table -->
+    <div class="panel-body tg-body">
+      <div class="tg-table-wrap">
+        <table class="tg-table" id="tgTable">
+          <thead>
+            <tr>
+              <th class="tg-th tg-th-rank">#</th>
+              <th class="tg-th tg-th-token">TOKEN</th>
+              <th class="tg-th tg-th-price">PRICE</th>
+              <th class="tg-th tg-th-change" id="tgThChange">1H %</th>
+              <th class="tg-th tg-th-mc">MC</th>
+              <th class="tg-th tg-th-liq">LIQ</th>
+              <th class="tg-th tg-th-vol">VOL 24H</th>
+              <th class="tg-th tg-th-risk">RISK</th>
+              <th class="tg-th tg-th-actions">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="tgBody">
+            <!-- injected by home.js -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Loading state -->
+      <div class="tg-loading" id="tgLoading">
+        <div class="tg-spinner"></div>
+        <div class="tg-loading-text">Fetching top gainers…</div>
+      </div>
+
+      <!-- Error state -->
+      <div class="tg-error" id="tgError" style="display:none;">
+        <div class="tg-error-icon">⚠️</div>
+        <div class="tg-error-msg" id="tgErrorMsg">Failed to load data.</div>
+        <button class="tg-retry-btn" id="tgRetryBtn">Retry</button>
+      </div>
+
+      <!-- Pagination -->
+      <div class="tg-pagination" id="tgPagination" style="display:none;">
+        <button class="tg-page-btn" id="tgPrevBtn">← Prev</button>
+        <div class="tg-page-info" id="tgPageInfo">Page 1 of 5</div>
+        <button class="tg-page-btn" id="tgNextBtn">Next →</button>
+      </div>
+    </div>
   </div>
 
   <!-- COMMUNITY PANEL -->
   <div class="panel">
-    <div class="panel-title" data-i18n="home_community">Scan2Moon Community</div>
+    <div class="panel-title">Scan2Moon Community</div>
     <div class="panel-body" id="communityPanel"></div>
   </div>
 
   <footer class="footer">
-    <div class="footer-left" data-i18n="footer_disclaimer">Informational tool only. Always DYOR.</div>
+    <div class="footer-left">Informational tool only. Always DYOR.</div>
     <div class="footer-right">
       <span class="version">Version V2.0</span>
       <span class="separator">•</span>
-      <span class="powered" data-i18n="footer_powered">Powered by Scan2Moon</span>
+      <span class="powered">Powered by Scan2Moon</span>
     </div>
   </footer>
 
