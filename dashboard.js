@@ -1,6 +1,6 @@
 /* ============================================================
-   Scan2Moon – dashboard.js  (V1.0 — structure + fake data)
-   Full real-data wiring comes in V1.1 when Safe Ape moves here.
+   Scan2Moon – dashboard.js  (V2.0)
+   Real-data dashboard — all stats from simulator profile + live leaderboard rank.
    ============================================================ */
 
 import { renderNav }           from "./nav.js";
@@ -27,37 +27,16 @@ function savePurchase(id, type, priceUsd, txSig) {
 }
 
 async function getSolPriceUsd() {
-  /* Try 3 independent APIs — return the first that works */
-
-  /* 1. Binance public API — best CORS support */
+  /* Route through server-side proxy — avoids CORS issues and geo-blocks.
+     Primary: Jupiter · Fallback: CoinGecko · Tertiary: Binance/OKX (all server-side) */
   try {
-    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT",
-      { signal: AbortSignal.timeout(4000) });
+    const r = await fetch("/.netlify/functions/solPrice", { signal: AbortSignal.timeout(5000) });
     const d = await r.json();
     const p = parseFloat(d?.price);
     if (p > 1) return p;
   } catch { /* fall through */ }
 
-  /* 2. CoinGecko free tier */
-  try {
-    const r = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
-      { signal: AbortSignal.timeout(5000) });
-    const d = await r.json();
-    const p = parseFloat(d?.solana?.usd);
-    if (p > 1) return p;
-  } catch { /* fall through */ }
-
-  /* 3. Jupiter v2 (may be blocked on localhost but fine in production) */
-  try {
-    const r = await fetch(`${JUP_API}?ids=${SOL_MINT}`,
-      { signal: AbortSignal.timeout(4000) });
-    const d = await r.json();
-    const p = parseFloat(d?.data?.[SOL_MINT]?.price);
-    if (p > 1) return p;
-  } catch { /* fall through */ }
-
-  return 0; /* all failed */
+  return 0; /* unavailable */
 }
 
 /* Capture a single frame from a video URL as a data-URL (for html2canvas) */
@@ -214,14 +193,14 @@ const BADGE_DEFS = [
   { id: "lvl_100", cat: "levels", img: "/badges/lvl_100.png", icon: "🌙", name: "Level 100 — Sol2Moon",    desc: "Reach Account Level 100. Maximum level. You ARE the moon. Absolute GOAT.", reward: 10.0 },
 ];
 
-/* ── XP / Level system (fake for now, real data V1.1) ─────── */
-/*
-  XP formula (planned):
-    +10 XP per scan
-    +25 XP per trade closed
-    +50 XP per badge earned
-    +5  XP per day streak
-  Level thresholds: 0, 100, 250, 500, 900, 1400, 2050, 2850, 3800, 5000, …
+/* ── XP / Level system ───────────────────────────────────────
+   XP formula (live):
+     +25 XP per trade closed
+     +50 XP per badge earned
+     +5  XP per day streak
+     +socialXp from completed social tasks
+     +academyXp from completed academy lessons
+   Level thresholds: 0, 100, 250, 500, 900, 1400, 2050, 2850, 3800, 5000, …
 */
 const XP_THRESHOLDS = [0, 100, 250, 500, 900, 1400, 2050, 2850, 3800, 5000, 6500, 8500, 11000];
 
@@ -552,11 +531,54 @@ function showDashboard(isDemo = false) {
   /* ── Daily reward check ── */
   if (!isDemo) checkDashDailyReward();
 
+  /* ── Async-fetch real leaderboard rank + preview (non-blocking) ── */
+  if (!isDemo && wallet) {
+    fetchLbRank(wallet).catch(() => {});
+  } else if (isDemo) {
+    /* Demo mode: show leaderboard section without fake data */
+    const lbEl = document.getElementById("dashLeaderboard");
+    if (lbEl) {
+      lbEl.innerHTML = `
+        <div style="text-align:center;padding:20px;opacity:0.5;font-size:12px;">
+          Connect your wallet to see real rankings
+        </div>
+        <div class="dash-lb-footer"><a href="leaderboard.html" style="color:#ffb432;font-weight:700;">View Full Leaderboard →</a></div>`;
+    }
+  }
+
   /* ── Start live price polling for holdings ── */
   if (dashPriceTimer) clearInterval(dashPriceTimer);
   dashPrices = {};
   fetchDashPrices(); /* immediate first fetch */
   dashPriceTimer = setInterval(fetchDashPrices, 30_000); /* refresh every 30 s */
+}
+
+/* ═══════════════════════════════════════════════════════
+   FETCH REAL LEADERBOARD DATA  (fire-and-forget)
+   Updates #dashRank and the leaderboard preview panel
+   once the response arrives from the simulator API.
+═══════════════════════════════════════════════════════ */
+async function fetchLbRank(walletAddr) {
+  try {
+    const walletParam = walletAddr ? `&wallet_caller=${walletAddr}` : "";
+    const res  = await fetch(`${SIM_API}?action=leaderboard&period=alltime${walletParam}`,
+      { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return;
+    const data    = await res.json();
+    const entries = data.entries || [];
+    const total   = data.total  || entries.length;
+
+    /* ── Update rank stat card ── */
+    const me = walletAddr ? entries.find(e => e.wallet === walletAddr) : null;
+    const rankEl = document.getElementById("dashRank");
+    if (rankEl) {
+      rankEl.textContent = me ? `#${me.rank} / ${total}` : (total > 0 ? "Unranked" : "—");
+    }
+
+    /* ── Populate leaderboard preview with real data ── */
+    _renderLbPreview(entries, total);
+
+  } catch { /* non-critical — dashRank stays "—" and preview shows loading state */ }
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -829,11 +851,11 @@ function renderStatsRow() {
   document.getElementById("dashAcadXpText").textContent = `${acadXp} / ${acadNext} XP`;
   document.getElementById("dashAcadXpFill").style.width = acadPct + "%";
 
-  /* ── Scans placeholder ── */
-  document.getElementById("dashScans").textContent = trades + 12;
+  /* ── Completed trades (wins + losses) ── */
+  document.getElementById("dashScans").textContent = wins + losses;
 
-  /* ── Rank placeholder ── */
-  document.getElementById("dashRank").textContent = `${Math.max(1, 2400 - wins * 3)} / 17k`;
+  /* ── Rank: show "—" now, async-fetch real rank after dashboard renders ── */
+  document.getElementById("dashRank").textContent = "—";
 
   /* ── Streak ── */
   document.getElementById("dashStreak").textContent = `${streak}d`;
@@ -1295,17 +1317,15 @@ function renderHighlightStats() {
     },
     {
       icon: "✅", label: "TASKS DONE",
-      val: "0",
-      sub: "coming soon",
-      color: "rgba(207,255,244,0.35)",
-      soon: true,
+      val: String((profile.socialTasksClaimed || []).length),
+      sub: (profile.socialTasksClaimed || []).length > 0 ? "social tasks" : "complete tasks for XP",
+      color: "#2cffc9",
     },
     {
-      icon: "🎯", label: "DAILY STREAK XP",
-      val: "—",
-      sub: "coming soon",
-      color: "rgba(207,255,244,0.25)",
-      soon: true,
+      icon: "🎯", label: "STREAK XP",
+      val: `${(profile.loginStreak || 0) * 5}`,
+      sub: `${profile.loginStreak || 0} day streak`,
+      color: (profile.loginStreak || 0) >= 7 ? "#ffb432" : "#cffff4",
     },
     buildAcademyRankCard(),
   ];
@@ -2089,11 +2109,23 @@ async function _confirmTxBackground(sig, rpcUrl) {
   console.warn(`[S2M] TX confirmation timed out: ${sig}`);
 }
 
-window.saveDisplayName = function() {
+window.saveDisplayName = async function() {
   const val = document.getElementById("accsNameInput")?.value.trim();
   if (!val) return;
   localStorage.setItem("sa_display_name", val);
   document.getElementById("dashName").textContent = esc(val);
+
+  /* Sync to server so Leaderboard + Safe Ape show the correct name */
+  const w = localStorage.getItem("sa_wallet");
+  if (w) {
+    try {
+      await fetch(SIM_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: w, action: "update_name", accountName: val }),
+      });
+    } catch { /* non-critical — name still saved locally */ }
+  }
   showToast("✅ Name updated!");
 };
 
@@ -2212,17 +2244,22 @@ function renderScannerStats() {
   const wins    = profile.winCount  || 0;
   const losses  = profile.lossCount || 0;
   const total   = wins + losses;
-  /* Derive a plausible scan count: each trade implies at least one scan */
-  const estScans   = Math.max(total * 2, trades.length * 2, 12);
-  const estRisky   = Math.round(estScans * 0.38);
-  const estSafe    = estScans - estRisky;
-  const avgRisk    = 62; /* placeholder — will be real once scanner API feeds this */
+  const winRate = total > 0 ? ((wins / total) * 100).toFixed(0) : "—";
+
+  /* Compute real avg entry risk score from trades that have a riskScore */
+  const tradesWithRisk = trades.filter(t => t.riskScore != null && !isNaN(Number(t.riskScore)));
+  const avgRisk = tradesWithRisk.length > 0
+    ? Math.round(tradesWithRisk.reduce((s, t) => s + Number(t.riskScore), 0) / tradesWithRisk.length)
+    : null;
+
+  /* Count open positions (holdings with amount > 0) */
+  const openPos = Object.values(profile.holdings || {}).filter(h => h.amount > 0).length;
 
   const stats = [
-    { icon: "🔍", label: "Total Scans",    val: estScans,              sub: "tokens analysed" },
-    { icon: "✅", label: "Safe Tokens",    val: estSafe,               sub: "passed all checks" },
-    { icon: "🚨", label: "Risky Tokens",   val: estRisky,              sub: "flagged as danger" },
-    { icon: "📊", label: "Avg Risk Score", val: `${avgRisk}/100`,      sub: "lower = safer" },
+    { icon: "🔄", label: "Trades Done",      val: total,                              sub: "completed trades" },
+    { icon: "🏆", label: "Win Rate",          val: total > 0 ? `${winRate}%` : "—",   sub: `${wins}W / ${losses}L` },
+    { icon: "📊", label: "Avg Entry Risk",    val: avgRisk != null ? `${avgRisk}/100` : "—", sub: avgRisk != null ? (avgRisk >= 65 ? "✅ good discipline" : avgRisk >= 45 ? "⚠️ watch risk" : "🚨 high risk") : "make trades first" },
+    { icon: "📂", label: "Open Positions",    val: openPos,                            sub: "tokens held" },
   ];
 
   el.innerHTML = `
@@ -2236,7 +2273,7 @@ function renderScannerStats() {
         </div>`).join("")}
     </div>
     <div class="scanner-stats-note">
-      📡 Live scan history syncs when you use the Risk Scanner
+      📡 Use the Risk Scanner before buying — higher entry risk = lower score
     </div>`;
 }
 
@@ -2376,61 +2413,59 @@ function renderAcademyPlaceholder() {
 }
 
 /* ═══════════════════════════════════════════════════════
-   LEADERBOARD PREVIEW
+   LEADERBOARD PREVIEW  (real data — fetched async)
 ═══════════════════════════════════════════════════════ */
-const FAKE_LEADERBOARD = [
-  { rank:1, name:"MoonWalker",   level:12, winRate:78.4, pnl: 847.3 },
-  { rank:2, name:"DeFi Phantom", level:11, winRate:71.2, pnl: 612.8 },
-  { rank:3, name:"SolNinja",     level:10, winRate:68.9, pnl: 489.5 },
-  { rank:4, name:"ApeKing",      level: 9, winRate:65.1, pnl: 334.2 },
-  { rank:5, name:"RiskHunter",   level: 8, winRate:61.7, pnl: 218.6 },
-];
-
 function renderLeaderboard() {
   const el = document.getElementById("dashLeaderboard");
   if (!el) return;
+  /* Show loading state — real data is populated by fetchLbRank() */
+  el.innerHTML = `
+    <div style="text-align:center;padding:28px;opacity:0.5;font-size:13px;">
+      <div style="width:28px;height:28px;border:3px solid rgba(44,255,201,0.2);border-top-color:#2cffc9;border-radius:50%;animation:scanRotate 0.8s linear infinite;margin:0 auto 8px;"></div>
+      Loading real rankings…
+    </div>
+    <div class="dash-lb-footer"><a href="leaderboard.html" style="color:#ffb432;font-weight:700;">View Full Leaderboard →</a></div>`;
+}
 
-  const wins    = profile.winCount   || 0;
-  const losses  = profile.lossCount  || 0;
-  const total   = wins + losses;
-  const winRate = total > 0 ? parseFloat(((wins / total) * 100).toFixed(1)) : 0;
-  const pnl     = profile.totalPnL   || 0;
-  const xp      = (total * 25) + ((profile.badges || []).length * 50) + ((profile.loginStreak || 0) * 5);
-  const lvl     = calcLevel(xp);
+/* Populate leaderboard preview with real entries */
+function _renderLbPreview(entries, totalTraders) {
+  const el = document.getElementById("dashLeaderboard");
+  if (!el) return;
 
-  /* Insert user at correct position vs fake list */
-  const userRank  = FAKE_LEADERBOARD.filter(e => e.pnl > pnl).length + 1;
-  const userEntry = { rank: userRank, name: profile.accountName || "You", level: lvl, winRate, pnl, isUser: true };
-
-  /* Build display rows: top 5 fakes + user if outside top 5 */
-  const rows     = FAKE_LEADERBOARD.slice(0, 5).map(e => ({ ...e, isUser: false }));
-  const inTop5   = userRank <= 5;
-  if (inTop5) {
-    rows.splice(userRank - 1, 0, userEntry);
-    rows.length = Math.min(rows.length, 6);
-  }
   const medals = ["🥇","🥈","🥉"];
+  const top5   = entries.slice(0, 5);
+  const meEntry = wallet ? entries.find(e => e.wallet === wallet) : null;
+  const inTop5 = meEntry && meEntry.rank <= 5;
 
-  const rowHtml = r => `
-    <div class="dash-lb-row ${r.isUser ? 'is-user' : ''}">
-      <div class="dash-lb-rank">${r.rank <= 3 ? medals[r.rank - 1] : `#${r.rank}`}</div>
-      <div class="dash-lb-name">${r.isUser
-        ? `<span style="color:#2cffc9;">▶ ${esc(r.name)}</span>`
-        : esc(r.name)}</div>
-      <div class="dash-lb-lvl">LVL ${r.level}</div>
-      <div class="dash-lb-wr" style="color:${r.winRate>=50?'#2cffc9':'#ff4d6d'}">${r.winRate}%</div>
-      <div class="dash-lb-pnl" style="color:${r.pnl>=0?'#2cffc9':'#ff4d6d'}">${r.pnl>=0?'+':''}${formatSol(r.pnl)}</div>
+  const rowHtml = e => {
+    const isMe = wallet && e.wallet === wallet;
+    const wins    = e.winCount  || 0;
+    const losses  = e.lossCount || 0;
+    const total2  = wins + losses;
+    const wr      = total2 > 0 ? ((wins / total2) * 100).toFixed(1) : "0";
+    const pnl     = e.totalPnL  || 0;
+    const lvl     = e.level     || 1;
+    return `
+    <div class="dash-lb-row ${isMe ? 'is-user' : ''}">
+      <div class="dash-lb-rank">${e.rank <= 3 ? medals[e.rank - 1] : `#${e.rank}`}</div>
+      <div class="dash-lb-name">${isMe
+        ? `<span style="color:#2cffc9;">▶ ${esc(e.accountName || 'You')}</span>`
+        : esc(e.accountName || 'Ape')}</div>
+      <div class="dash-lb-lvl">LVL ${lvl}</div>
+      <div class="dash-lb-wr" style="color:${parseFloat(wr)>=50?'#2cffc9':'#ff4d6d'}">${wr}%</div>
+      <div class="dash-lb-pnl" style="color:${pnl>=0?'#2cffc9':'#ff4d6d'}">${pnl>=0?'+':''}${formatSol(pnl)}</div>
     </div>`;
+  };
+
+  const rowsHtml = top5.map(rowHtml).join("") +
+    (!inTop5 && meEntry ? `<div class="dash-lb-sep">• • •</div>${rowHtml(meEntry)}` : "");
 
   el.innerHTML = `
     <div class="dash-lb-table">
       <div class="dash-lb-header"><div>RANK</div><div>TRADER</div><div>LVL</div><div>WIN%</div><div>P/L</div></div>
-      ${rows.map(rowHtml).join("")}
-      ${!inTop5 ? `
-        <div class="dash-lb-sep">• • •</div>
-        ${rowHtml(userEntry)}` : ""}
+      ${rowsHtml || '<div style="opacity:0.4;text-align:center;padding:16px;font-size:12px;">No traders yet — be the first!</div>'}
     </div>
-    <div class="dash-lb-footer">Full leaderboard — <span style="color:rgba(255,180,50,0.75);">coming soon</span></div>`;
+    <div class="dash-lb-footer">${totalTraders} traders total — <a href="leaderboard.html" style="color:#ffb432;font-weight:700;">View Full Leaderboard →</a></div>`;
 }
 
 /* ═══════════════════════════════════════════════════════

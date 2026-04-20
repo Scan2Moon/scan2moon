@@ -31,28 +31,70 @@ async function fetchRealPrice(mint) {
   });
 }
 
-/* ── Server-side SOL/USD price (Binance) ───────────────────────────────
+/* ── Server-side SOL/USD price ─────────────────────────────────────────
    Always fetched server-side for every buy/sell — runs in parallel with
    the DexScreener token-price call so it adds zero extra latency.
    Using only the server price prevents clients from submitting a
    manipulated solPrice to inflate their SOL balance.
-   Defaults to 150 on any failure so trades never hard-break. */
-async function fetchSolPriceServer() {
+   Source priority: Jupiter (global) → CoinGecko → Binance → OKX
+   Defaults to 150 on total failure so trades never hard-break. */
+
+const SOL_MINT_ADDR = "So11111111111111111111111111111111111111112";
+
+function httpsGetSimple(url, timeoutMs = 4000) {
   return new Promise((resolve) => {
-    const url = "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT";
-    const req = https.get(url, { timeout: 3000 }, (res) => {
+    const req = https.get(url, { timeout: timeoutMs }, (res) => {
       let data = "";
       res.on("data", c => { data += c; });
-      res.on("end", () => {
-        try {
-          const p = parseFloat(JSON.parse(data).price);
-          resolve(p > 0 ? p : 150);
-        } catch { resolve(150); }
-      });
+      res.on("end", () => resolve({ status: res.statusCode, body: data }));
     });
-    req.on("error",   () => resolve(150));
-    req.on("timeout", () => { req.destroy(); resolve(150); });
+    req.on("error",   () => resolve({ status: 0, body: "" }));
+    req.on("timeout", () => { req.destroy(); resolve({ status: 0, body: "" }); });
   });
+}
+
+async function fetchSolPriceServer() {
+  /* 1. Jupiter Price API v2 — globally available, no geo-restrictions */
+  try {
+    const { status, body } = await httpsGetSimple(
+      `https://api.jup.ag/price/v2?ids=${SOL_MINT_ADDR}`, 4000);
+    if (status === 200) {
+      const p = parseFloat(JSON.parse(body)?.data?.[SOL_MINT_ADDR]?.price);
+      if (p > 0) return p;
+    }
+  } catch {}
+
+  /* 2. CoinGecko */
+  try {
+    const { status, body } = await httpsGetSimple(
+      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd", 5000);
+    if (status === 200) {
+      const p = parseFloat(JSON.parse(body)?.solana?.usd);
+      if (p > 0) return p;
+    }
+  } catch {}
+
+  /* 3. Binance (may be geo-blocked in some regions) */
+  try {
+    const { status, body } = await httpsGetSimple(
+      "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT", 3000);
+    if (status === 200) {
+      const p = parseFloat(JSON.parse(body)?.price);
+      if (p > 0) return p;
+    }
+  } catch {}
+
+  /* 4. OKX */
+  try {
+    const { status, body } = await httpsGetSimple(
+      "https://www.okx.com/api/v5/market/ticker?instId=SOL-USDT", 4000);
+    if (status === 200) {
+      const p = parseFloat(JSON.parse(body)?.data?.[0]?.last);
+      if (p > 0) return p;
+    }
+  } catch {}
+
+  return 150; /* conservative fallback — trades never hard-break */
 }
 
 /* Price tolerance: submitted price must be within ±25% of real price.
@@ -613,6 +655,8 @@ exports.handler = async function(event, context) {
                 const sells      = trades.filter(t => t.type === "sell");
                 const avgRisk    = parseFloat(_lbAvgRiskScore(trades).toFixed(1));
                 const lastTrade  = trades.length > 0 ? trades[0].timestamp : (profile.updatedAt || profile.createdAt);
+                const _xp1  = (sells.length * 25) + (badges.length * 50) + ((profile.loginStreak || 0) * 5);
+                const _lvl1 = Math.floor(Math.sqrt(_xp1 / 100)) + 1;
                 entries.push({
                   wallet: profile.wallet || w, accountName: profile.accountName || "Ape",
                   adjReturn, periodPnL, dailyPnL, weeklyPnL, monthlyPnL,
@@ -622,6 +666,7 @@ exports.handler = async function(event, context) {
                   tradeCount: sells.length, avgRiskScore: avgRisk, badges,
                   lastActive: _lbTimeAgo(lastTrade), lastTradeTs: lastTrade,
                   loginStreak: profile.loginStreak || 0,
+                  xp: _xp1, level: _lvl1,
                 });
               }
               continue; // skip the Blobs parse below
@@ -642,6 +687,8 @@ exports.handler = async function(event, context) {
             const avgRisk    = parseFloat(_lbAvgRiskScore(trades).toFixed(1));
             const lastTrade  = trades.length > 0 ? trades[0].timestamp : (profile.updatedAt || profile.createdAt);
 
+            const _xp  = (sells.length * 25) + (badges.length * 50) + ((profile.loginStreak || 0) * 5);
+            const _lvl = Math.floor(Math.sqrt(_xp / 100)) + 1;
             entries.push({
               wallet:       profile.wallet || w,
               accountName:  profile.accountName || "Ape",
@@ -660,6 +707,7 @@ exports.handler = async function(event, context) {
               lastActive:   _lbTimeAgo(lastTrade),
               lastTradeTs:  lastTrade,
               loginStreak:  profile.loginStreak || 0,
+              xp: _xp, level: _lvl,
             });
           } catch(e) {
             console.warn(`LB: failed to process wallet ${w}:`, e.message);

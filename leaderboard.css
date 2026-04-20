@@ -451,39 +451,15 @@
 .lb-name-wallet { font-size: 10px; opacity: 0.4; font-family: monospace; margin-top: 2px; }
 .lb-you-badge { padding: 2px 7px; border-radius: 8px; font-size: 9px; font-weight: 700; background: rgba(255,180,50,0.15); color: #ffb432; border: 1px solid rgba(255,180,50,0.3); margin-left: 6px; }
 
-/* Badges cell */
-.lb-badges-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 3px;
-}
-.lb-badges-cell {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 2px;
-  align-items: center;
-}
-.lb-badge-count {
-  font-size: 9px;
+/* Level cell */
+.lb-level-cell {
+  font-size: 13px;
   font-weight: 700;
-  color: #ffb432;
-  opacity: 0.7;
-  letter-spacing: 0.2px;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
-.lb-badge-icon  { font-size: 14px; line-height: 1; cursor: help; }
-.lb-badge-icon-img {
-  width: 22px;
-  height: 22px;
-  object-fit: contain;
-  mix-blend-mode: multiply;
-  cursor: help;
-  transition: transform 0.15s;
-  filter: drop-shadow(0 1px 3px rgba(255,200,50,0.3));
-}
-.lb-badge-icon-img:hover { transform: scale(1.4); }
 
-/* Badge cycle-in animation */
+/* Badge cycle-in animation (kept for trader profile popup) */
 @keyframes lbBadgeFadeIn {
   from { opacity: 0; transform: scale(0.7); }
   to   { opacity: 1; transform: scale(1); }

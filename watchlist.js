@@ -7,7 +7,7 @@ import "./community.js";
 const WL_KEY    = "s2m_watchlist";
 const WL_FAV_KEY = "s2m_wl_favorites";
 const SIM_API   = "/.netlify/functions/simulator";
-const SOL_PRICE = "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT";
+const SOL_PRICE = "/.netlify/functions/solPrice";
 
 /* ── Storage helpers ── */
 function loadWatchlist() {
@@ -350,8 +350,10 @@ async function fetchSolPrice() {
   if (Date.now() - _solUsdFetchedAt < 10000) return; /* refresh max every 10s */
   try {
     const r = await fetch(SOL_PRICE);
-    _solUsd = parseFloat((await r.json()).price || "0");
-    _solUsdFetchedAt = Date.now();
+    const j = await r.json();
+    /* solPrice function returns { ok: true, price: 148.5 } */
+    const p = parseFloat(j.price || "0");
+    if (p > 0) { _solUsd = p; _solUsdFetchedAt = Date.now(); }
   } catch {}
 }
 
@@ -481,9 +483,13 @@ async function liveRefreshTick() {
 
       /* ── P/L strip ── */
       const h = _simProfile?.holdings?.[t.mint];
-      if (h && h.amount > 0 && price > 0 && h.avgPrice > 0 && h.totalCostSol > 0) {
+      if (h && h.amount > 0 && price > 0 && h.totalCostSol > 0) {
         const costSol   = h.totalCostSol;
-        const curValSol = costSol * (price / h.avgPrice);
+        /* curValSol: use live SOL price for accurate USD→SOL conversion.
+           Falls back to price-ratio estimate only if solPrice is unavailable. */
+        const curValSol = (_solUsd > 0)
+          ? (h.amount * price / _solUsd)
+          : (h.avgPrice > 0 ? costSol * (price / h.avgPrice) : costSol);
         const pnlSol    = curValSol - costSol;
         const pnlPct    = (pnlSol / costSol) * 100;
         injectPnlStrip(card, pnlSol, pnlPct);
@@ -1671,8 +1677,12 @@ function _ltComputeTrades(holdings) {
     const cost  = h.totalCostSol || 0;
     const avgPx = h.avgPrice     || 0;
     let pnlSol = 0, pnlPct = 0, curVal = cost;
-    if (curPx > 0 && avgPx > 0 && cost > 0) {
-      curVal = cost * (curPx / avgPx);
+    if (curPx > 0 && cost > 0) {
+      /* Correct formula: use live SOL price to convert token USD value → SOL.
+         Falls back to price-ratio only if solPrice hasn't loaded yet. */
+      curVal = (_solUsd > 0 && h.amount > 0)
+        ? (h.amount * curPx / _solUsd)
+        : (avgPx > 0 ? cost * (curPx / avgPx) : cost);
       pnlSol = curVal - cost;
       pnlPct = (pnlSol / cost) * 100;
     }
@@ -1948,9 +1958,11 @@ window._ltOpenChart = async function(mint) {
   if (el("ltChartPriceEl")) el("ltChartPriceEl").textContent = _ltFmtPrice(curPx);
 
   /* Show P/L badge */
-  if (holding && curPx > 0 && holding.avgPrice > 0 && holding.totalCostSol > 0) {
+  if (holding && curPx > 0 && holding.totalCostSol > 0) {
     const cost   = holding.totalCostSol;
-    const curVal = cost * (curPx / holding.avgPrice);
+    const curVal = (_solUsd > 0 && holding.amount > 0)
+      ? (holding.amount * curPx / _solUsd)
+      : (holding.avgPrice > 0 ? cost * (curPx / holding.avgPrice) : cost);
     _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
   } else {
     const badge = el("ltChartPnlBadge");
@@ -2151,7 +2163,13 @@ window._ltOpenTradeModal = function(mint, mode, event) {
   /* Position strip */
   const posEl = document.getElementById("ltTradePosition");
   if (holding && holding.amount > 0 && holding.totalCostSol > 0) {
-    const curVal = holding.totalCostSol * (price / (holding.avgCostSol || holding.avgPrice || price));
+    /* Same formula as the live card: amount * priceUSD / solPriceUSD → SOL value.
+       Falls back to ratio method only if _solUsd hasn't loaded yet. */
+    const curVal = (_solUsd > 0 && price > 0)
+      ? (holding.amount * price / _solUsd)
+      : (holding.avgPrice > 0 && price > 0
+          ? holding.totalCostSol * (price / holding.avgPrice)
+          : holding.totalCostSol);
     const pnlSol = curVal - holding.totalCostSol;
     const pnlPct = (pnlSol / holding.totalCostSol) * 100;
     const pc     = pnlSol >= 0 ? "lt-pos" : "lt-neg";
@@ -2378,9 +2396,11 @@ async function _ltChartFastTick() {
 
     /* Quickly refresh P/L badge using cached pair data */
     const holding = _simProfile?.holdings?.[_ltChartMint];
-    if (holding && price > 0 && holding.avgPrice > 0 && holding.totalCostSol > 0) {
+    if (holding && price > 0 && holding.totalCostSol > 0) {
       const cost   = holding.totalCostSol;
-      const curVal = cost * (price / holding.avgPrice);
+      const curVal = (_solUsd > 0 && holding.amount > 0)
+        ? (holding.amount * price / _solUsd)
+        : (holding.avgPrice > 0 ? cost * (price / holding.avgPrice) : cost);
       _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
     }
 

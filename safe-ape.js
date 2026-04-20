@@ -22,7 +22,7 @@ const LB_API        = "/.netlify/functions/leaderboard";
 const GECKO_API     = "https://api.geckoterminal.com/api/v2/networks/solana/pools/";
 const PRICE_ONLY_API = "/.netlify/functions/priceOnly";
 const JUP_REF       = "49h527zlp56g";
-const SA_FAST_MS    = 3000;   /* priceOnly ticker interval — max 12 Birdeye calls/min */
+const SA_FAST_MS    = 5000;   /* priceOnly ticker interval — 12 calls/min with 5s Redis TTL */
 const SA_SLOW_MS    = 30000;  /* full DexScreener refresh interval */
 
 /* ── Security helpers ───────────────────────────────────────────────────
@@ -147,7 +147,7 @@ let candleChart  = null;
 let riskScore    = 0;
 let currentTab   = "buy";
 let currentTf    = "5m";
-let solPrice     = 0;       // live SOL/USD price (fetched from Binance)
+let solPrice     = 0;       // live SOL/USD price (fetched via /solPrice function)
 const SOL_LOGO   = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
 /* chartReqId: incremented every time we start a new chart load.
    Each fetch captures its own ID; if it no longer matches when the
@@ -158,7 +158,8 @@ let tfDebounce   = null;   // debounce timer for TF button rapid-clicks
 /* ============================================================
    SOL PRICE  — fetched every 60 s so the balance always shows
    an up-to-date "≈ $X" USD equivalent next to the SOL amount.
-   Binance public REST is primary; CoinGecko is the fallback.
+   Routed through /.netlify/functions/solPrice (server-side).
+   Primary: Jupiter · Fallback: CoinGecko · Tertiary: Binance/OKX
    ============================================================ */
 async function fetchSolPrice() {
   // Dedicated solPrice function — proxies Binance server-side (no CORS issues).
@@ -540,6 +541,16 @@ async function initSimulator() {
     }
   } catch (e) { console.error(e); showToast("⚠️ Could not load profile."); return; }
 
+  /* Sync display name to server if set in Dashboard — keeps Leaderboard in sync */
+  const savedDisplayName = localStorage.getItem("sa_display_name");
+  if (savedDisplayName && savedDisplayName !== profile.accountName) {
+    fetch(SIM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, action: "update_name", accountName: savedDisplayName }),
+    }).catch(() => {});
+  }
+
   /* Migrate legacy USD-denominated profiles to SOL automatically */
   if (profile.balanceCurrency !== "sol" && solPrice > 0) {
     try {
@@ -676,9 +687,9 @@ async function _saChartFastTick(mint) {
       }
     }
 
-    /* Tick the chart — vol spread across 3s ticks (1h vol / ticks-per-hour) */
+    /* Tick the chart — vol spread across 5s ticks (1h vol / ticks-per-hour) */
     const vol1h = currentToken?.pair?.volume?.h1 || 0;
-    candleChart.tick(price, vol1h / 1200); /* 1200 ticks/hr at 3s each */
+    candleChart.tick(price, vol1h / 720); /* 720 ticks/hr at 5s each */
 
     /* Update price display + trade info */
     if (currentToken?.pair) updatePriceHeader(currentToken.pair, price);
@@ -692,7 +703,7 @@ async function _saChartFastTick(mint) {
 function _saStartChartTicker(mint) {
   _saStopChartTicker();
   if (!mint) return;
-  /* Immediate first tick then every 3s */
+  /* Immediate first tick then every 5s */
   _saChartFastTick(mint);
   _saChartFastInterval = setInterval(() => _saChartFastTick(mint), SA_FAST_MS);
   /* Slow full-pair refresh every 30s */
@@ -764,7 +775,7 @@ async function pollActivePair(mint) {
       riskScore              = currentToken.riskScore;
     }
 
-    /* Chart tick is handled by the 3s fast ticker (_saChartFastTick).
+    /* Chart tick is handled by the 5s fast ticker (_saChartFastTick).
        The slow poll just refreshes pair metadata / risk / signals. */
 
     updatePriceHeader(pair, price);
@@ -1780,10 +1791,13 @@ function updateSellInfo() {
   const totalHeld = h?.amount || 0;
   let receivedSol = 0;
   let receivedUsd = 0;
-  if (price > 0 && h?.avgPrice > 0 && costSol > 0 && totalHeld > 0 && amt > 0) {
-    const curValSol = costSol * (price / h.avgPrice);
+  if (price > 0 && costSol > 0 && totalHeld > 0 && amt > 0) {
+    /* Use live SOL price for accurate estimate; fall back to ratio only if solPrice=0 */
+    const fullValSol = (solPrice > 0)
+      ? (totalHeld * price / solPrice)
+      : (h?.avgPrice > 0 ? costSol * (price / h.avgPrice) : costSol);
     const fraction  = Math.min(amt / totalHeld, 1);
-    receivedSol = curValSol * fraction * (1 - slippage);
+    receivedSol = fullValSol * fraction * (1 - slippage);
     receivedUsd = solPrice > 0 ? receivedSol * solPrice : amt * price * (1 - slippage);
   }
 
@@ -2047,8 +2061,10 @@ function renderPortfolio() {
     const logo=h.logo?`/.netlify/functions/logoProxy?url=${encodeURIComponent(h.logo)}`:"https://placehold.co/36x36";
     const price=livePrices[mint]||0;
     const costSol=h.totalCostSol||0;
-    // curValSol uses price ratio — immune to solPrice API errors
-    const curValSol=(price>0&&h.avgPrice>0&&costSol>0)?costSol*(price/h.avgPrice):null;
+    // curValSol: prefer live SOL price; ratio fallback if solPrice unavailable
+    const curValSol=(price>0&&costSol>0)
+      ? (solPrice>0 ? (h.amount*price/solPrice) : (h.avgPrice>0?costSol*(price/h.avgPrice):costSol))
+      : null;
     const curValUsd=curValSol!==null&&solPrice>0?curValSol*solPrice:(price>0?price*h.amount:null);
     // P/L = actual SOL value change
     const pnlSol=curValSol!==null?curValSol-costSol:null;

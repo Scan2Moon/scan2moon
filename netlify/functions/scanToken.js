@@ -40,7 +40,7 @@ async function birdeyeFetch(url, headers, retries = 2) {
 }
 
 // ── Birdeye fetch: 2-phase to avoid rate-limit burst ─────────────────────
-// Phase 1 (parallel): overview (required) + Binance SOL price (different server)
+// Phase 1 (parallel): overview (required) + Jupiter SOL price (different server)
 // Phase 2 (parallel): creation_info + markets — ONLY if knownCreatedAt is null.
 //   knownCreatedAt is passed in from Neon cache so repeat calls skip phase 2
 //   entirely (saves 2 Birdeye calls per refresh after the first scan).
@@ -52,10 +52,11 @@ async function fetchBirdeyeData(mint, knownCreatedAt = null, skipPhase2 = false)
   const enc     = encodeURIComponent(mint);
 
   // ── Phase 1: required data ───────────────────────────────────────────────
+  const SOL_MINT_SC = "So11111111111111111111111111111111111111112";
   const [overviewRes, solPriceRes] = await Promise.all([
     birdeyeFetch(`https://public-api.birdeye.so/defi/token_overview?address=${enc}`, headers),
-    // Binance — different server, no rate-limit concern
-    fetch(`https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT`, {
+    // Jupiter Price API — globally available (no geo-restrictions unlike Binance)
+    fetch(`https://api.jup.ag/price/v2?ids=${SOL_MINT_SC}`, {
       signal: AbortSignal.timeout(5000),
     }),
   ]);
@@ -67,8 +68,23 @@ async function fetchBirdeyeData(mint, knownCreatedAt = null, skipPhase2 = false)
   }
 
   const overview = await overviewRes.json();
-  const solJson  = solPriceRes.ok ? await solPriceRes.json() : null;
-  const solPrice = parseFloat(solJson?.price ?? 0);
+  /* Jupiter returns { data: { "<mint>": { price: 148.5 } } } */
+  let solPrice = 0;
+  try {
+    if (solPriceRes.ok) {
+      const solJson = await solPriceRes.json();
+      solPrice = parseFloat(solJson?.data?.[SOL_MINT_SC]?.price ?? 0);
+    }
+  } catch {}
+  /* Fallback to CoinGecko if Jupiter failed */
+  if (!solPrice) {
+    try {
+      const cgRes = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+        { signal: AbortSignal.timeout(4000) });
+      if (cgRes.ok) solPrice = parseFloat((await cgRes.json())?.solana?.usd ?? 0);
+    } catch {}
+  }
 
   const d = overview?.data;
   if (!d) throw new Error("Birdeye returned no data for this mint");

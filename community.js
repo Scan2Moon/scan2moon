@@ -143,9 +143,6 @@ function renderCommunityPanel() {
           <a href="risk-scanner.html" class="s2m-footer-tool">
             <span>🛡️</span> ${t("comm_tool_risk")}
           </a>
-          <a href="portfolio.html" class="s2m-footer-tool">
-            <span>💼</span> ${t("comm_tool_portfolio")}
-          </a>
           <a href="whale-dna.html" class="s2m-footer-tool">
             <span>🧬</span> ${t("comm_tool_whale")}
           </a>

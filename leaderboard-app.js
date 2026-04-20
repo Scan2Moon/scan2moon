@@ -15,27 +15,20 @@ const SIM_API = "/.netlify/functions/simulator";
 let currentPeriod   = "alltime";
 let connectedWallet = null;
 let allEntries      = [];
-let badgeDefs       = [];
+let badgeDefs       = [];   // kept for trader profile popup
 let lbPage          = 0;
 const LB_PAGE_SIZE  = 15;
-let _badgeCycleTimer = null;
-const _badgeCycleState = {};   // wallet → current offset index
 let solPrice = 0;
 
 const SOL_LOGO = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
 
 async function fetchSolPrice() {
+  /* Route through server-side function — avoids CORS + geo-block issues */
   try {
-    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT");
+    const r = await fetch("/.netlify/functions/solPrice", { signal: AbortSignal.timeout(5000) });
     const d = await r.json();
     const p = parseFloat(d.price);
     if (p > 0) { solPrice = p; return; }
-  } catch {}
-  try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd");
-    const d = await r.json();
-    const p = d?.solana?.usd;
-    if (p > 0) solPrice = p;
   } catch {}
 }
 
@@ -75,6 +68,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     } catch (e) {
       console.warn("LB pre-registration failed (non-critical):", e.message);
     }
+    // Sync display name to server so leaderboard shows the name set in Dashboard
+    syncDisplayName(saved).catch(() => {});
   }
 
   // Bind buttons
@@ -126,6 +121,8 @@ async function connectWallet() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ wallet: connectedWallet, action: "register" })
     }).catch(() => {});
+    // Sync display name to server so leaderboard shows the name set in Dashboard
+    syncDisplayName(connectedWallet).catch(() => {});
     loadLeaderboard();
   } catch (e) {
     alert("Wallet connection cancelled or failed.");
@@ -340,17 +337,31 @@ function renderMvpStrip(mvp) {
 }
 
 /* ============================================================
-   RENDER UNIFIED TABLE  (paginated · badge carousel)
+   LEVEL HELPERS — mirrors dashboard.js calcLevel()
    ============================================================ */
-const BADGE_CAROUSEL_SIZE = 4;   // visible badges at once
-const BADGE_CYCLE_MS      = 2500; // ms between rotations
+function calcLevel(xp) {
+  return Math.floor(Math.sqrt(xp / 100)) + 1;
+}
+function levelIcon(lvl) {
+  if (lvl >= 50) return "🚀";
+  if (lvl >= 30) return "💎";
+  if (lvl >= 20) return "🧠";
+  if (lvl >= 10) return "💪";
+  if (lvl >= 5)  return "🔥";
+  return "🌱";
+}
+function levelColor(lvl) {
+  if (lvl >= 30) return "#2cffc9";
+  if (lvl >= 10) return "#ffb432";
+  return "#cffff4";
+}
 
+/* ============================================================
+   RENDER UNIFIED TABLE  (paginated)
+   ============================================================ */
 function renderTable(entries) {
   const el = document.getElementById("lbTableBody");
   if (!el) return;
-
-  // Stop any running carousel
-  clearInterval(_badgeCycleTimer);
 
   if (!entries.length) {
     el.innerHTML = `
@@ -361,9 +372,6 @@ function renderTable(entries) {
       </div>`;
     return;
   }
-
-  const badgeDef_map = {};
-  badgeDefs.forEach(b => { badgeDef_map[b.id] = b; });
 
   // ── Pagination slice ──────────────────────────────────────
   const totalPages = Math.ceil(entries.length / LB_PAGE_SIZE);
@@ -394,25 +402,11 @@ function renderTable(entries) {
                   : e.avgRiskScore >= 40 ? "lb-risk-warn"
                   : "lb-risk-bad";
 
-    const earnedBadges = (e.badges || []).filter(id => badgeDef_map[id]);
-    const badgeCount   = earnedBadges.length;
-
-    // Render first BADGE_CAROUSEL_SIZE badges; carousel will rotate the rest
-    const visibleBadges = earnedBadges.slice(0, BADGE_CAROUSEL_SIZE).map(id => {
-      const def = badgeDef_map[id];
-      return def.img
-        ? `<img class="lb-badge-icon-img" src="${def.img}" title="${def.name}: ${def.desc}" alt="${def.name}" onerror="this.style.display='none'">`
-        : `<span class="lb-badge-icon" title="${def.name}: ${def.desc}">${def.icon}</span>`;
-    }).join("");
-
-    const badgesCell = badgeCount
-      ? `<div class="lb-badges-cell" id="lb-bc-${e.wallet}"
-             data-badges='${JSON.stringify(earnedBadges)}'
-             data-wallet="${e.wallet}">${visibleBadges}</div>
-         ${badgeCount > BADGE_CAROUSEL_SIZE
-           ? `<div class="lb-badge-count">${badgeCount} 🎖</div>`
-           : (badgeCount > 0 ? `<div class="lb-badge-count">${badgeCount} 🎖</div>` : "")}`
-      : `<span style="opacity:0.3;font-size:12px;">—</span>`;
+    /* Account Level — computed from XP (server sends e.level, fall back to client calc) */
+    const lvl     = e.level || calcLevel((e.tradeCount || 0) * 25 + (e.badges?.length || 0) * 50 + (e.loginStreak || 0) * 5);
+    const lvlIcon = levelIcon(lvl);
+    const lvlCol  = levelColor(lvl);
+    const levelCell = `<div class="lb-level-cell" style="color:${lvlCol};font-weight:700;">${lvlIcon} LVL ${lvl}</div>`;
 
     const balance = e.balance ?? 10;
     const balDiff = balance - 10; // vs 10 SOL start
@@ -432,7 +426,7 @@ function renderTable(entries) {
             </div>
           </div>
         </td>
-        <td><div class="lb-badges-wrapper">${badgesCell}</div></td>
+        <td>${levelCell}</td>
         <td><div class="lb-adj-return ${adjR >= 0 ? 'lb-adj-pos' : 'lb-adj-neg'}">${sign}${adjR.toFixed(2)}%</div></td>
         <td><div class="lb-pnl-val ${pnl >= 0 ? 'lb-pnl-pos' : 'lb-pnl-neg'}">${pnlSign}${formatSol(Math.abs(pnl))}</div></td>
         <td><span class="lb-risk-score ${riskCls}">${e.avgRiskScore}/100</span></td>
@@ -463,7 +457,7 @@ function renderTable(entries) {
         <tr>
           <th style="width:52px;">#</th>
           <th>Trader</th>
-          <th>Badges</th>
+          <th>Level</th>
           <th>Adj. Return ↕</th>
           <th>${currentPeriod === "alltime" ? "All Time P/L" : currentPeriod === "daily" ? "Today's P/L" : currentPeriod === "weekly" ? "Weekly P/L" : "Monthly P/L"}</th>
           <th>Avg Risk</th>
@@ -476,38 +470,6 @@ function renderTable(entries) {
     </table>
     ${paginationHtml}`;
 
-  // ── Start badge carousel ──────────────────────────────────
-  startBadgeCarousel(badgeDef_map);
-}
-
-/* ── Badge carousel engine ───────────────────────────────── */
-function startBadgeCarousel(badgeDef_map) {
-  clearInterval(_badgeCycleTimer);
-  _badgeCycleTimer = setInterval(() => {
-    document.querySelectorAll(".lb-badges-cell[data-badges]").forEach(cell => {
-      const wallet = cell.dataset.wallet;
-      const badges = JSON.parse(cell.dataset.badges || "[]");
-      if (badges.length <= BADGE_CAROUSEL_SIZE) return;   // no cycling needed
-
-      // Advance offset
-      if (!_badgeCycleState[wallet]) _badgeCycleState[wallet] = 0;
-      _badgeCycleState[wallet] = (_badgeCycleState[wallet] + 1) % badges.length;
-
-      const offset  = _badgeCycleState[wallet];
-      const visible = [];
-      for (let i = 0; i < BADGE_CAROUSEL_SIZE; i++) {
-        visible.push(badges[(offset + i) % badges.length]);
-      }
-
-      cell.innerHTML = visible.map(id => {
-        const def = badgeDef_map[id];
-        if (!def) return "";
-        return def.img
-          ? `<img class="lb-badge-icon-img lb-badge-cycle-in" src="${def.img}" title="${def.name}: ${def.desc}" alt="${def.name}" onerror="this.style.display='none'">`
-          : `<span class="lb-badge-icon lb-badge-cycle-in" title="${def.name}: ${def.desc}">${def.icon}</span>`;
-      }).join("");
-    });
-  }, BADGE_CYCLE_MS);
 }
 
 /* ── Pagination helper (called from inline onclick) ─────── */
@@ -542,6 +504,19 @@ function renderYourRank(entries) {
   }
 }
 
+/* ── Sync display name to server (fire-and-forget) ── */
+async function syncDisplayName(wallet) {
+  const name = localStorage.getItem("sa_display_name");
+  if (!name || !wallet) return;
+  try {
+    await fetch(SIM_API, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ wallet, action: "update_name", accountName: name }),
+    });
+  } catch { /* non-critical */ }
+}
+
 /* ============================================================
    SUBMIT SCORE
    ============================================================ */
@@ -560,6 +535,8 @@ async function submitScore() {
     });
     const data = await res.json();
     if (data.error) throw new Error(data.error);
+    /* Also sync display name so leaderboard shows correct name */
+    await syncDisplayName(connectedWallet);
     const adjR = data.adjReturn !== undefined ? `\nRisk-Adjusted Return: ${data.adjReturn}%` : "";
     const bdgs = data.badges ? `\nBadges earned: ${data.badges.length}` : "";
     alert(`✅ Score submitted!${adjR}${bdgs}`);
@@ -693,6 +670,11 @@ window.openTraderProfile = function(wallet) {
   const medal = e.rank === 1 ? "🥇" : e.rank === 2 ? "🥈" : e.rank === 3 ? "🥉" : `#${e.rank}`;
   const isYou = connectedWallet && e.wallet === connectedWallet;
 
+  // Level
+  const tpLvl = e.level || calcLevel((e.tradeCount || 0) * 25 + (e.badges?.length || 0) * 50 + (e.loginStreak || 0) * 5);
+  const tpLvlIcon = levelIcon(tpLvl);
+  const tpLvlCol  = levelColor(tpLvl);
+
   // Badges
   const earnedBadges = (e.badges || []).filter(id => badgeDef_map[id]);
   const badgesHtml = earnedBadges.length
@@ -713,6 +695,7 @@ window.openTraderProfile = function(wallet) {
       <div class="tp-header-info">
         <div class="tp-name">${e.accountName || "Ape"}${isYou ? ' <span class="lb-you-badge">YOU</span>' : ""}</div>
         <div class="tp-rank-title" style="color:${rankColor}">${rank}</div>
+        <div style="font-size:12px;font-weight:700;color:${tpLvlCol};margin-top:2px;">${tpLvlIcon} Account Level ${tpLvl}</div>
         <div class="tp-wallet">
           <span>${shortW}</span>
           <a href="https://solscan.io/account/${e.wallet}" target="_blank" rel="noopener noreferrer" class="tp-solscan-link">Solscan ↗</a>
