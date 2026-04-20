@@ -17,8 +17,9 @@ const TF_FIELD = {
   "24h": "price_change_24h_percent",
 };
 
-/* ── The only sort_by value Birdeye tokenlist accepts for price change ── */
-const BIRDEYE_SORT = "price_change_24h_percent";
+/* ── Valid Birdeye tokenlist sort_by values (price-change fields are NOT supported).
+   We sort by volume to get the most active tokens, then re-sort by price change. ── */
+const BIRDEYE_SORT = "v24hUSD";
 
 /* ── Quick risk score from Birdeye tokenlist fields ─────────────────
    Approximates the full computeRiskScore() without needing an RPC call.
@@ -108,8 +109,9 @@ exports.handler = async (event) => {
   }
 
   try {
-    /* Always sort by 24h change — only valid price-change sort in Birdeye tokenlist.
-       Fetch 100 so we have enough after re-sorting by the requested TF field. */
+    /* Fetch 100 top-volume tokens, then re-sort server-side by the requested TF price change.
+       We use v24hUSD (volume) because Birdeye tokenlist does NOT accept price_change_*
+       fields in sort_by — only: v24hUSD, mc, fdv, holder, price, liquidity */
     const params = new URLSearchParams({
       sort_by:       BIRDEYE_SORT,
       sort_type:     "desc",
@@ -119,6 +121,7 @@ exports.handler = async (event) => {
     });
 
     const url = `https://public-api.birdeye.so/defi/tokenlist?${params}`;
+    console.log(`topGainers: GET ${url}`);
 
     const res = await fetch(url, {
       headers: { "X-API-KEY": KEY, "x-chain": "solana" },
