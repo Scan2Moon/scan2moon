@@ -84,7 +84,7 @@ async function fetchGainers(tf) {
     if (!res.ok) {
       const j = await res.json().catch(() => ({}));
       if (j.error === "quota_exceeded") throw new Error("API quota exceeded — try again shortly.");
-      throw new Error(`Server error ${res.status}`);
+      throw new Error(j.error || `Server error ${res.status}`);
     }
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Unknown error");

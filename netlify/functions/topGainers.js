@@ -101,27 +101,37 @@ exports.handler = async (event) => {
 
   try {
     const params = new URLSearchParams({
-      sort_by:      sortBy,
-      sort_type:    "desc",
-      offset:       "0",
-      limit:        "50",
+      sort_by:       sortBy,
+      sort_type:     "desc",
+      offset:        "0",
+      limit:         "50",
       min_liquidity: String(minLiq),
     });
 
-    const res = await fetch(
-      `https://public-api.birdeye.so/defi/tokenlist?${params}`,
-      {
-        headers: { "X-API-KEY": KEY, "x-chain": "solana" },
-        signal: AbortSignal.timeout(9000),
-      }
-    );
+    const url = `https://public-api.birdeye.so/defi/tokenlist?${params}`;
+    console.log(`topGainers: fetching ${url}`);
+
+    const res = await fetch(url, {
+      headers: { "X-API-KEY": KEY, "x-chain": "solana" },
+      signal: AbortSignal.timeout(9000),
+    });
 
     if (!res.ok) {
       const txt = await res.text();
-      if (txt.includes("Compute units")) {
+      console.error(`topGainers: Birdeye ${res.status} for sort_by=${sortBy} — ${txt.slice(0, 400)}`);
+      if (txt.includes("Compute units") || txt.includes("quota")) {
         return { statusCode: 429, headers: CORS, body: JSON.stringify({ ok: false, error: "quota_exceeded" }) };
       }
-      return { statusCode: 502, headers: CORS, body: JSON.stringify({ ok: false, error: `Birdeye ${res.status}` }) };
+      return {
+        statusCode: 502,
+        headers: CORS,
+        body: JSON.stringify({
+          ok:      false,
+          error:   `Birdeye ${res.status}: ${txt.slice(0, 200)}`,
+          sort_by: sortBy,
+          tf,
+        }),
+      };
     }
 
     const data   = await res.json();
