@@ -116,7 +116,7 @@ exports.handler = async (event) => {
       sort_by:       BIRDEYE_SORT,
       sort_type:     "desc",
       offset:        "0",
-      limit:         "100",
+      limit:         "50",
       min_liquidity: String(minLiq),
     });
 
