@@ -160,25 +160,14 @@ let tfDebounce   = null;   // debounce timer for TF button rapid-clicks
    an up-to-date "≈ $X" USD equivalent next to the SOL amount.
    Binance public REST is primary; CoinGecko is the fallback.
    ============================================================ */
-const SOL_MINT = "So11111111111111111111111111111111111111112";
-
 async function fetchSolPrice() {
-  // Use our own priceOnly function (Birdeye server-side) — no CORS issues.
-  // Binance/CoinGecko are blocked from the browser on localhost and some hosts.
+  // Dedicated solPrice function — proxies Binance server-side (no CORS issues).
   try {
-    const r = await fetch(`/.netlify/functions/priceOnly?mint=${SOL_MINT}`,
+    const r = await fetch("/.netlify/functions/solPrice",
       { signal: AbortSignal.timeout(5000) });
     const d = await r.json();
     const p = parseFloat(d.price);
     if (p > 0) { solPrice = p; updateStaticUI(); return; }
-  } catch {}
-  // Fallback: try CoinGecko (works on prod, might be blocked on localhost)
-  try {
-    const r = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
-      { signal: AbortSignal.timeout(5000) });
-    const d = await r.json();
-    const p = d?.solana?.usd;
-    if (p > 0) { solPrice = p; updateStaticUI(); }
   } catch (e) { console.warn("SOL price fetch failed:", e); }
 }
 
