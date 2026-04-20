@@ -7,10 +7,10 @@ export function renderNav() {
 
   const currentPage = window.location.pathname.split("/").pop() || "index.html";
 
-  const isScanner  = ["risk-scanner.html","portfolio.html","whale-dna.html"].includes(currentPage);
+  const isScanner  = ["risk-scanner.html","whale-dna.html"].includes(currentPage);
   const isRadar    = currentPage === "entry-radar.html";
   const isInsights = ["watchlist.html","about.html","leaderboard.html","safe-ape.html"].includes(currentPage);
-  const isLearn    = ["guide.html","guide-risk-scanner.html","dashboard.html","tasks.html","academy.html"].includes(currentPage);
+  const isDashboard = currentPage === "dashboard.html";
 
   const navHTML = `
     <nav class="s2m-nav">
@@ -33,13 +33,6 @@ export function renderNav() {
                 <div>
                   <div class="drop-label" data-i18n="nav_risk_scanner">${t("nav_risk_scanner")}</div>
                   <div class="drop-sub" data-i18n="nav_risk_scanner_sub">${t("nav_risk_scanner_sub")}</div>
-                </div>
-              </a>
-              <a href="portfolio.html" class="nav-drop-item ${currentPage === 'portfolio.html' ? 'drop-active' : ''}">
-                <span class="drop-icon">💼</span>
-                <div>
-                  <div class="drop-label" data-i18n="nav_portfolio">${t("nav_portfolio")}</div>
-                  <div class="drop-sub" data-i18n="nav_portfolio_sub">${t("nav_portfolio_sub")}</div>
                 </div>
               </a>
               <a href="whale-dna.html" class="nav-drop-item ${currentPage === 'whale-dna.html' ? 'drop-active' : ''}">
@@ -65,41 +58,9 @@ export function renderNav() {
               </a>
             </div>
           </div>
-          <div class="nav-dropdown ${isLearn ? 'active' : ''}" id="dd-learn">
-            <button class="nav-link nav-drop-btn ${isLearn ? 'active' : ''}">
-              <span class="nav-icon">🎓</span> <span data-i18n="nav_learn2moon">${t("nav_learn2moon")}</span> <span class="nav-chevron">▾</span>
-            </button>
-            <div class="nav-drop-menu">
-              <a href="dashboard.html" class="nav-drop-item ${currentPage === 'dashboard.html' ? 'drop-active' : ''}">
-                <span class="drop-icon">📊</span>
-                <div>
-                  <div class="drop-label" data-i18n="nav_learn_dashboard">${t("nav_learn_dashboard")} <span style="font-size:9px;background:rgba(44,255,201,0.15);color:#2cffc9;border:1px solid rgba(44,255,201,0.3);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
-                  <div class="drop-sub" data-i18n="nav_learn_dashboard_sub">${t("nav_learn_dashboard_sub")}</div>
-                </div>
-              </a>
-              <a href="guide.html" class="nav-drop-item ${["guide.html","guide-risk-scanner.html"].includes(currentPage) ? 'drop-active' : ''}">
-                <span class="drop-icon">📚</span>
-                <div>
-                  <div class="drop-label" data-i18n="nav_learn_guides">${t("nav_learn_guides")} <span style="font-size:9px;background:rgba(44,255,201,0.15);color:#2cffc9;border:1px solid rgba(44,255,201,0.3);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
-                  <div class="drop-sub" data-i18n="nav_learn_guides_sub">${t("nav_learn_guides_sub")}</div>
-                </div>
-              </a>
-              <a href="tasks.html" class="nav-drop-item ${currentPage === 'tasks.html' ? 'drop-active' : ''}">
-                <span class="drop-icon">✅</span>
-                <div>
-                  <div class="drop-label" data-i18n="nav_learn_tasks">${t("nav_learn_tasks")} <span style="font-size:9px;background:rgba(44,255,201,0.1);color:#2cffc9;border:1px solid rgba(44,255,201,0.25);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
-                  <div class="drop-sub" data-i18n="nav_learn_tasks_sub">${t("nav_learn_tasks_sub")}</div>
-                </div>
-              </a>
-              <a href="academy.html" class="nav-drop-item ${currentPage === 'academy.html' ? 'drop-active' : ''}">
-                <span class="drop-icon">🏛️</span>
-                <div>
-                  <div class="drop-label" data-i18n="nav_learn_academy">${t("nav_learn_academy")} <span style="font-size:9px;background:rgba(44,255,201,0.1);color:#2cffc9;border:1px solid rgba(44,255,201,0.25);border-radius:5px;padding:1px 5px;margin-left:4px;vertical-align:middle;">NEW</span></div>
-                  <div class="drop-sub" data-i18n="nav_learn_academy_sub">${t("nav_learn_academy_sub")}</div>
-                </div>
-              </a>
-            </div>
-          </div>
+          <a href="dashboard.html" class="nav-link ${isDashboard ? 'active' : ''}">
+            <span class="nav-icon">📊</span> <span>Dashboard</span>
+          </a>
           <div class="nav-dropdown ${isInsights ? 'active' : ''}" id="dd-insights">
             <button class="nav-link nav-drop-btn ${isInsights ? 'active' : ''}">
               <span class="nav-icon">💡</span> <span data-i18n="nav_insights">${t("nav_insights")}</span> <span class="nav-chevron">▾</span>

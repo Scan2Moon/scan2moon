@@ -1677,10 +1677,11 @@ function renderSellHoldingInfo() {
   if (!h||h.amount<=0) { el.innerHTML=`<div class="sa-no-holding">${t("sa_no_holding_yet")} ${currentToken?.symbol||"this token"} ${t("sa_no_holding_yet2")}</div>`; return; }
   const price     = livePrices[currentToken.mint]||parseFloat(currentToken.pair?.priceUsd||"0");
   const costSol   = h.totalCostSol||0;
-  // curValSol uses price ratio — immune to solPrice API errors
-  const curValSol = (price>0&&h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
+  // Use actual SOL price for accurate P/L. Ratio fallback only if solPrice not loaded.
+  const curValSol = (price>0 && solPrice>0)
+    ? (h.amount * price / solPrice)
+    : (h.avgPrice>0&&costSol>0 ? costSol*(price/h.avgPrice) : costSol);
   const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
-  // P/L = actual SOL value change
   const pnlSol    = curValSol - costSol;
   const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
   const sign      = pnlSol>=0?"+":"";
@@ -1700,10 +1701,10 @@ function updateLivePnl(price) {
   const h = profile.holdings?.[currentToken.mint];
   if (!h||h.amount<=0) return;
   const costSol   = h.totalCostSol||0;
-  // curValSol uses price ratio — immune to solPrice API errors
-  const curValSol = (price>0&&h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
+  const curValSol = (price>0 && solPrice>0)
+    ? (h.amount * price / solPrice)
+    : (h.avgPrice>0&&costSol>0 ? costSol*(price/h.avgPrice) : costSol);
   const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
-  // P/L = actual SOL value change
   const pnlSol    = curValSol - costSol;
   const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
   const sign      = pnlSol>=0?"+":"";
@@ -1725,8 +1726,9 @@ function updatePortfolioPnlCards() {
 
     if (!price) { totalVal += costSol; pending++; continue; }
 
-    // curValSol uses price ratio — immune to solPrice API errors
-    const curValSol = (h.avgPrice>0&&costSol>0) ? costSol*(price/h.avgPrice) : costSol;
+    const curValSol = (solPrice>0)
+      ? (h.amount * price / solPrice)
+      : (h.avgPrice>0&&costSol>0 ? costSol*(price/h.avgPrice) : costSol);
     const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
     const pnlSol    = curValSol - costSol;
     const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;

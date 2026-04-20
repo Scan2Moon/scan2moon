@@ -1045,10 +1045,12 @@ exports.handler = async function(event, context) {
       const totalReceivedUsd = effectivePrice * parsedSellAmount;
       const totalReceivedSol = totalReceivedUsd / solPriceForTrade;   // ← SOL received
 
-      // Cost basis in SOL — use avgCostSol when available (set by new buy logic);
-      // fall back to an estimate from USD avgPrice for migrated/legacy holdings.
-      const avgCostSolEst = holding.avgCostSol || (holding.avgPrice / solPriceForTrade);
-      const costBasisSol  = avgCostSolEst * parsedSellAmount;
+      // Cost basis in SOL — prefer proportional totalCostSol (exact SOL spent).
+      // Fall back to avgCostSol per token, then USD estimate for legacy holdings.
+      const sellFraction  = parsedSellAmount / (holding.amount || parsedSellAmount);
+      const costBasisSol  = holding.totalCostSol > 0
+        ? holding.totalCostSol * sellFraction
+        : (holding.avgCostSol || (holding.avgPrice / solPriceForTrade)) * parsedSellAmount;
       const pnlSol        = totalReceivedSol - costBasisSol;  // P&L in SOL
 
       profile.balance  += totalReceivedSol;
