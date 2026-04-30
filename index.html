@@ -21,8 +21,11 @@
   <meta name="twitter:title"       content="Scan2Moon — Solana Token Intelligence" />
   <meta name="twitter:description" content="The most powerful Solana on-chain scanner." />
   <meta name="twitter:image"       content="https://scan2moon.com/headerweb.jpg" />
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="home.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700;900&display=swap" />
+  <link rel="stylesheet" href="style.css?v=4" />
+  <link rel="stylesheet" href="home.css?v=9" />
   <script src="skin-global.js"></script>
 </head>
 <body>
@@ -46,65 +49,77 @@
   <section class="hm-hero">
     <div class="hm-hero-sweep"></div>
 
-    <div class="hm-hero-inner">
+    <div class="hm-hero-inner" style="display:grid;grid-template-columns:1fr 260px;gap:24px;align-items:start;">
 
-      <!-- Title block -->
-      <div class="hm-hero-title-block">
-        <div class="hm-hero-pretitle">SOLANA TOKEN INTELLIGENCE</div>
-        <h1 class="hm-hero-title">Scan2Moon</h1>
-        <p class="hm-hero-subtitle">Professional on-chain analysis for Solana traders. Risk-score any token in seconds.</p>
+      <!-- LEFT col -->
+      <div class="hm-hero-left">
+
+        <div class="hm-hero-title-block">
+          <div class="hm-hero-pretitle">SOLANA TOKEN INTELLIGENCE</div>
+          <h1 class="hm-hero-title" id="heroTitle">Scan2Moon</h1>
+          <p class="hm-hero-subtitle">Professional on-chain analysis for Solana traders. Risk-score any token in seconds.</p>
+        </div>
+
+        <!-- Live market stats bar: 3 × 2 grid -->
+        <div class="hm-market-bar">
+
+          <div class="hm-market-stat hm-market-stat--sol">
+            <span class="hm-ms-label">◎ SOL</span>
+            <span class="hm-ms-val" id="hmHeroSolVal">—</span>
+            <span class="hm-hero-sol-chg" id="hmHeroSolChg">—</span>
+          </div>
+
+          <div class="hm-market-stat">
+            <span class="hm-ms-label">TOP GAINERS</span>
+            <span class="hm-ms-val hm-ms-teal" id="hmHeroGainersVal">—</span>
+            <span class="hm-ms-sub">by 1H move · $15K+ liq</span>
+          </div>
+
+          <div class="hm-market-stat">
+            <span class="hm-ms-label">AVG GAIN 1H</span>
+            <span class="hm-ms-val hm-ms-teal" id="hmHeroAvgGainVal">—</span>
+            <span class="hm-ms-sub">across top gainers</span>
+          </div>
+
+          <div class="hm-market-stat">
+            <span class="hm-ms-label">TOP MOVER</span>
+            <span class="hm-ms-val hm-ms-teal" id="hmHeroTopGainVal">—</span>
+            <span class="hm-ms-sub">best 1H performance</span>
+          </div>
+
+          <div class="hm-market-stat">
+            <span class="hm-ms-label">VOLUME 24H</span>
+            <span class="hm-ms-val" id="hmHeroVolVal">—</span>
+            <span class="hm-ms-sub">combined top gainers</span>
+          </div>
+
+          <div class="hm-market-stat">
+            <span class="hm-ms-label">NEW PAIRS</span>
+            <span class="hm-ms-val hm-ms-purple" id="hmHeroNewPairsVal">—</span>
+            <span class="hm-ms-sub">detected this week</span>
+          </div>
+
+        </div><!-- end market bar -->
+
+      </div><!-- end hero-left -->
+
+      <!-- RIGHT col: API card -->
+      <div class="hm-api-card">
+        <div class="hm-api-card-top">
+          <div class="hm-api-card-icon">⬡</div>
+          <div class="hm-api-card-live">API</div>
+        </div>
+        <div class="hm-api-card-label">DEVELOPER API</div>
+        <div class="hm-api-card-title">Build on<br>Solana Intelligence</div>
+        <p class="hm-api-card-desc">Real-time token data, risk scores &amp; smart money signals — plug directly into your bot or agent.</p>
+        <ul class="hm-api-card-list">
+          <li><span class="hm-api-card-dot hm-api-card-dot--teal"></span>50+ endpoints · REST &amp; WebSocket</li>
+          <li><span class="hm-api-card-dot hm-api-card-dot--teal"></span>Risk scoring engine</li>
+          <li><span class="hm-api-card-dot hm-api-card-dot--purple"></span>Smart money &amp; whale signals</li>
+          <li><span class="hm-api-card-dot hm-api-card-dot--gold"></span>x402 agent-native payments</li>
+        </ul>
+        <a href="api-portal.html" class="hm-api-card-btn">Get API Access ↗</a>
       </div>
-
-      <!-- Live market stats bar -->
-      <div class="hm-market-bar">
-
-        <div class="hm-market-stat hm-market-stat--sol">
-          <span class="hm-ms-label">◎ SOL</span>
-          <span class="hm-ms-val" id="hmHeroSolVal">—</span>
-          <span class="hm-hero-sol-chg" id="hmHeroSolChg">—</span>
-        </div>
-
-        <div class="hm-market-divider"></div>
-
-        <div class="hm-market-stat">
-          <span class="hm-ms-label">TOP GAINERS</span>
-          <span class="hm-ms-val hm-ms-teal" id="hmHeroGainersVal">—</span>
-          <span class="hm-ms-sub">by 1H move · $15K+ liq</span>
-        </div>
-
-        <div class="hm-market-divider"></div>
-
-        <div class="hm-market-stat">
-          <span class="hm-ms-label">AVG GAIN 1H</span>
-          <span class="hm-ms-val hm-ms-teal" id="hmHeroAvgGainVal">—</span>
-          <span class="hm-ms-sub">across top gainers</span>
-        </div>
-
-        <div class="hm-market-divider"></div>
-
-        <div class="hm-market-stat">
-          <span class="hm-ms-label">TOP MOVER</span>
-          <span class="hm-ms-val hm-ms-teal" id="hmHeroTopGainVal">—</span>
-          <span class="hm-ms-sub">best 1H performance</span>
-        </div>
-
-        <div class="hm-market-divider"></div>
-
-        <div class="hm-market-stat">
-          <span class="hm-ms-label">VOLUME 24H</span>
-          <span class="hm-ms-val" id="hmHeroVolVal">—</span>
-          <span class="hm-ms-sub">combined top gainers</span>
-        </div>
-
-        <div class="hm-market-divider"></div>
-
-        <div class="hm-market-stat">
-          <span class="hm-ms-label">NEW PAIRS</span>
-          <span class="hm-ms-val hm-ms-purple" id="hmHeroNewPairsVal">—</span>
-          <span class="hm-ms-sub">detected this week</span>
-        </div>
-
-      </div><!-- end market bar -->
 
     </div><!-- end hero-inner -->
   </section>
@@ -259,5 +274,6 @@
 </div>
 
 <script type="module" src="home.js?v=1776969471"></script>
+
 </body>
 </html>

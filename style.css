@@ -3461,13 +3461,22 @@ body[data-skin="neon_degen"] .hm-hero-subtitle, html[data-skin="neon_degen"] .hm
   margin: 0 !important;
 }
 body[data-skin="neon_degen"] .hm-market-bar, html[data-skin="neon_degen"] .hm-market-bar {
-  display: flex !important;
-  align-items: stretch !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
   background: rgba(0,0,0,0.3) !important;
   border: 1px solid rgba(200,64,255,0.1) !important;
   border-radius: 12px !important;
   overflow: hidden !important;
-  flex-wrap: wrap !important;
+}
+body[data-skin="neon_degen"] .hm-market-stat, html[data-skin="neon_degen"] .hm-market-stat {
+  border-right: 1px solid rgba(200,64,255,0.08) !important;
+  border-bottom: 1px solid rgba(200,64,255,0.08) !important;
+}
+body[data-skin="neon_degen"] .hm-market-stat:nth-child(3n), html[data-skin="neon_degen"] .hm-market-stat:nth-child(3n) {
+  border-right: none !important;
+}
+body[data-skin="neon_degen"] .hm-market-stat:nth-child(n+4), html[data-skin="neon_degen"] .hm-market-stat:nth-child(n+4) {
+  border-bottom: none !important;
 }
 body[data-skin="neon_degen"] .hm-market-stat--sol, html[data-skin="neon_degen"] .hm-market-stat--sol {
   border-right: 1px solid rgba(200,64,255,0.08) !important;
@@ -3494,6 +3503,55 @@ body[data-skin="neon_degen"] .hm-market-divider, html[data-skin="neon_degen"] .h
   align-self: stretch !important;
   flex-shrink: 0 !important;
 }
+/* ── Neon Degen: API card ── */
+body[data-skin="neon_degen"] .hm-api-card, html[data-skin="neon_degen"] .hm-api-card {
+  background: linear-gradient(160deg, rgba(20,4,28,0.95) 0%, rgba(8,0,12,0.98) 100%) !important;
+  border-color: rgba(200,64,255,0.3) !important;
+  animation: none !important;
+  box-shadow: 0 0 0 1px rgba(200,64,255,0.25), 0 8px 32px rgba(200,64,255,0.1) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card::after, html[data-skin="neon_degen"] .hm-api-card::after {
+  background: linear-gradient(135deg, rgba(200,64,255,0.14) 0%, transparent 60%) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-icon, html[data-skin="neon_degen"] .hm-api-card-icon {
+  color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-live, html[data-skin="neon_degen"] .hm-api-card-live {
+  color: #c840ff !important;
+  background: rgba(200,64,255,0.12) !important;
+  border-color: rgba(200,64,255,0.35) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-label, html[data-skin="neon_degen"] .hm-api-card-label {
+  color: rgba(220,170,255,0.45) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-title, html[data-skin="neon_degen"] .hm-api-card-title {
+  color: #f0d8ff !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-desc, html[data-skin="neon_degen"] .hm-api-card-desc {
+  color: rgba(220,170,255,0.4) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-list li, html[data-skin="neon_degen"] .hm-api-card-list li {
+  color: rgba(220,170,255,0.65) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-dot--teal, html[data-skin="neon_degen"] .hm-api-card-dot--teal {
+  background: #c840ff !important;
+  box-shadow: 0 0 6px rgba(200,64,255,0.7) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-dot--purple, html[data-skin="neon_degen"] .hm-api-card-dot--purple {
+  background: #ff3aaa !important;
+  box-shadow: 0 0 6px rgba(255,58,170,0.7) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-btn, html[data-skin="neon_degen"] .hm-api-card-btn {
+  color: #c840ff !important;
+  background: rgba(200,64,255,0.12) !important;
+  border-color: rgba(200,64,255,0.4) !important;
+  box-shadow: 0 0 14px rgba(200,64,255,0.2) !important;
+}
+body[data-skin="neon_degen"] .hm-api-card-btn:hover, html[data-skin="neon_degen"] .hm-api-card-btn:hover {
+  background: rgba(200,64,255,0.22) !important;
+  box-shadow: 0 0 22px rgba(200,64,255,0.4) !important;
+}
+
 body[data-skin="neon_degen"] .hm-section-label, html[data-skin="neon_degen"] .hm-section-label {
   display: flex !important;
   align-items: center !important;
