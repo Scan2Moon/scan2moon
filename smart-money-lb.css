@@ -1,0 +1,313 @@
+/* =================================================================
+   Smart Money Leaderboard — standalone CSS
+   Imported by whale-dna.html (and leaderboard.html via leaderboard.css)
+   sm-lb-* prefix — no conflicts with other stylesheets
+   ================================================================= */
+
+/* -- Spinner (reused from leaderboard context) -- */
+.sm-lb-loading-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 20px;
+}
+
+.sm-lb-spin-ring {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid rgba(44,255,201,0.1);
+  border-top-color: #2cffc9;
+  animation: smLbSpin 0.9s linear infinite;
+  position: relative;
+}
+.sm-lb-spin-ring::after {
+  content: "";
+  position: absolute;
+  top: 50%; left: 50%;
+  width: 8px; height: 8px;
+  margin: -4px 0 0 -4px;
+  background: #2cffc9;
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(44,255,201,0.8);
+  animation: smLbDotPulse 0.9s ease-in-out infinite;
+}
+@keyframes smLbSpin    { to { transform: rotate(360deg); } }
+@keyframes smLbDotPulse{ 0%,100%{opacity:0.5}50%{opacity:1} }
+
+.sm-lb-spin-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(44,255,201,0.5);
+  letter-spacing: 0.8px;
+}
+
+/* ── Toggle button strip (whale-dna.html) ──────────────────────── */
+.dna-smlb-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.dna-smlb-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(44,255,201,0.07);
+  border: 1px solid rgba(44,255,201,0.25);
+  border-radius: 10px;
+  color: #2cffc9;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  padding: 9px 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+.dna-smlb-open-btn:hover {
+  background: rgba(44,255,201,0.13);
+  border-color: rgba(44,255,201,0.5);
+  box-shadow: 0 0 14px rgba(44,255,201,0.12);
+}
+.dna-smlb-open-btn.active {
+  background: rgba(44,255,201,0.12);
+  border-color: rgba(44,255,201,0.55);
+}
+
+.dna-smlb-arrow {
+  font-size: 10px;
+  transition: transform 0.2s;
+  opacity: 0.7;
+}
+.dna-smlb-open-btn.active .dna-smlb-arrow { transform: rotate(180deg); }
+
+.dna-smlb-hint {
+  font-size: 11px;
+  color: rgba(200,220,210,0.35);
+  white-space: nowrap;
+}
+
+/* ── Collapsible wrapper ──────────────────────────────────────── */
+.dna-smlb-wrapper {
+  overflow: hidden;
+  transition: max-height 0.35s ease, opacity 0.25s ease;
+  max-height: 0;
+  opacity: 0;
+}
+.dna-smlb-wrapper.open {
+  max-height: 4000px;
+  opacity: 1;
+}
+
+/* ── Panel chrome ─────────────────────────────────────────────── */
+.sm-lb-panel { margin-top: 0; margin-bottom: 20px; }
+
+.sm-lb-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sm-lb-title {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #2cffc9;
+}
+
+.sm-lb-subtitle {
+  font-size: 11px;
+  color: rgba(200,220,210,0.5);
+  margin-top: 3px;
+  letter-spacing: 0.2px;
+}
+
+/* -- Sort selector -- */
+.sm-lb-sort-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.sm-lb-sort-label {
+  font-size: 11px;
+  color: rgba(200,220,210,0.5);
+  white-space: nowrap;
+}
+.sm-lb-sort-select {
+  background: rgba(12,20,14,0.95);
+  border: 1px solid rgba(44,255,201,0.2);
+  border-radius: 6px;
+  color: #e0f0ea;
+  font-size: 12px;
+  padding: 5px 10px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.sm-lb-sort-select:hover { border-color: rgba(44,255,201,0.45); }
+
+/* -- Archetype filter tabs -- */
+.sm-lb-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 12px 0 4px;
+  border-bottom: 1px solid rgba(44,255,201,0.08);
+  margin-bottom: 2px;
+}
+.sm-lb-tab {
+  background: rgba(12,20,14,0.7);
+  border: 1px solid rgba(44,255,201,0.12);
+  border-radius: 20px;
+  color: rgba(200,220,210,0.65);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+}
+.sm-lb-tab:hover { border-color: rgba(44,255,201,0.3); color: #e0f0ea; }
+.sm-lb-tab.active {
+  background: rgba(44,255,201,0.1);
+  border-color: rgba(44,255,201,0.45);
+  color: #2cffc9;
+}
+.sm-lb-tab-count { font-size: 10px; opacity: 0.7; margin-left: 3px; }
+
+/* -- Body / states -- */
+.sm-lb-body { padding: 0; overflow-x: auto; }
+
+.sm-lb-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 40px 16px;
+  color: rgba(200,220,210,0.5);
+  font-size: 13px;
+}
+.sm-lb-state.sm-lb-error { color: #ff6b6b; }
+.sm-lb-empty-icon  { font-size: 28px; }
+.sm-lb-empty-title { font-size: 13px; color: rgba(200,220,210,0.6); }
+.sm-lb-empty-sub   { font-size: 12px; color: rgba(200,220,210,0.4); }
+.sm-lb-empty-sub a { color: #2cffc9; text-decoration: none; }
+
+/* -- Table -- */
+.sm-lb-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.sm-lb-table thead tr { border-bottom: 1px solid rgba(44,255,201,0.1); }
+.sm-lb-table th {
+  padding: 10px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: rgba(200,220,210,0.4);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.sm-lb-th-rank  { width: 36px; text-align: center; }
+.sm-lb-th-score { width: 130px; }
+.sm-lb-th-num   { text-align: right; }
+
+.sm-lb-row { border-bottom: 1px solid rgba(44,255,201,0.05); transition: background 0.15s; }
+.sm-lb-row:hover { background: rgba(44,255,201,0.04); }
+.sm-lb-table td  { padding: 10px; vertical-align: middle; }
+
+/* rank */
+.sm-lb-td-rank { text-align: center; font-size: 16px; }
+.sm-lb-rank-num { font-size: 12px; font-weight: 700; color: rgba(200,220,210,0.45); }
+
+/* wallet */
+.sm-lb-td-wallet { max-width: 120px; }
+.sm-lb-wallet-wrap { display: flex; align-items: center; gap: 5px; }
+.sm-lb-wallet-addr {
+  font-size: 12px;
+  font-family: "Courier New", monospace;
+  color: #e0f0ea;
+  letter-spacing: 0.3px;
+}
+.sm-lb-copy-btn {
+  background: none; border: none;
+  color: rgba(200,220,210,0.4);
+  cursor: pointer; font-size: 13px;
+  padding: 0 2px; transition: color 0.15s; line-height: 1;
+}
+.sm-lb-copy-btn:hover { color: #2cffc9; }
+
+/* tags */
+.sm-lb-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.sm-lb-tag {
+  font-size: 9px; padding: 2px 5px; border-radius: 4px;
+  background: rgba(44,255,201,0.06); border: 1px solid rgba(44,255,201,0.1);
+  color: rgba(200,220,210,0.5); white-space: nowrap;
+}
+
+/* archetype badge */
+.sm-lb-td-arch { white-space: nowrap; }
+.sm-lb-arch-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700;
+  padding: 3px 10px; border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--arch-color, #2cffc9);
+  color: var(--arch-color, #2cffc9);
+  white-space: nowrap; opacity: 0.9;
+}
+
+/* copy score bar */
+.sm-lb-td-score { min-width: 110px; }
+.sm-lb-score-wrap { display: flex; align-items: center; gap: 8px; }
+.sm-lb-score-bar {
+  flex: 1; height: 6px; border-radius: 3px;
+  background: rgba(255,255,255,0.07); overflow: hidden;
+}
+.sm-lb-score-fill { height: 100%; border-radius: 3px; transition: width 0.4s ease; }
+.sm-lb-score-num  { font-size: 12px; font-weight: 700; min-width: 24px; text-align: right; }
+
+/* numeric cells */
+.sm-lb-td-num { text-align: right; white-space: nowrap; }
+.sm-lb-green  { color: #2cffc9; font-weight: 700; }
+.sm-lb-yellow { color: #ffd700; font-weight: 700; }
+.sm-lb-red    { color: #ff6b6b; font-weight: 700; }
+.sm-lb-rug-note { color: #ff6b6b; font-size: 10px; }
+
+/* scan DNA button */
+.sm-lb-td-action { text-align: right; white-space: nowrap; }
+.sm-lb-scan-btn {
+  background: rgba(44,255,201,0.08);
+  border: 1px solid rgba(44,255,201,0.2);
+  border-radius: 6px; color: #2cffc9;
+  font-size: 11px; font-weight: 700;
+  padding: 5px 12px; cursor: pointer;
+  transition: all 0.18s; white-space: nowrap;
+}
+.sm-lb-scan-btn:hover {
+  background: rgba(44,255,201,0.15);
+  border-color: rgba(44,255,201,0.45);
+}
+
+/* footer note */
+.sm-lb-foot {
+  padding: 12px 10px; font-size: 11px;
+  color: rgba(200,220,210,0.35);
+  border-top: 1px solid rgba(44,255,201,0.06);
+  text-align: center;
+}
+.sm-lb-foot-link { color: #2cffc9; text-decoration: none; }
+.sm-lb-foot-link:hover { text-decoration: underline; }
+
+/* -- Responsive -- */
+@media (max-width: 640px) { .sm-lb-hide-sm { display: none; } }
+@media (max-width: 420px) {
+  .sm-lb-hide-xs { display: none; }
+  .sm-lb-arch-badge { font-size: 10px; padding: 2px 7px; }
+}

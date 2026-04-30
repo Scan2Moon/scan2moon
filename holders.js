@@ -1,93 +1,74 @@
-import { callRpc } from "./rpc.js";
-// ────────────────────────────────────────────────
-// We expect callRpc to be available globally (imported/defined in script.js)
-// ────────────────────────────────────────────────
+// holders.js — Token holder data via Birdeye (holderData serverless function)
+// Replaces direct Helius RPC calls (getTokenLargestAccounts / getTokenSupply).
+// All data from Birdeye /defi/v3/token/holder + token_overview — 100% Birdeye.
+
+const _DEBUG = false;
 
 export async function renderHolders(mint) {
   const container = document.getElementById("holdersTable");
-  container.innerHTML = "Loading holders...";
+  if (!container) return;
+  container.innerHTML = "Loading holders…";
 
   try {
-    const mintKey = new solanaWeb3.PublicKey(mint);
+    const res  = await fetch(`/.netlify/functions/holderData?mint=${encodeURIComponent(mint)}`, {
+      signal: AbortSignal.timeout(12000),
+    });
+    const data = await res.json();
 
-    // Use proxy calls instead of direct connection
-    const supplyInfo = await callRpc("getTokenSupply", [
-      mintKey.toString(),
-      { commitment: "confirmed" }
-    ]);
+    if (!data.ok) {
+      if (data.planRestricted) {
+        // top10Percent is still populated from token_overview even when list is restricted
+        window.scanTop10 = data.top10Percent > 0
+          ? data.top10Percent.toFixed(1) + "%"
+          : "N/A";
+        container.innerHTML = `<div class="holder-note">Top 10: ${window.scanTop10} · Full holder list requires Birdeye Standard plan.</div>`;
+        return;
+      }
+      throw new Error(data.error || "Holder fetch failed");
+    }
 
-    const decimals = supplyInfo.value.decimals;
-    // Use uiAmountString if available (more precise), fallback to raw amount calculation
-    const totalSupply = supplyInfo.value.uiAmountString
-      ? Number(supplyInfo.value.uiAmountString)
-      : Number(supplyInfo.value.amount) / 10 ** decimals;
-
-    const accountsResponse = await callRpc("getTokenLargestAccounts", [
-      mintKey.toString(),
-      { commitment: "confirmed" }
-    ]);
-
+    const holders = data.holders || [];
     container.innerHTML = "";
 
-    // Slice to top 15 holders
-    accountsResponse.value.slice(0, 15).forEach((acc, i) => {
-      const rawAmount = Number(acc.amount);
-      const amount = rawAmount / 10 ** decimals;
-      const percent = totalSupply > 0 ? (amount / totalSupply) * 100 : 0;
-      const address = acc.address.toString();
+    if (!holders.length) {
+      window.scanTop10 = data.top10Percent > 0 ? data.top10Percent.toFixed(1) + "%" : "N/A";
+      container.innerHTML = "<div>No holder data available.</div>";
+      return;
+    }
 
+    holders.slice(0, 15).forEach((h, i) => {
+      const owner = h.owner ?? "Unknown";
       container.innerHTML += `
         <div class="holder-row">
           <span>#${i + 1}</span>
-          <a 
-            href="https://solscan.io/account/${address}" 
-            target="_blank" 
+          <a
+            href="https://solscan.io/account/${owner}"
+            target="_blank"
             rel="noopener noreferrer"
             class="holder-link"
-          >
-            ${shortAddress(address)}
-          </a>
-          <span>${percent.toFixed(2)}%</span>
-          <span>${formatAmount(amount)}</span>
+          >${owner.slice(0, 4)}…${owner.slice(-4)}</a>
+          <span>${Number(h.percentage).toFixed(2)}%</span>
+          <span>${formatAmount(h.uiAmount)}</span>
         </div>
       `;
     });
 
-    // === CALCULATE TOP 10 HOLDERS % FOR FINAL SCORE CARD ===
-    let top10Percent = 0;
-    const top10Accounts = accountsResponse.value.slice(0, 10);
-    
-    top10Accounts.forEach(acc => {
-      const rawAmount = Number(acc.amount);
-      const amount = rawAmount / 10 ** decimals;
-      const percent = totalSupply > 0 ? (amount / totalSupply) * 100 : 0;
-      top10Percent += percent;
-    });
-
-    window.scanTop10 = top10Percent.toFixed(1) + "%";
-
-    if (accountsResponse.value.length === 0) {
-      window.scanTop10 = "0.0%";
-      container.innerHTML = "<div>No large holders found.</div>";
-    }
+    // Expose top-10 concentration for the final score card
+    // top10Percent comes from token_overview (authoritative, matches Birdeye UI)
+    window.scanTop10 = (data.top10Percent ?? 0).toFixed(1) + "%";
 
   } catch (e) {
-    console.error("Failed to load holders:", e);
-    container.innerHTML = "Failed to load holders. Check console for details.";
+    _DEBUG && console.error("holders.js: fetch failed:", e);
+    container.innerHTML = "Failed to load holder data.";
     window.scanTop10 = "N/A";
   }
 }
 
-/* ===== HELPERS ===== */
-
-function shortAddress(addr) {
-  return addr.slice(0, 4) + "..." + addr.slice(-4);
-}
-
+/* ── Helpers ── */
 function formatAmount(num) {
   if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
-  if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
-  if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
-  if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
+  if (num >= 1e9)  return (num / 1e9).toFixed(2) + "B";
+  if (num >= 1e6)  return (num / 1e6).toFixed(2) + "M";
+  if (num >= 1e3)  return (num / 1e3).toFixed(2) + "K";
   return num.toFixed(2);
 }

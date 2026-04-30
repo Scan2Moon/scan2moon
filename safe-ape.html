@@ -2,30 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
-  <title>Safe Ape Simulator — Scan2Moon</title>
+  <title>Paper Trading Simulator — Scan2Moon</title>
   <meta name="description" content="Practice memecoin trading with 10 SOL virtual balance. No risk, real market data — earn badges and climb the leaderboard." />
   <meta property="og:type"         content="website" />
   <meta property="og:site_name"    content="Scan2Moon" />
   <meta property="og:url"          content="https://scan2moon.com/safe-ape.html" />
-  <meta property="og:title"        content="Safe Ape Simulator — Scan2Moon" />
+  <meta property="og:title"        content="Paper Trading Simulator — Scan2Moon" />
   <meta property="og:description"  content="Practice memecoin trading with 10 SOL virtual balance. No risk, real market data — earn badges and climb the leaderboard." />
-  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.jpg" />
   <meta property="og:image:width"  content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card"        content="summary_large_image" />
   <meta name="twitter:site"        content="@Scan2Moon" />
-  <meta name="twitter:title"       content="Safe Ape Simulator — Scan2Moon" />
+  <meta name="twitter:title"       content="Paper Trading Simulator — Scan2Moon" />
   <meta name="twitter:description" content="Practice memecoin trading with 10 SOL virtual balance. No risk, real market data — earn badges and climb the leaderboard." />
-  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.png" />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.jpg" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="safe-ape.css" />
   <!-- TradingView Lightweight Charts — same library used by DexScreener -->
   <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
-  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="skin-global.js"></script>
 </head>
 <body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
 <div class="app">
 
   <header class="hero-header">
@@ -37,25 +42,28 @@
   <!-- WALLET CONNECT GATE -->
   <div id="connectGate">
     <div class="sa-connect-hero">
-      <div class="sa-connect-emoji">🦍</div>
-      <div class="sa-connect-title" data-i18n="safe_ape_title_short">SAFE APE SIMULATOR</div>
-      <div class="sa-connect-sub">Paper trading with real risk intelligence.<br/>Train good habits — not just fast clicks.</div>
+      <div class="sa-connect-logo">
+        <div class="sa-connect-logo-diamond"></div>
+        <div class="sa-connect-logo-inner">S2M</div>
+      </div>
+      <div class="sa-connect-title" data-i18n="safe_ape_title_short">PAPER TRADING SIMULATOR</div>
+      <div class="sa-connect-sub">Trade with real market data and zero financial risk.<br/>Build strategy and discipline before deploying real capital.</div>
       <div class="sa-connect-features">
-        <div class="sa-connect-feat"><span>💰</span> 10 SOL starting balance</div>
-        <div class="sa-connect-feat"><span>🛡️</span> Live Scan2Moon risk scores before every trade</div>
-        <div class="sa-connect-feat"><span>📊</span> Real-time candlestick chart</div>
-        <div class="sa-connect-feat"><span>⚡</span> Realistic slippage simulation</div>
-        <div class="sa-connect-feat"><span>🎯</span> Post-trade debrief & exportable recap</div>
-        <div class="sa-connect-feat"><span>🔥</span> Daily SOL rewards for login streak</div>
+        <div class="sa-connect-feat"><span class="sa-feat-icon">◆</span> 10 S2M virtual starting balance</div>
+        <div class="sa-connect-feat"><span class="sa-feat-icon">▲</span> Live Scan2Moon risk scores before every trade</div>
+        <div class="sa-connect-feat"><span class="sa-feat-icon">◆</span> Real-time candlestick chart (Birdeye data)</div>
+        <div class="sa-connect-feat"><span class="sa-feat-icon">▲</span> Realistic slippage simulation</div>
+        <div class="sa-connect-feat"><span class="sa-feat-icon">◆</span> Post-trade debrief and exportable recap</div>
+        <div class="sa-connect-feat"><span class="sa-feat-icon">▲</span> Daily S2M rewards for login streak</div>
       </div>
       <button class="sa-wallet-connect-btn" id="connectWalletBtn">
-        <span id="connectBtnText">🔗 Connect Phantom Wallet</span>
+        <span id="connectBtnText">Connect Phantom Wallet</span>
       </button>
 
       <!-- Mobile: open site inside Phantom's in-app browser -->
       <div id="mobilePhantomHint" style="display:none;margin-top:14px;">
         <a id="phantomDeepLink" href="#" class="sa-mobile-phantom-btn">
-          📱 Open in Phantom App
+          Open in Phantom App
         </a>
         <div class="sa-connect-divider"><span>or paste your address</span></div>
         <div class="sa-manual-wallet-row">
@@ -64,7 +72,7 @@
         </div>
       </div>
 
-      <div class="sa-connect-note">Requires Phantom wallet • No email • No password • Your keys = your account</div>
+      <div class="sa-connect-note">Requires Phantom wallet · No email · No password · Your keys = your account</div>
     </div>
   </div>
 
@@ -74,46 +82,52 @@
     <!-- HERO BAR -->
     <div class="sa-hero">
       <div class="sa-hero-left">
-        <div class="sa-pulse-dot"></div>
+        <div class="sa-live-indicator">
+          <span class="sa-live-pulse"></span>
+          <span class="sa-live-label">LIVE</span>
+        </div>
         <div>
-          <div class="sa-title" data-i18n="safe_ape_title">🦍 SAFE APE SIMULATOR</div>
-          <div class="sa-subtitle" data-i18n="safe_ape_sub">Paper trading with real Scan2Moon risk intelligence</div>
+          <div class="sa-title" data-i18n="safe_ape_title">PAPER TRADING SIMULATOR</div>
+          <div class="sa-subtitle" data-i18n="safe_ape_sub">Real market data · Birdeye risk intelligence · Solana</div>
         </div>
       </div>
       <div class="sa-hero-right">
         <div class="sa-balance-pill">
-          <span class="sa-balance-label">SOL Balance</span>
-          <span class="sa-balance-val" id="heroBalance">10.00 SOL</span>
+          <span class="sa-balance-label">S2M BALANCE</span>
+          <span class="sa-balance-val" id="heroBalance">10.00 S2M</span>
         </div>
         <div class="sa-xp-pill">
-          <span class="sa-xp-label">⚡ XP</span>
+          <span class="sa-xp-label">XP</span>
           <span class="sa-xp-val" id="heroXp">0</span>
         </div>
-        <div class="sa-streak-pill" id="heroStreak">🔥 Streak: 0</div>
+        <div class="sa-streak-pill" id="heroStreak">▲ 0-day streak</div>
         <button class="sa-disconnect-btn" id="disconnectBtn" data-i18n="sa_disconnect">Disconnect</button>
       </div>
     </div>
 
     <!-- RECONNECT BANNER (shown when profile storage is temporarily unavailable) -->
     <div id="saReconnectBanner" style="display:none;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px 20px;background:rgba(255,165,0,0.12);border:1px solid rgba(255,165,0,0.35);border-radius:8px;margin:8px 16px;font-size:13px;color:rgba(255,200,80,0.9);">
-      <span>🔄 Profile storage reconnecting — retrying automatically every 20s…</span>
+      <span>· Profile storage reconnecting — retrying automatically every 20s…</span>
       <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
-        <button onclick="location.reload()" style="background:rgba(255,165,0,0.2);border:1px solid rgba(255,165,0,0.4);color:#ffa040;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">🔃 Refresh now</button>
-        <button onclick="saStartFresh()" style="background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.4);color:#ff8080;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">🆕 Start fresh (new profile)</button>
-        <button onclick="disconnectWallet()" style="background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.35);color:#aaa;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">⏏ Disconnect wallet</button>
+        <button onclick="location.reload()" style="background:rgba(255,165,0,0.2);border:1px solid rgba(255,165,0,0.4);color:#ffa040;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">Refresh now</button>
+        <button onclick="saStartFresh()" style="background:rgba(255,80,80,0.15);border:1px solid rgba(255,80,80,0.4);color:#ff8080;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">Start fresh (new profile)</button>
+        <button onclick="disconnectWallet()" style="background:rgba(120,120,120,0.15);border:1px solid rgba(120,120,120,0.35);color:#aaa;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;">Disconnect wallet</button>
       </div>
     </div>
 
     <!-- DAILY REWARD BANNER -->
     <div class="sa-daily-banner" id="dailyBanner" style="display:none;">
-      <span>🎁 Daily reward available!</span>
-      <button class="sa-daily-claim-btn" id="dailyClaimBtn">Claim +0.10 SOL</button>
+      <div class="sa-daily-left">
+        <div class="sa-daily-dot"></div>
+        <span>Daily reward available</span>
+      </div>
+      <button class="sa-daily-claim-btn" id="dailyClaimBtn">Claim +0.10 S2M</button>
     </div>
 
     <!-- SEARCH BAR -->
     <div class="sa-search-bar">
       <input id="saTokenInput" type="text" data-i18n="sa_token_placeholder" placeholder="Paste token mint address to start trading…" autocomplete="off" spellcheck="false" />
-      <button id="saSearchBtn" data-i18n="sa_analyse_btn">🔍 Analyse Token</button>
+      <button id="saSearchBtn" data-i18n="sa_analyse_btn">Analyse Token</button>
     </div>
 
     <!-- TOKEN TERMINAL -->
@@ -124,7 +138,7 @@
 
       <!-- RISK GATE -->
       <div class="sa-risk-gate" id="saRiskGate" style="display:none;">
-        <div class="sa-risk-gate-icon">🚨</div>
+        <div class="sa-risk-gate-icon-shape"></div>
         <div class="sa-risk-gate-title">HIGH RISK TOKEN DETECTED</div>
         <div class="sa-risk-gate-msg" id="saRiskGateMsg"></div>
         <div class="sa-risk-gate-btns">
@@ -169,11 +183,11 @@
           <!-- MIDDLE: Risk + Signals -->
           <div class="sa-col-risk">
             <div class="panel">
-              <div class="panel-title" data-i18n="sa_risk_score">🛡️ SCAN2MOON RISK SCORE</div>
+              <div class="panel-title" data-i18n="sa_risk_score">RISK SCORE</div>
               <div class="panel-body" id="saRiskPanel"></div>
             </div>
             <div class="panel">
-              <div class="panel-title" data-i18n="sa_market_signals">📊 MARKET SIGNALS</div>
+              <div class="panel-title" data-i18n="sa_market_signals">MARKET SIGNALS</div>
               <div class="panel-body" id="saSignalsPanel"></div>
             </div>
           </div>
@@ -181,7 +195,7 @@
           <!-- RIGHT: Trade Box -->
           <div class="sa-col-trade">
             <div class="panel">
-              <div class="panel-title" data-i18n="sa_trade_panel">⚡ TRADE</div>
+              <div class="panel-title" data-i18n="sa_trade_panel">TRADE</div>
               <div class="panel-body">
                 <div class="sa-trade-tabs">
                   <button class="sa-trade-tab active" id="tabBuy" data-i18n="sa_buy_tab" onclick="setTradeTab('buy')">BUY</button>
@@ -190,9 +204,9 @@
 
                 <!-- BUY PANEL -->
                 <div id="saBuyPanel">
-                  <div class="sa-trade-balance">Available: <span id="tradeBalance">10.00 SOL</span></div>
+                  <div class="sa-trade-balance">Available: <span id="tradeBalance">10.00 S2M</span></div>
                   <div class="sa-input-group">
-                    <label>Amount (SOL)</label>
+                    <label>Amount (S2M)</label>
                     <input type="number" id="buyAmount" placeholder="0.0000" min="0.0001" step="0.0001" />
                   </div>
                   <div class="sa-quick-btns">
@@ -202,7 +216,7 @@
                     <button onclick="setQuickBuy(100)">MAX</button>
                   </div>
                   <div class="sa-trade-info" id="buyInfo"></div>
-                  <button class="sa-buy-btn" id="saBuyBtn" data-i18n="sa_buy_btn" onclick="executeBuy()">🦍 APE IN (BUY)</button>
+                  <button class="sa-buy-btn" id="saBuyBtn" data-i18n="sa_buy_btn" onclick="executeBuy()">BUY POSITION</button>
                   <button class="sa-jup-btn" id="saJupBuyBtn" onclick="openJupModal()">⚡ Swap on Jupiter</button>
                 </div>
 
@@ -222,7 +236,7 @@
                     <button onclick="setQuickSell(100)">MAX</button>
                   </div>
                   <div class="sa-trade-info" id="sellInfo"></div>
-                  <button class="sa-sell-btn" id="saSellBtn" data-i18n="sa_sell_btn" onclick="executeSell()">🔴 EXIT POSITION (SELL)</button>
+                  <button class="sa-sell-btn" id="saSellBtn" data-i18n="sa_sell_btn" onclick="executeSell()">EXIT POSITION</button>
                   <button class="sa-jup-btn" id="saJupSellBtn" onclick="openJupModal()">⚡ Sell on Jupiter</button>
                 </div>
 
@@ -241,7 +255,7 @@
 
             <!-- TOP HOLDERS -->
             <div class="panel">
-              <div class="panel-title" data-i18n="sa_top_holders">🏆 TOP HOLDERS</div>
+              <div class="panel-title" data-i18n="sa_top_holders">TOP HOLDERS</div>
               <div class="panel-body" id="saHoldersPanel"></div>
             </div>
           </div>
@@ -250,27 +264,27 @@
       </div>
     </div>
 
-    <!-- PORTFOLIO MINI PANEL -->
+    <!-- PORTFOLIO PANEL -->
     <div class="panel" id="saPortfolioPanel">
       <div class="panel-header">
-        <div class="panel-title" data-i18n="sa_holdings">💼 YOUR HOLDINGS</div>
+        <div class="panel-title" data-i18n="sa_holdings">OPEN POSITIONS</div>
         <span id="saPortfolioXpBadge" style="font-size:12px;color:#ab9ff2;padding-right:14px;opacity:0.7;"></span>
       </div>
       <div id="saPortfolioSummary"></div>
       <div class="panel-body" id="saPortfolioBody">
         <div class="sa-empty-portfolio">
-          <div style="font-size:36px;margin-bottom:10px;">🦍</div>
-          <div style="color:#7fffe1;font-weight:600;margin-bottom:6px;">No positions yet</div>
-          <div style="opacity:0.5;font-size:13px;">Search a token above and make your first simulated trade!</div>
+          <div class="sa-empty-icon">◆</div>
+          <div class="sa-empty-title">No open positions</div>
+          <div class="sa-empty-sub">Search a token above and make your first simulated trade</div>
         </div>
       </div>
     </div>
 
     <!-- RECENT TRADES PANEL -->
     <div class="panel" id="saTradesPanel">
-      <div class="panel-title" data-i18n="sa_recent_trades">📋 RECENT TRADES</div>
+      <div class="panel-title" data-i18n="sa_recent_trades">TRADE HISTORY</div>
       <div class="panel-body" id="saTradesBody">
-        <div style="text-align:center;opacity:0.5;padding:30px;">No trades yet — start trading above!</div>
+        <div class="sa-empty-state">No trades yet — start trading above</div>
       </div>
     </div>
 
@@ -298,7 +312,7 @@
         <div class="sim-jup-title">⚡ Jupiter Swap</div>
         <button class="sim-jup-close" onclick="closeJupModal()">✕</button>
       </div>
-      <div class="sim-jup-note">🔗 Real swap via Jupiter — uses your actual wallet &amp; SOL</div>
+      <div class="sim-jup-note">Real swap via Jupiter — uses your actual wallet &amp; SOL</div>
       <div class="sim-jup-iframe-wrap">
         <iframe id="simJupIframe" src="" allow="clipboard-write" loading="lazy" title="Jupiter Swap"></iframe>
       </div>
@@ -343,12 +357,12 @@
   <div id="debriefModal" class="sa-modal-overlay" style="display:none;">
     <div class="sa-modal-container" id="debriefCard">
       <div class="sa-modal-header">
-        <div class="sa-modal-title">🎯 TRADE DEBRIEF</div>
+        <div class="sa-modal-title">TRADE DEBRIEF</div>
         <button class="sa-modal-close" onclick="closeDebrief()">✕</button>
       </div>
       <div id="debriefContent"></div>
       <div class="sa-debrief-actions">
-        <button class="sa-export-btn" onclick="exportDebrief()">📸 Export Recap Image</button>
+        <button class="sa-export-btn" onclick="exportDebrief()">Export Recap</button>
         <button class="sa-debrief-close-btn" onclick="closeDebrief()">Continue Trading</button>
       </div>
     </div>
@@ -356,6 +370,6 @@
 
 </div>
 
-<script type="module" src="safe-ape.js"></script>
+<script type="module" src="safe-ape.js?v=1776969470"></script>
 </body>
 </html>

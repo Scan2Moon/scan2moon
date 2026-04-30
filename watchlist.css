@@ -111,11 +111,11 @@
   transform: scale(1.1);
 }
 
-/* 3×3 card grid */
+/* Dynamic card grid — columns and rows set by JS based on token count */
 .fav-dash-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);   /* overridden by JS for <9 tokens */
+  grid-template-columns: 1fr;           /* overridden by JS */
+  grid-template-rows: 1fr;             /* overridden by JS */
   gap: 12px;
   flex: 1;
   min-height: 0;
@@ -672,11 +672,6 @@
 .wl-card--fav .wl-logo        { width: 34px; height: 34px; }
 .wl-card--fav .wl-token-name  { font-size: 13px; }
 .wl-card--fav .wl-token-symbol{ font-size: 11px; }
-.wl-card--fav .wl-score-num   { font-size: 26px; }
-.wl-card--fav .wl-live-row    { font-size: 12px; }
-.wl-card--fav .wl-metrics     { grid-template-columns: 1fr 1fr; gap: 7px 10px; }
-.wl-card--fav .wl-metric-label{ font-size: 9px; }
-.wl-card--fav .wl-metric-val  { font-size: 12px; }
 .wl-card--fav .wl-fav-btn,
 .wl-card--fav .wl-remove-btn  { width: 24px; height: 24px; font-size: 12px; }
 
@@ -733,119 +728,17 @@
   transform: scale(1.1);
 }
 
-/* Score row */
-.wl-score-row {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  padding-bottom: 10px;
-  border-bottom: 1px solid rgba(44,255,201,0.08);
-}
-.wl-score-num {
-  font-size: 36px;
-  font-weight: 800;
-  line-height: 1;
-}
-.wl-score-num.wl-score-good { color: #2cffc9; text-shadow: 0 0 12px rgba(44,255,201,0.5); }
-.wl-score-num.wl-score-warn { color: #ffd166; text-shadow: 0 0 12px rgba(255,209,102,0.4); }
-.wl-score-num.wl-score-bad  { color: #ff4d6d; text-shadow: 0 0 12px rgba(255,77,109,0.4); }
-.wl-score-max { font-size: 14px; opacity: 0.45; margin-left: 3px; margin-bottom: 5px; }
+/* Risk badge base color classes — shared by .wl-row-badge and .wl-fav-inline-badge */
+.wl-badge-good { background: rgba(44,255,201,0.10);  color: #2cffc9; border: 1px solid rgba(44,255,201,0.30); }
+.wl-badge-warn { background: rgba(255,209,102,0.10); color: #ffd166; border: 1px solid rgba(255,209,102,0.30); }
+.wl-badge-bad  { background: rgba(255,77,109,0.10);  color: #ff4d6d; border: 1px solid rgba(255,77,109,0.30); }
 
-/* Risk badge */
-.wl-risk-badge {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  padding: 4px 10px;
-  border-radius: 20px;
-  text-transform: uppercase;
-}
-.wl-badge-good { background: rgba(44,255,201,0.1);  color: #2cffc9; border: 1px solid rgba(44,255,201,0.3); }
-.wl-badge-warn { background: rgba(255,209,102,0.1); color: #ffd166; border: 1px solid rgba(255,209,102,0.3); }
-.wl-badge-bad  { background: rgba(255,77,109,0.1);  color: #ff4d6d; border: 1px solid rgba(255,77,109,0.3); }
+/* .wl-metrics — removed; replaced by .wl-fav-metrics-row in fav cards and table columns in rows */
 
-/* Metrics */
-.wl-metrics {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-.wl-metric {}
-.wl-metric-label { font-size: 10px; opacity: 0.5; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.4px; }
-.wl-metric-val   { font-size: 13px; font-weight: 600; color: #7fffe1; }
+/* Saved time label — used inside fav card footer */
+.wl-saved-time { font-size: 10px; opacity: 0.35; white-space: nowrap; }
 
-/* Card footer — saved time only */
-.wl-card-footer {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid rgba(44,255,201,0.08);
-}
-.wl-saved-time { font-size: 10px; opacity: 0.4; }
-
-/* Action buttons — full-width row below footer */
-.wl-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-.wl-action-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  padding: 8px 4px;
-  border-radius: 9px;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.2px;
-  cursor: pointer;
-  text-decoration: none;
-  border: 1px solid transparent;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-  white-space: nowrap;
-  overflow: hidden;
-}
-.wl-action-btn:hover { transform: translateY(-2px); }
-.wl-action-btn:active { transform: translateY(0); }
-
-/* DEX — outlined teal */
-.wl-dex {
-  background: rgba(44,255,201,0.06);
-  border-color: rgba(44,255,201,0.28);
-  color: #2cffc9;
-}
-.wl-dex:hover {
-  background: rgba(44,255,201,0.13);
-  border-color: rgba(44,255,201,0.55);
-  box-shadow: 0 0 12px rgba(44,255,201,0.18);
-}
-
-/* RE-SCAN — solid teal (primary action) */
-.wl-rescan {
-  background: linear-gradient(135deg, #2cffc9 0%, #18c9a0 100%);
-  border-color: transparent;
-  color: #011a14;
-  font-weight: 800;
-}
-.wl-rescan:hover {
-  box-shadow: 0 4px 18px rgba(44,255,201,0.4);
-}
-
-/* TRADE — solid orange (CTA) */
-.wl-trade-ape {
-  background: linear-gradient(135deg, #ffb432 0%, #f08c00 100%);
-  border-color: transparent;
-  color: #1a0a00;
-  font-weight: 800;
-}
-.wl-trade-ape:hover {
-  box-shadow: 0 4px 18px rgba(255,170,50,0.4);
-}
+/* wl-actions and wl-action-btn — only used by fav card fallback, now replaced by wl-fav-act */
 
 /* ── Live price row ── */
 .wl-live-row {
@@ -890,10 +783,11 @@
 
 .wl-sim-pnl-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   margin-bottom: 6px;
+  flex-wrap: wrap;
 }
 
 .wl-sim-pnl-label {
@@ -909,14 +803,18 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 800;
   white-space: nowrap;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.wl-pnl-pct  { font-size: 14px; }
-.wl-pnl-sep  { opacity: 0.3; font-size: 11px; }
-.wl-pnl-sol  { font-size: 11px; opacity: 0.75; }
+.wl-pnl-pct  { font-size: 13px; }
+.wl-pnl-sep  { opacity: 0.3; font-size: 10px; }
+.wl-pnl-sol  { font-size: 10px; opacity: 0.75; }
 
 .wl-pnl-pos  { color: #2cffc9; }
 .wl-pnl-neg  { color: #ff5555; }
@@ -1944,3 +1842,390 @@
 .lt-msg-success { background: rgba(38,201,138,0.12); border: 1px solid rgba(38,201,138,0.3); color: #26c98a; }
 .lt-msg-error   { background: rgba(239,83,80,0.12);  border: 1px solid rgba(239,83,80,0.3);  color: #ef5350; }
 .lt-msg-warn    { background: rgba(255,165,0,0.1);   border: 1px solid rgba(255,165,0,0.25); color: rgba(255,180,50,0.9); }
+
+/* ════════════════════════════════════════════════════
+   PROFESSIONAL TOKEN TABLE  (non-favorite watchlist)
+   ════════════════════════════════════════════════════ */
+
+.wl-table {
+  width: 100%;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(44,255,201,0.10);
+  background: rgba(3,10,8,0.60);
+}
+
+/* ── Column header row ── */
+.wl-table-head {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 36px;
+  border-bottom: 1px solid rgba(44,255,201,0.10);
+  background: rgba(44,255,201,0.03);
+}
+
+.wl-th {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(207,255,244,0.30);
+  user-select: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+/* ── Column widths (shared between header and rows) ── */
+.wl-th-token, .wl-td-token   { flex: 0 0 175px; min-width: 0; }
+.wl-th-risk,  .wl-td-risk    { flex: 0 0 115px; }
+.wl-th-price, .wl-td-price   { flex: 0 0 130px; }
+.wl-th-mcap,  .wl-td-mcap    { flex: 1; min-width: 68px; }
+.wl-th-liq,   .wl-td-liq     { flex: 1; min-width: 68px; }
+.wl-th-vol,   .wl-td-vol     { flex: 1; min-width: 68px; }
+.wl-th-age,   .wl-td-age     { flex: 0 0 55px; }
+/* Actions: no header column — overlay is positioned absolutely on row hover */
+
+/* ── Data row ── */
+.wl-row {
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  height: 54px;
+  border-bottom: 1px solid rgba(44,255,201,0.055);
+  transition: background 0.15s ease;
+  position: relative;
+  overflow: hidden; /* clip the action overlay when not hovered */
+}
+.wl-row:last-child { border-bottom: none; }
+.wl-row:hover {
+  background: rgba(44,255,201,0.035);
+  overflow: visible; /* let action buttons overflow on hover */
+}
+
+/* ── Table cell base ── */
+.wl-td {
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(207,255,244,0.65);
+}
+
+/* Token cell */
+.wl-td-token { gap: 9px; }
+
+.wl-row-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1px solid rgba(44,255,201,0.15);
+  background: rgba(44,255,201,0.04);
+}
+
+.wl-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.wl-row-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #cffff4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wl-row-sym {
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(207,255,244,0.38);
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Risk cell */
+.wl-td-risk { gap: 5px; }
+
+.wl-row-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* Reuse the same color classes as before */
+.wl-row-badge.wl-badge-good { background: rgba(44,255,201,0.10);  color: #2cffc9; border: 1px solid rgba(44,255,201,0.28); }
+.wl-row-badge.wl-badge-warn { background: rgba(255,209,102,0.10); color: #ffd166; border: 1px solid rgba(255,209,102,0.28); }
+.wl-row-badge.wl-badge-bad  { background: rgba(255,77,109,0.10);  color: #ff4d6d; border: 1px solid rgba(255,77,109,0.28); }
+
+/* Price cell */
+.wl-td-price { gap: 5px; }
+
+.wl-row-dot {
+  font-size: 5px;
+  color: #2cffc9;
+  flex-shrink: 0;
+  animation: wl-blink 1.4s ease-in-out infinite;
+}
+
+.wl-price-col {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Override horizontal margin from the old live-row context */
+.wl-price-col .wl-live-change { margin-left: 0; font-size: 10px; }
+
+.wl-row-pnl {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.wl-row-pnl.wl-pnl-pos { color: #2cffc9; background: rgba(44,255,201,0.08); }
+.wl-row-pnl.wl-pnl-neg { color: #ff5555; background: rgba(255,85,85,0.08);  }
+
+/* Data cells — MCap / Liq / Vol / Age */
+.wl-td-mcap, .wl-td-liq, .wl-td-vol { font-size: 12px; font-weight: 600; color: rgba(207,255,244,0.65); }
+.wl-td-age  { font-size: 10px; color: rgba(207,255,244,0.30); }
+
+/* ── Actions cell — hover-reveal overlay ── */
+.wl-td-actions {
+  position: absolute;
+  right: 0;
+  top: 0;
+  height: 100%;
+  padding: 0 8px;
+  background: linear-gradient(90deg, transparent 0%, rgba(5,16,12,0.92) 22%, rgba(5,16,12,0.98) 100%);
+  border-radius: 0 0 0 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(6px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  flex: unset;
+  width: auto;
+  gap: 5px;
+}
+.wl-row:hover .wl-td-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(0);
+}
+
+/* Actions cell */
+.wl-row-fav-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,255,163,0.15);
+  background: rgba(0,255,163,0.03);
+  color: rgba(0,255,163,0.25);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.18s ease;
+  line-height: 1;
+}
+.wl-row-fav-btn:hover {
+  border-color: rgba(0,255,163,0.5);
+  color: #00ffa3;
+  background: rgba(0,255,163,0.10);
+}
+.wl-row-fav-btn.active {
+  border-color: rgba(0,255,163,0.65);
+  color: #00ffa3;
+  background: rgba(0,255,163,0.12);
+  box-shadow: 0 0 8px rgba(0,255,163,0.3);
+}
+
+.wl-row-act {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: 1px solid rgba(44,255,201,0.14);
+  background: rgba(44,255,201,0.04);
+  color: rgba(207,255,244,0.40);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+.wl-row-act:hover {
+  border-color: rgba(44,255,201,0.35);
+  color: #2cffc9;
+  background: rgba(44,255,201,0.09);
+}
+.wl-row-rescan:hover {
+  border-color: rgba(44,255,201,0.5);
+  background: rgba(44,255,201,0.14);
+  color: #2cffc9;
+}
+.wl-row-trade:hover {
+  border-color: rgba(255,180,50,0.45);
+  background: rgba(255,180,50,0.10);
+  color: #ffb432;
+}
+
+.wl-row-remove {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,77,109,0.35);
+  background: rgba(255,77,109,0.08);
+  color: rgba(255,77,109,0.70);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  margin-left: 2px; /* small visual separation from action buttons */
+}
+.wl-row-remove:hover {
+  border-color: rgba(255,77,109,0.75);
+  color: #ff4d6d;
+  background: rgba(255,77,109,0.20);
+  box-shadow: 0 0 10px rgba(255,77,109,0.25);
+  transform: scale(1.08);
+}
+
+/* ── Responsive: collapse less important columns ── */
+@media (max-width: 860px) {
+  .wl-th-liq,  .wl-td-liq  { display: none; }
+  .wl-th-age,  .wl-td-age  { display: none; }
+  .wl-th-token, .wl-td-token { flex: 0 0 150px; }
+}
+@media (max-width: 620px) {
+  .wl-th-mcap, .wl-td-mcap { display: none; }
+  .wl-th-vol,  .wl-td-vol  { display: none; }
+  .wl-th-token, .wl-td-token { flex: 0 0 120px; }
+  .wl-th-risk, .wl-td-risk { flex: 0 0 95px; }
+}
+
+/* ════════════════════════════════════════════════════
+   FAVORITES CARD — refined layout (flame effects kept)
+   ════════════════════════════════════════════════════ */
+
+/* ── Live price + inline badge row ── */
+.wl-fav-live-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0 6px;
+  border-top:    1px solid rgba(44,255,201,0.07);
+  border-bottom: 1px solid rgba(44,255,201,0.07);
+}
+
+/* Small inline risk badge for favorites — same color classes as wl-row-badge */
+.wl-fav-inline-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.wl-fav-inline-badge.wl-badge-good { background: rgba(44,255,201,0.10);  color: #2cffc9; border: 1px solid rgba(44,255,201,0.28); }
+.wl-fav-inline-badge.wl-badge-warn { background: rgba(255,209,102,0.10); color: #ffd166; border: 1px solid rgba(255,209,102,0.28); }
+.wl-fav-inline-badge.wl-badge-bad  { background: rgba(255,77,109,0.10);  color: #ff4d6d; border: 1px solid rgba(255,77,109,0.28); }
+
+/* ── 4-metric grid ── */
+.wl-fav-metrics-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px 10px;
+  padding: 2px 0;
+}
+
+.wl-fav-metric { }
+.wl-fav-metric-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: rgba(207,255,244,0.35);
+  margin-bottom: 1px;
+}
+.wl-fav-metric-val {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(207,255,244,0.80);
+}
+
+/* ── Favorites card footer — actions + age ── */
+.wl-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(44,255,201,0.07);
+}
+
+.wl-fav-footer-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.wl-fav-act {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  cursor: pointer;
+  text-decoration: none;
+  border: 1px solid rgba(44,255,201,0.18);
+  background: rgba(44,255,201,0.05);
+  color: rgba(207,255,244,0.55);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.wl-fav-act:hover {
+  border-color: rgba(44,255,201,0.38);
+  color: #2cffc9;
+  background: rgba(44,255,201,0.10);
+}
+.wl-fav-rescan:hover {
+  border-color: rgba(44,255,201,0.5);
+  background: rgba(44,255,201,0.14);
+  color: #2cffc9;
+  box-shadow: 0 0 8px rgba(44,255,201,0.15);
+}
+.wl-fav-trade:hover {
+  border-color: rgba(255,180,50,0.45);
+  background: rgba(255,180,50,0.10);
+  color: #ffb432;
+}
+
+/* Override the old card-footer padding that used to have a border-top via wl-card-footer:
+   wl-card-footer is now handled per-context above. Remove the old duplicate. */

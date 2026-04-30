@@ -1,6 +1,8 @@
+const _DEBUG = false;
+
 /* ============================================================
    Scan2Moon – leaderboard-app.js  (V2.0 FRONTEND)
-   Safe Ape Leaderboard — Browser ES Module
+   Scan2Moon Leaderboard — Browser ES Module
    This is the FRONTEND script for leaderboard.html.
    The server-side Netlify function stays in leaderboard.js
    ============================================================ */
@@ -12,6 +14,73 @@ import "./community.js";
 const LB_API = "/.netlify/functions/leaderboard";
 const SIM_API = "/.netlify/functions/simulator";
 
+/* ── Local badge media map ─────────────────────────────────────────────────
+   Server's badgeDefs only has {id, icon, name, desc} — no img/type/video.
+   This map fills the gap so avatars render correctly everywhere on this page.
+   ────────────────────────────────────────────────────────────────────────── */
+const LOCAL_BADGE_MEDIA = {
+  // Trading
+  first_profit:         { img: "/badges/First_Profit.png",             icon: "🏆" },
+  win_streak_5:         { img: "/badges/win_streak_5.png",             icon: "🔥" },
+  safe_trader:          { img: "/badges/Safe_Trader.png",              icon: "🛡️" },
+  diamond_hands:        { img: "/badges/Diamond_Hands.png",            icon: "💎" },
+  degen_survivor:       { img: "/badges/Degen_Survivor.png",           icon: "🦍" },
+  portfolio_100:        { img: "/badges/portfolio_100.png",            icon: "📈" },
+  wins_25:              { img: "/badges/Wins_25.png",                  icon: "⭐" },
+  wins_50:              { img: "/badges/Wins_50.png",                  icon: "🌟" },
+  wins_100:             { img: "/badges/Wins_100.png",                 icon: "💫" },
+  wins_500:             { img: "/badges/Wins_500.png",                 icon: "🚀" },
+  wins_1000:            { img: "/badges/Wins_1000.png",               icon: "🐐" },
+  sol2moon_millionaire: { img: "/badges/Sol2Moon.png",                 icon: "🌙" },
+  // Other / Pro
+  streak_7:             { img: "/badges/Other_Bages/7_Days.png",       icon: "🔥" },
+  pro_scanner:          { img: "/badges/Pro_badges/100_Risk_Scan.png", icon: "🛡️" },
+  alpha_caller:         { img: "/badges/Pro_badges/Alpha_Caller.png",  icon: "🎯" },
+  whale_analyst:        { img: "/badges/Pro_badges/Whale_Analyst.png", icon: "🐋" },
+  top_10:               { img: "/badges/Pro_badges/Top_10.png",        icon: "🏆" },
+  // Cosmetics
+  cosm_love_solana:     { img: "/badges/Love_Solana.png",              icon: "❤️" },
+  cosm_love_s2m:        { img: "/badges/Love_S2M.png",                 icon: "🌙" },
+  // Moon Krakens (animated video)
+  kraken_skeleton:      { type: "video", video: "/badges/Moon_Krakens_Bages/%23006.mp4", icon: "💀" },
+  kraken_badboy:        { type: "video", video: "/badges/Moon_Krakens_Bages/%23005.mp4", icon: "😈" },
+  kraken_pirate:        { type: "video", video: "/badges/Moon_Krakens_Bages/%23004.mp4", icon: "🏴‍☠️" },
+  // Level badges
+  lvl_1:   { img: "/badges/level_badges/LVL_1.png",   icon: "🌱" },
+  lvl_5:   { img: "/badges/level_badges/LVL_5.png",   icon: "🔥" },
+  lvl_10:  { img: "/badges/level_badges/LVL_10.png",  icon: "💪" },
+  lvl_20:  { img: "/badges/level_badges/LVL_20.png",  icon: "🧠" },
+  lvl_30:  { img: "/badges/level_badges/LVL_30.png",  icon: "💎" },
+  lvl_50:  { img: "/badges/level_badges/LVL_50.png",  icon: "🚀" },
+  lvl_100: { img: "/badges/level_badges/LVL_100.png", icon: "🌙" },
+};
+
+/* ── Frame CSS classes (mirror dashboard.js FRAME_DEFS) ── */
+const LOCAL_FRAME_DEFS = [
+  { id: "frame_none",        cssClass: "" },
+  { id: "frame_moon_pulse",  cssClass: "frame-moon-pulse" },
+  { id: "frame_solar_flare", cssClass: "frame-solar-flare" },
+  { id: "frame_degen_neon",  cssClass: "frame-degen-neon" },
+  { id: "frame_diamond",     cssClass: "frame-diamond" },
+];
+
+/* Build avatar <img>/<video>/<span> at a given square size */
+function buildAvatarHtml(avId, size = 28, radius = 6) {
+  const m = avId ? LOCAL_BADGE_MEDIA[avId] : null;
+  const st = `width:${size}px;height:${size}px;object-fit:cover;border-radius:${radius}px;flex-shrink:0;display:block;`;
+  if (m?.type === "video" && m.video)
+    return `<video src="${m.video}" autoplay loop muted playsinline style="${st}"></video>`;
+  if (m?.img)
+    return `<img src="${m.img}" style="${st}" alt="avatar" onerror="this.style.display='none'">`;
+  return `<span style="font-size:${Math.round(size * 0.6)}px;line-height:${size}px;display:inline-block;">${m?.icon || "◆"}</span>`;
+}
+
+/* Get the frame CSS class from localStorage */
+function getMyFrameCls() {
+  const fid = localStorage.getItem("sa_frame_id") || "frame_none";
+  return (LOCAL_FRAME_DEFS.find(f => f.id === fid) || LOCAL_FRAME_DEFS[0]).cssClass;
+}
+
 let currentPeriod   = "alltime";
 let connectedWallet = null;
 let allEntries      = [];
@@ -20,7 +89,7 @@ let lbPage          = 0;
 const LB_PAGE_SIZE  = 15;
 let solPrice = 0;
 
-const SOL_LOGO = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
+const SOL_LOGO = "S2M-Logo.png";
 
 async function fetchSolPrice() {
   /* Route through server-side function — avoids CORS + geo-block issues */
@@ -33,13 +102,13 @@ async function fetchSolPrice() {
 }
 
 function formatSol(n) {
-  if (n === null || n === undefined || isNaN(n)) return "0 SOL";
+  if (n === null || n === undefined || isNaN(n)) return "0 S2M";
   const abs = Math.abs(n);
-  if (abs === 0)    return "0 SOL";
-  if (abs < 0.001)  return n.toFixed(6) + " SOL";
-  if (abs < 0.1)    return n.toFixed(4) + " SOL";
-  if (abs < 10)     return n.toFixed(3) + " SOL";
-  return n.toFixed(2) + " SOL";
+  if (abs === 0)    return "0 S2M";
+  if (abs < 0.001)  return n.toFixed(6) + " S2M";
+  if (abs < 0.1)    return n.toFixed(4) + " S2M";
+  if (abs < 10)     return n.toFixed(3) + " S2M";
+  return n.toFixed(2) + " S2M";
 }
 
 /* ============================================================
@@ -66,7 +135,7 @@ document.addEventListener("DOMContentLoaded", async () => {
         body: JSON.stringify({ wallet: saved, action: "register" })
       });
     } catch (e) {
-      console.warn("LB pre-registration failed (non-critical):", e.message);
+      _DEBUG && console.warn("LB pre-registration failed (non-critical):", e.message);
     }
     // Sync display name to server so leaderboard shows the name set in Dashboard
     syncDisplayName(saved).catch(() => {});
@@ -168,8 +237,8 @@ async function loadLeaderboard() {
   if (tableBody) {
     tableBody.innerHTML = `
       <div class="lb-loading">
-        <div class="lb-spinner"></div>
-        <div>Loading rankings…</div>
+        <div class="lb-scan-ring"></div>
+        <div class="lb-scan-text">Scanning rankings…</div>
       </div>`;
   }
 
@@ -188,7 +257,7 @@ async function loadLeaderboard() {
       if (res.status !== 503) break;
       retries++;
       if (retries <= 2) {
-        console.warn(`Leaderboard 503, retry ${retries}/2…`);
+        _DEBUG && console.warn(`Leaderboard 503, retry ${retries}/2…`);
         await new Promise(r => setTimeout(r, 800 * retries));
       }
     }
@@ -223,7 +292,7 @@ async function loadLeaderboard() {
             allEntries = c.entries;
             if (c.badgeDefs) badgeDefs = c.badgeDefs;
             if (c.mvp) data.mvp = c.mvp;
-            console.warn("Leaderboard: server returned 0, showing cached data");
+            _DEBUG && console.warn("Leaderboard: server returned 0, showing cached data");
             const updateEl = document.getElementById("lbLastUpdate");
             if (updateEl) updateEl.textContent = "⚠ Showing cached data";
             const totalEl = document.getElementById("lbTotalTraders");
@@ -257,7 +326,7 @@ async function loadLeaderboard() {
     renderBadgesShowcase();
 
   } catch (err) {
-    console.error("Leaderboard load failed:", err);
+    _DEBUG && console.error("Leaderboard load failed:", err);
     // On any error, try to show cached data rather than "No rankings yet"
     try {
       const raw = localStorage.getItem("s2m_lb_cache");
@@ -282,9 +351,9 @@ async function loadLeaderboard() {
     if (tableBody) {
       tableBody.innerHTML = `
         <div class="lb-empty">
-          <div class="lb-empty-icon">🏆</div>
-          <div class="lb-empty-title">No rankings yet</div>
-          <div style="opacity:0.5;font-size:13px;">Be the first! Trade on Safe Ape Simulator and submit your score.</div>
+          <div class="lb-empty-icon">📊</div>
+          <div class="lb-empty-title">Rankings unavailable</div>
+          <div style="opacity:0.4;font-size:12px;">Could not load data. Try refreshing in a moment.</div>
         </div>`;
     }
   } finally {
@@ -316,7 +385,7 @@ function renderMvpStrip(mvp) {
     if (!nameEl || !valEl) continue;
 
     if (entry) {
-      nameEl.textContent = entry.accountName || "Ape";
+      nameEl.textContent = entry.accountName || "Trader";
       if (slot.isAllTime) {
         const adjR = entry.adjReturn ?? 0;
         const sign = adjR >= 0 ? "+" : "";
@@ -343,12 +412,12 @@ function calcLevel(xp) {
   return Math.floor(Math.sqrt(xp / 100)) + 1;
 }
 function levelIcon(lvl) {
-  if (lvl >= 50) return "🚀";
-  if (lvl >= 30) return "💎";
-  if (lvl >= 20) return "🧠";
-  if (lvl >= 10) return "💪";
-  if (lvl >= 5)  return "🔥";
-  return "🌱";
+  if (lvl >= 50) return "◆◆◆";
+  if (lvl >= 30) return "◆◆";
+  if (lvl >= 20) return "◆";
+  if (lvl >= 10) return "▲▲";
+  if (lvl >= 5)  return "▲";
+  return "·";
 }
 function levelColor(lvl) {
   if (lvl >= 30) return "#2cffc9";
@@ -366,9 +435,9 @@ function renderTable(entries) {
   if (!entries.length) {
     el.innerHTML = `
       <div class="lb-empty">
-        <div class="lb-empty-icon">🏆</div>
-        <div class="lb-empty-title">No traders yet</div>
-        <div style="opacity:0.5;font-size:13px;">Be the first! Trade on Safe Ape Simulator and your score appears here automatically.</div>
+        <div class="lb-empty-icon">📊</div>
+        <div class="lb-empty-title">No rankings yet</div>
+        <div style="opacity:0.4;font-size:12px;">Be the first — make a trade in the simulator and your score appears here automatically.</div>
       </div>`;
     return;
   }
@@ -394,6 +463,31 @@ function renderTable(entries) {
     const medal       = e.rank === 1 ? "🥇" : e.rank === 2 ? "🥈" : e.rank === 3 ? "🥉" : null;
     const rowExtraCls = e.rank === 1 ? "lb-row-gold" : e.rank === 2 ? "lb-row-silver" : e.rank === 3 ? "lb-row-bronze" : "";
 
+    /* ── Avatar for this row — use LOCAL_BADGE_MEDIA so img/video fields are available ── */
+    let apeHtml;
+    if (isYou) {
+      const myAvId   = localStorage.getItem("sa_avatar_id");
+      const frameCls = getMyFrameCls();
+      const avInner  = buildAvatarHtml(myAvId, 28, 6);
+      apeHtml = `<div class="dash-avatar-frame ${frameCls}"
+        style="width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;">
+        ${avInner}
+      </div>`;
+    } else {
+      const initials = (e.accountName || "?").slice(0, 1).toUpperCase();
+      const hue = e.wallet ? (e.wallet.charCodeAt(0) + e.wallet.charCodeAt(e.wallet.length - 1)) % 360 : 120;
+      /* Try to use first earned badge image as their avatar */
+      const rowAvBadge = (e.badges || []).map(id => LOCAL_BADGE_MEDIA[id]).find(m => m?.img);
+      if (rowAvBadge?.img) {
+        apeHtml = `<div style="width:28px;height:28px;border-radius:7px;overflow:hidden;flex-shrink:0;background:hsla(${hue},40%,20%,0.9);">
+          <img src="${rowAvBadge.img}" style="width:100%;height:100%;object-fit:contain;" alt=""
+            onerror="this.parentElement.textContent='${initials}'">
+        </div>`;
+      } else {
+        apeHtml = `<div style="width:28px;height:28px;border-radius:7px;background:hsla(${hue},40%,20%,0.9);border:1px solid hsla(${hue},50%,40%,0.35);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:hsla(${hue},60%,70%,0.9);flex-shrink:0;">${initials}</div>`;
+      }
+    }
+
     const rankDisplay = medal
       ? `<div class="lb-rank-medal">${medal}</div><div class="lb-rank-sub">#${e.rank}</div>`
       : `<span class="lb-rank-normal">#${e.rank}</span>`;
@@ -412,14 +506,14 @@ function renderTable(entries) {
     const balDiff = balance - 10; // vs 10 SOL start
 
     return `
-      <tr class="lb-clickable-row ${isYou ? "lb-you-row" : ""} ${rowExtraCls}" style="animation-delay:${(e.rank - 1) * 0.03}s" onclick="openTraderProfile('${e.wallet}')" title="Click to view profile">
+      <tr class="lb-clickable-row ${isYou ? "lb-you-row" : ""} ${rowExtraCls} ${isYou ? (() => { try { return "lb-skin-"+(localStorage.getItem("s2m_dash_skin")||"s2m_original"); } catch { return ""; } })() : ""}" style="animation-delay:${(e.rank - 1) * 0.03}s" onclick="openTraderProfile('${e.wallet}')" title="Click to view profile">
         <td class="lb-rank-cell">${rankDisplay}</td>
         <td>
           <div class="lb-name-cell">
-            <span class="lb-name-ape">🦍</span>
+            ${apeHtml}
             <div>
               <div class="lb-name-text">
-                ${e.accountName || "Ape"}
+                ${e.accountName || "Trader"}
                 ${isYou ? '<span class="lb-you-badge">YOU</span>' : ""}
               </div>
               <div class="lb-name-wallet">${shortW}</div>
@@ -493,13 +587,27 @@ function renderYourRank(entries) {
   // Always show the banner when connected — Submit Score must always be accessible
   banner.style.display = "flex";
 
+  /* ── Sync avatar + frame from Dashboard localStorage ── */
+  const emojiEl = banner.querySelector(".lb-your-rank-emoji");
+  if (emojiEl) {
+    const avId     = localStorage.getItem("sa_avatar_id");
+    const frameCls = getMyFrameCls();
+    const avInner  = buildAvatarHtml(avId, 42, 8);
+    /* Replace the emoji placeholder with a framed avatar wrapper */
+    const wrapper  = document.createElement("div");
+    wrapper.className = `dash-avatar-frame ${frameCls}`;
+    wrapper.style.cssText = "width:42px;height:42px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0;overflow:hidden;";
+    wrapper.innerHTML = avInner;
+    emojiEl.replaceWith(wrapper);
+  }
+
   const entry = entries.find(e => e.wallet === connectedWallet);
   if (entry) {
-    if (nameEl) { nameEl.textContent = entry.accountName || "Ape"; nameEl.dataset.populated = "1"; }
+    if (nameEl) { nameEl.textContent = entry.accountName || localStorage.getItem("sa_display_name") || "Trader"; nameEl.dataset.populated = "1"; }
     if (posEl)  { posEl.textContent  = `#${entry.rank}`;           posEl.dataset.populated  = "1"; }
   } else {
     // Connected but not ranked yet — show placeholder so Submit Score is still visible
-    if (nameEl) { nameEl.textContent = "Not yet ranked"; nameEl.dataset.populated = "1"; }
+    if (nameEl) { nameEl.textContent = localStorage.getItem("sa_display_name") || "Not yet ranked"; nameEl.dataset.populated = "1"; }
     if (posEl)  { posEl.textContent  = "#—";             posEl.dataset.populated  = "1"; }
   }
 }
@@ -559,12 +667,12 @@ function shareRank() {
   const adjR = (entry.adjReturn ?? 0).toFixed(2);
   const sign = entry.adjReturn >= 0 ? "+" : "";
   const text = [
-    `🏆 My Safe Ape rank on @Scan2Moon: #${entry.rank}`,
-    `📊 Risk-Adjusted Return: ${sign}${adjR}%`,
-    `🛡️ Avg Risk Score: ${entry.avgRiskScore}/100`,
-    `🦍 Paper trading with real risk intelligence`,
+    `Ranked #${entry.rank} on @Scan2Moon Leaderboard`,
+    `Risk-Adjusted Return: ${sign}${adjR}%`,
+    `Avg Risk Score: ${entry.avgRiskScore}/100`,
+    `Paper trading with real Birdeye risk intelligence on Solana`,
     `https://scan2moon.com`,
-    `#Solana #SafeApe #Crypto`
+    `#Solana #Crypto #Trading`
   ].join("\n");
 
   window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank");
@@ -583,13 +691,13 @@ function renderBadgesShowcase() {
     { id: "safe_trader",    img: "/badges/Safe_Trader.png",    icon: "🛡️", name: "Safe Trader",           desc: "Buy 10 tokens with entry risk score ≥ 65" },
     { id: "diamond_hands",  img: "/badges/Diamond_Hands.png",  icon: "💎", name: "Diamond Hands",         desc: "Held a token for 7+ days" },
     { id: "degen_survivor", img: "/badges/Degen_Survivor.png", icon: "🦍", name: "Degen Survivor",        desc: "Profit 10× on tokens with risk score < 45 (1 sell per buy)" },
-    { id: "portfolio_100",  img: "/badges/portfolio_100.png",  icon: "📈", name: "100% Growth",           desc: "Doubled your 10 SOL starting balance" },
+    { id: "portfolio_100",  img: "/badges/portfolio_100.png",  icon: "📈", name: "100% Growth",           desc: "Doubled your 10 S2M starting balance" },
     { id: "wins_25",        img: "/badges/Wins_25.png",        icon: "⭐", name: "25 Safe Wins",          desc: "25 profitable trades" },
     { id: "wins_50",        img: "/badges/Wins_50.png",        icon: "🌟", name: "50 Safe Wins",          desc: "50 profitable trades" },
     { id: "wins_100",       img: "/badges/Wins_100.png",       icon: "💫", name: "100 Safe Wins",         desc: "100 profitable trades" },
     { id: "wins_500",       img: "/badges/Wins_500.png",       icon: "🚀", name: "500 Safe Wins",         desc: "500 profitable trades" },
     { id: "wins_1000",           img: "/badges/Wins_1000.png", icon: "🐐", name: "1000 Safe Wins — GOAT", desc: "The absolute GOAT." },
-    { id: "sol2moon_millionaire", img: "/badges/Sol2Moon.png",  icon: "🌙", name: "Sol2Moon Millionaire",   desc: "Reach 10,000 SOL" },
+    { id: "sol2moon_millionaire", img: "/badges/Sol2Moon.png",  icon: "🌙", name: "Sol2Moon Millionaire",   desc: "Reach 10,000 S2M" },
   ];
 
   const defs = badgeDefs.length ? badgeDefs : defaultBadges;
@@ -639,15 +747,27 @@ window.openTraderProfile = function(wallet) {
   const badgeDef_map = {};
   badgeDefs.forEach(b => { badgeDef_map[b.id] = b; });
 
+  /* ── Determine skin (read from entry data or localStorage if it's you) ── */
+  const isYou = connectedWallet && e.wallet === connectedWallet;
+  let activeSkin = e.dashSkin || "s2m_original";
+  if (isYou) {
+    try { activeSkin = localStorage.getItem("s2m_dash_skin") || activeSkin; } catch {}
+  }
+  const SKIN_THEMES = {
+    s2m_original: { accent: "#2cffc9", accent2: "#c084fc", pos: "#2cffc9", neg: "#ff4d6d", name: "S2M Original", icon: "🌿" },
+    neon_degen:   { accent: "#c840ff", accent2: "#ff3aaa",  pos: "#39ff14", neg: "#ff4d6d", name: "Neon Degen",   icon: "🔮" },
+  };
+  const sk = SKIN_THEMES[activeSkin] || SKIN_THEMES.s2m_original;
+
   // Rank title (mirrors safe-ape-profile logic, thresholds in SOL)
   const pnl = e.totalPnL || 0;
   let rank, rankColor;
-  if (pnl > 50)        { rank = "🏆 LEGENDARY APE";  rankColor = "#ffd166"; }
-  else if (pnl > 10)   { rank = "💎 DIAMOND HANDS";  rankColor = "#82b4ff"; }
-  else if (pnl > 1)    { rank = "🟢 SMART MONEY";    rankColor = "#2cffc9"; }
-  else if (pnl > 0)    { rank = "📈 PROFITABLE APE"; rankColor = "#7fffe1"; }
-  else if (pnl > -2)   { rank = "🙈 LEARNING APE";   rankColor = "#ffd166"; }
-  else                 { rank = "💀 RUG SURVIVOR";    rankColor = "#ff4d6d"; }
+  if (pnl > 50)        { rank = "ELITE PERFORMER";    rankColor = "#ffd166"; }
+  else if (pnl > 10)   { rank = "TOP TRADER";         rankColor = "#82b4ff"; }
+  else if (pnl > 1)    { rank = "SMART MONEY";        rankColor = "#2cffc9"; }
+  else if (pnl > 0)    { rank = "PROFITABLE";         rankColor = "#7fffe1"; }
+  else if (pnl > -2)   { rank = "IN TRAINING";        rankColor = "#ffd166"; }
+  else                 { rank = "REBUILDING";          rankColor = "#ff4d6d"; }
 
   const pnlColor = pnl >= 0 ? "#2cffc9" : "#ff4d6d";
   const pnlSign  = pnl >= 0 ? "+" : "";
@@ -668,7 +788,6 @@ window.openTraderProfile = function(wallet) {
   const shortW = e.wallet ? e.wallet.slice(0, 6) + "…" + e.wallet.slice(-6) : "";
 
   const medal = e.rank === 1 ? "🥇" : e.rank === 2 ? "🥈" : e.rank === 3 ? "🥉" : `#${e.rank}`;
-  const isYou = connectedWallet && e.wallet === connectedWallet;
 
   // Level
   const tpLvl = e.level || calcLevel((e.tradeCount || 0) * 25 + (e.badges?.length || 0) * 50 + (e.loginStreak || 0) * 5);
@@ -687,71 +806,159 @@ window.openTraderProfile = function(wallet) {
       }).join("")
     : `<div style="opacity:0.4;font-size:13px;padding:8px 0;">No badges yet</div>`;
 
+  /* ── Avatar ── */
+  let avHtml;
+  let frameCls = "";
+  const avHue = e.wallet ? (e.wallet.charCodeAt(0) + e.wallet.charCodeAt(e.wallet.length - 1)) % 360 : 120;
+  if (isYou) {
+    const avId = localStorage.getItem("sa_avatar_id");
+    frameCls   = getMyFrameCls();
+    avHtml     = buildAvatarHtml(avId, 90, 16);
+  } else {
+    /* Use their highest-value badge image as avatar; fall back to colored initials */
+    const avBadge = (e.badges || []).map(id => LOCAL_BADGE_MEDIA[id]).find(m => m?.img);
+    const initials = (e.accountName || "?").slice(0, 2).toUpperCase();
+    if (avBadge?.img) {
+      avHtml = `<div style="width:90px;height:90px;border-radius:16px;overflow:hidden;background:hsla(${avHue},40%,15%,0.95);border:1px solid hsla(${avHue},50%,35%,0.3);display:flex;align-items:center;justify-content:center;">
+        <img src="${avBadge.img}" style="width:100%;height:100%;object-fit:contain;" alt=""
+          onerror="this.outerHTML='<span style=\\'font-size:28px;font-weight:900;\\'>‍${initials}</span>'">
+      </div>`;
+    } else {
+      avHtml = `<div style="width:90px;height:90px;border-radius:16px;background:hsla(${avHue},40%,15%,0.95);border:1px solid hsla(${avHue},50%,35%,0.4);display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:900;color:hsla(${avHue},55%,70%,0.9);">${initials}</div>`;
+    }
+  }
+
+  /* ── Win-rate progress bar ── */
+  const winRateNum = parseInt(winRate, 10) || 0;
+  const winBarFill = `background:linear-gradient(90deg,${sk.pos},${sk.pos}88);width:${winRateNum}%`;
+
+  /* ── Balance vs start track ── */
+  const balPct = Math.min(100, Math.max(0, (balance / 20) * 100));
+  const balBarFill = `background:linear-gradient(90deg,${pnl >= 0 ? sk.pos : sk.neg},${(pnl >= 0 ? sk.pos : sk.neg)}66);width:${balPct}%`;
+
+  /* ── Badges — merge server defs with LOCAL_BADGE_MEDIA for real images ── */
+  const ldBadgesHtml = earnedBadges.length
+    ? earnedBadges.slice(0, 10).map(id => {
+        const def     = badgeDef_map[id];
+        const localM  = LOCAL_BADGE_MEDIA[id];
+        const imgSrc  = localM?.img || def.img;
+        const icon    = def.icon || localM?.icon || "◆";
+        const imgHtml = imgSrc
+          ? `<img src="${imgSrc}" class="ld-badge-img" onerror="this.style.display='none';this.nextElementSibling.style.display='block'" alt=""><span class="ld-badge-emoji" style="display:none">${icon}</span>`
+          : `<span class="ld-badge-emoji">${icon}</span>`;
+        return `<div class="ld-badge-card" title="${def.name}: ${def.desc}">${imgHtml}<div class="ld-badge-name">${def.name}</div></div>`;
+      }).join("")
+    : `<div style="grid-column:1/-1;padding:14px 0;text-align:center;opacity:0.3;font-size:12px;">No badges yet</div>`;
+
+  /* ── Skin chip ── */
+  const skinChip = activeSkin !== "s2m_original"
+    ? `<span class="ld-skin-chip skin-${activeSkin}">${sk.icon} ${sk.name}</span>`
+    : "";
+
+  /* ── Build popup HTML ── */
+  const modal = document.getElementById("traderProfileModal");
+  modal.dataset.skin = activeSkin;
+
   document.getElementById("traderProfileContent").innerHTML = `
-    <!-- Header: rank + name -->
-    <div class="tp-header">
-      <div class="tp-rank-pill">${medal}</div>
-      <div class="tp-avatar">🦍</div>
-      <div class="tp-header-info">
-        <div class="tp-name">${e.accountName || "Ape"}${isYou ? ' <span class="lb-you-badge">YOU</span>' : ""}</div>
-        <div class="tp-rank-title" style="color:${rankColor}">${rank}</div>
-        <div style="font-size:12px;font-weight:700;color:${tpLvlCol};margin-top:2px;">${tpLvlIcon} Account Level ${tpLvl}</div>
-        <div class="tp-wallet">
-          <span>${shortW}</span>
-          <a href="https://solscan.io/account/${e.wallet}" target="_blank" rel="noopener noreferrer" class="tp-solscan-link">Solscan ↗</a>
+    <!-- HEADER -->
+    <div class="ld-header">
+      <div class="ld-header-left">
+        <div class="ld-live-dot"></div>
+        <span class="ld-brand">SCAN2MOON</span>
+        <span class="ld-type-label">LIVE DASHBOARD</span>
+      </div>
+      <div class="ld-header-right">
+        ${skinChip}
+        <button class="ld-close-btn" onclick="window.closeTraderProfile()">✕</button>
+      </div>
+    </div>
+
+    <!-- BODY -->
+    <div class="ld-body">
+
+      <!-- IDENTITY -->
+      <div class="ld-identity">
+        <div class="dash-avatar-frame ${frameCls} ld-avatar-wrap">${avHtml}</div>
+        <div class="ld-identity-info">
+          <div class="ld-identity-top">
+            <span class="ld-identity-name">${(e.accountName || "Trader").replace(/</g,"&lt;").replace(/>/g,"&gt;")}</span>
+            ${isYou ? '<span class="ld-identity-you">YOU</span>' : ""}
+            <span class="ld-identity-medal">${medal}</span>
+          </div>
+          <div class="ld-identity-rank" style="color:${rankColor};">${rank}</div>
+          <div class="ld-identity-sub">
+            <span class="ld-identity-level" style="color:${tpLvlCol};">${tpLvlIcon} Level ${tpLvl}</span>
+            <span style="color:rgba(207,255,244,0.2);">·</span>
+            <span style="font-size:10px;color:rgba(207,255,244,0.4);">▲ <strong style="color:rgba(207,255,244,0.75);">${e.loginStreak || 0}</strong>-day streak</span>
+          </div>
+          <div class="ld-identity-wallet">
+            <span>${shortW}</span>
+            <a href="https://solscan.io/account/${e.wallet}" target="_blank" rel="noopener noreferrer">Solscan ↗</a>
+            <span style="color:rgba(207,255,244,0.2);">·</span>
+            <span>🕐 ${e.lastActive || "—"}</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Stats grid -->
-    <div class="tp-stats-grid">
-      <div class="tp-stat">
-        <div class="tp-stat-label">BALANCE</div>
-        <div class="tp-stat-val" style="color:#ffb432;">${formatSol(balance)}${balDiffHtml}</div>
+      <!-- KEY METRICS -->
+      <div class="ld-section-title">KEY METRICS</div>
+      <div class="ld-stats-row">
+        <div class="ld-stat-box">
+          <div class="ld-stat-val" style="color:#ffb432;">${formatSol(balance)}</div>
+          <div class="ld-stat-label">Balance</div>
+        </div>
+        <div class="ld-stat-box">
+          <div class="ld-stat-val" style="color:${pnlColor};">${pnlSign}${formatSol(Math.abs(pnl))}</div>
+          <div class="ld-stat-label">P / L</div>
+        </div>
+        <div class="ld-stat-box">
+          <div class="ld-stat-val" style="color:${adjColor};">${adjSign}${adjR.toFixed(1)}%</div>
+          <div class="ld-stat-label">Adj Return</div>
+        </div>
+        <div class="ld-stat-box">
+          <div class="ld-stat-val" style="color:${riskColor};">${e.avgRiskScore || "—"}</div>
+          <div class="ld-stat-label">Avg Risk</div>
+        </div>
       </div>
-      <div class="tp-stat">
-        <div class="tp-stat-label">ALL-TIME P/L</div>
-        <div class="tp-stat-val" style="color:${pnlColor};">${pnlSign}${formatSol(Math.abs(pnl))}</div>
+
+      <!-- BALANCE TRACK -->
+      <div class="ld-section-title" style="margin-top:14px;">BALANCE vs START</div>
+      <div class="ld-bal-track">
+        <div class="ld-bal-track-labels">
+          <span class="ld-bal-track-start">Start: 10 S2M</span>
+          <span class="ld-bal-track-val" style="color:${pnlColor};">${formatSol(balance)} ${balDiffHtml ? `(${pnl >= 0 ? "+" : ""}${pnlSign}${formatSol(Math.abs(pnl))})` : ""}</span>
+        </div>
+        <div class="ld-bal-bar"><div class="ld-bal-bar-fill" style="${balBarFill}"></div></div>
       </div>
-      <div class="tp-stat">
-        <div class="tp-stat-label">ADJ. RETURN</div>
-        <div class="tp-stat-val" style="color:${adjColor};">${adjSign}${adjR.toFixed(2)}%</div>
+
+      <!-- WIN RATE + TRADES -->
+      <div class="ld-section-title">PERFORMANCE</div>
+      <div class="ld-perf-row">
+        <div class="ld-perf-bar"><div class="ld-perf-bar-fill" style="${winBarFill}"></div></div>
+        <span class="ld-perf-label" style="color:#ffd166;">${winRate}% Win Rate</span>
       </div>
-      <div class="tp-stat">
-        <div class="tp-stat-label">AVG RISK SCORE</div>
-        <div class="tp-stat-val" style="color:${riskColor};">${e.avgRiskScore}/100</div>
+      <div class="ld-trades-row">
+        <div class="ld-trade-box win"><div class="ld-trade-lbl">WIN</div><div class="ld-trade-num">${e.winCount || 0}</div></div>
+        <div class="ld-trade-box lose"><div class="ld-trade-lbl">LOSE</div><div class="ld-trade-num">${e.lossCount || 0}</div></div>
+        <div class="ld-trade-box total"><div class="ld-trade-lbl">TRADES</div><div class="ld-trade-num">${totalTrades}</div></div>
+        <div class="ld-trade-box rate"><div class="ld-trade-lbl">WIN %</div><div class="ld-trade-num">${winRate}%</div></div>
+      </div>
+
+      <!-- BADGES -->
+      <div class="ld-section-title">ACHIEVEMENTS <span style="opacity:0.45;">(${earnedBadges.length})</span></div>
+      <div class="ld-badges-grid">${ldBadgesHtml}</div>
+
+      <!-- FOOTER -->
+      <hr class="ld-divider">
+      <div class="ld-footer-btns">
+        <button id="saveTraderCardBtn" class="ld-footer-btn-main" onclick="window.saveTraderCard()">
+          💾 Save Profile Card
+        </button>
+        <a href="https://solscan.io/account/${e.wallet}" target="_blank" rel="noopener noreferrer" class="ld-footer-btn-sec">
+          🔗 View on Solscan
+        </a>
       </div>
     </div>
-
-    <!-- Trades: WIN / LOSE / TOTAL -->
-    <div class="tp-trades-row">
-      <div class="tp-trade-box tp-win">
-        <div class="tp-trade-label">WIN</div>
-        <div class="tp-trade-num">${e.winCount || 0}</div>
-      </div>
-      <div class="tp-trade-box tp-lose">
-        <div class="tp-trade-label">LOSE</div>
-        <div class="tp-trade-num">${e.lossCount || 0}</div>
-      </div>
-      <div class="tp-trade-box tp-total">
-        <div class="tp-trade-label">TOTAL</div>
-        <div class="tp-trade-num">${totalTrades}</div>
-      </div>
-      <div class="tp-trade-box tp-winrate">
-        <div class="tp-trade-label">WIN RATE</div>
-        <div class="tp-trade-num" style="color:#ffd166;">${winRate}%</div>
-      </div>
-    </div>
-
-    <!-- Meta row -->
-    <div class="tp-meta-row">
-      <div class="tp-meta-item">🔥 <strong>${e.loginStreak || 0}</strong> day streak</div>
-      <div class="tp-meta-item">🕐 Last active: <strong>${e.lastActive || "—"}</strong></div>
-    </div>
-
-    <!-- Badges -->
-    <div class="tp-section-title">🎖️ Badges</div>
-    <div class="tp-badges-grid">${badgesHtml}</div>
   `;
 
   const overlay = document.getElementById("traderProfileOverlay");
@@ -760,7 +967,6 @@ window.openTraderProfile = function(wallet) {
 };
 
 window.closeTraderProfile = function(e) {
-  // Close if clicking backdrop (not modal itself), or if called directly
   if (e && e.target !== document.getElementById("traderProfileOverlay")) return;
   const overlay = document.getElementById("traderProfileOverlay");
   overlay.classList.remove("tp-visible");
@@ -792,7 +998,7 @@ window.saveTraderCard = async function() {
     btn.parentElement.style.display = "";
 
     // Build filename from the displayed wallet snippet inside the modal
-    const walletEl = modal.querySelector(".tp-wallet span");
+    const walletEl = modal.querySelector(".ld-identity-wallet span, .tp-wallet span");
     const walletSnip = walletEl ? walletEl.textContent.replace(/[^a-zA-Z0-9]/g, "") : "trader";
     const filename = `scan2moon-trader-${walletSnip}.png`;
 
@@ -802,7 +1008,7 @@ window.saveTraderCard = async function() {
     link.click();
   } catch (err) {
     btn.parentElement.style.display = "";
-    console.error("Save card failed:", err);
+    _DEBUG && console.error("Save card failed:", err);
     alert("⚠️ Could not save image. Try again.");
   } finally {
     btn.innerHTML  = origText;

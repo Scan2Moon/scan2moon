@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <title>Risk Scanner — Scan2Moon</title>
   <meta name="description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 10 live signals." />
@@ -10,25 +11,36 @@
   <meta property="og:url" content="https://scan2moon.com/risk-scanner.html" />
   <meta property="og:title" content="Risk Scanner — Scan2Moon" />
   <meta property="og:description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 10 live signals." />
-  <meta property="og:image" content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image" content="https://scan2moon.com/headerweb.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@Scan2Moon" />
   <meta name="twitter:title" content="Risk Scanner — Scan2Moon" />
   <meta name="twitter:description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 10 live signals." />
-  <meta name="twitter:image" content="https://scan2moon.com/headerweb.png" />
+  <meta name="twitter:image" content="https://scan2moon.com/headerweb.jpg" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="scanner-hero.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
   <link rel="stylesheet" href="scanner-hero-sizing.css" />
   <link rel="stylesheet" href="watchlist.css" />
   <link rel="stylesheet" href="bundle.css" />
+  <link rel="stylesheet" href="lp-predictor.css" />
   <link rel="stylesheet" href="sentinel.css" />
+  <!-- PRO REDESIGN — loaded last for full override authority -->
+  <link rel="stylesheet" href="scanner-pro.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+  <script src="skin-global.js"></script>
 </head>
-<body>
+<body class="page-scanner">
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+
+<!-- Top progress bar (controlled by JS via class toggle) -->
+<div class="rs-progress-bar" id="rsScanProgressBar"></div>
+
 <div class="app">
 
   <header class="hero-header">
@@ -37,31 +49,47 @@
 
   <!-- NAV injected by nav.js -->
 
-  <!-- SCANNER HERO PANEL -->
-  <div class="scanner-hero">
-    <div class="scanner-hero-left">
-      <div class="scanner-pulse-dot"></div>
-      <div>
-        <div class="scanner-title" data-i18n="risk_scanner_title">🔍 RISK SCANNER</div>
-        <div class="scanner-subtitle" data-i18n="risk_scanner_sub">On-chain Solana token analysis • Rug detection • Real-time scoring</div>
-      </div>
+  <!-- ── TOOLBAR ──────────────────────────────────────── -->
+  <div class="rs-toolbar">
+    <div class="rs-toolbar-left">
+      <div class="rs-live-dot"></div>
+      <div class="rs-title">Risk Scanner</div>
+      <div class="rs-divider"></div>
+      <div class="rs-subtitle">Solana On-Chain Analysis</div>
     </div>
-    <div class="scanner-hero-right">
-      <div class="scanner-stat-pill">On-chain verified</div>
-      <div class="scanner-stat-pill">Solana RPC</div>
+    <div class="rs-toolbar-right">
+      <div class="rs-chip">On-chain verified</div>
+      <div class="rs-chip">Solana RPC</div>
+      <div class="rs-chip rs-chip-ver">v2.0</div>
     </div>
   </div>
 
-  <!-- SCAN BAR -->
-  <div class="scanner-scan-bar">
-    <input id="mintInput" data-i18n="scan_placeholder" placeholder="Paste token mint address (CA)…" autocomplete="off" spellcheck="false" />
-    <button id="scanBtn" data-i18n="scan_btn">🔍 Scan Token</button>
+  <!-- ── SCAN BAR ──────────────────────────────────────── -->
+  <div class="rs-scan-wrap">
+    <div class="rs-scan-bar">
+      <div class="rs-scan-pre">CA</div>
+      <input
+        id="mintInput"
+        data-i18n="scan_placeholder"
+        placeholder="Paste token contract address (mint)…"
+        autocomplete="off"
+        spellcheck="false"
+      />
+      <button id="scanBtn" class="rs-scan-btn" data-i18n="scan_btn">Scan Token</button>
+    </div>
+    <div class="rs-scan-hint">
+      <span class="rs-scan-hint-text">Supports all SPL tokens on Solana</span>
+      <div class="rs-scan-hint-sep"></div>
+      <span class="rs-scan-hint-text">No wallet connection required</span>
+      <div class="rs-scan-hint-sep"></div>
+      <span class="rs-scan-hint-text">10 live on-chain signals</span>
+    </div>
   </div>
 
-  <!-- FINAL SCORE -->
+  <!-- ── RISK SCORE ─────────────────────────────────────── -->
   <div class="panel">
-    <div class="panel-header">
-      <div class="panel-title" data-i18n="final_score_label">FINAL SCORE</div>
+    <div class="rs-panel-hdr">
+      <div class="rs-panel-label" data-i18n="final_score_label">Risk Score</div>
       <div class="score-actions">
         <button id="copyScore" data-i18n="btn_copy">Copy</button>
         <button id="saveScore" data-i18n="btn_save">Save</button>
@@ -74,7 +102,7 @@
           <div class="scan-waiting-ring r1"></div>
           <div class="scan-waiting-ring r2"></div>
           <div class="scan-waiting-ring r3"></div>
-          <div class="scan-waiting-icon">🎯</div>
+          <div class="scan-waiting-icon"></div>
         </div>
         <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         <div class="scan-waiting-sub" data-i18n="scan_waiting_sub">Paste a token address above to begin</div>
@@ -82,47 +110,47 @@
     </div>
   </div>
 
-  <!-- TOKEN MARKET STATS -->
+  <!-- ── MARKET DATA ───────────────────────────────────── -->
   <div class="panel">
-    <div class="panel-title" data-i18n="market_stats_title">Token Market Stats</div>
+    <div class="rs-panel-label" data-i18n="market_stats_title">Market Data</div>
     <div class="panel-body" id="tokenStats">
       <div class="scan-waiting">
         <div class="scan-waiting-radar">
           <div class="scan-waiting-ring r1"></div>
           <div class="scan-waiting-ring r2"></div>
           <div class="scan-waiting-ring r3"></div>
-          <div class="scan-waiting-icon">📊</div>
+          <div class="scan-waiting-icon"></div>
         </div>
         <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
       </div>
     </div>
   </div>
 
-  <!-- MAIN ANALYSIS + LIVE MARKET CAP -->
+  <!-- ── ON-CHAIN ANALYSIS + LIVE PRICE ───────────────── -->
   <div class="grid-2">
     <div class="panel">
-      <div class="panel-title" data-i18n="main_analysis_title">MAIN ANALYSIS</div>
+      <div class="rs-panel-label" data-i18n="main_analysis_title">On-Chain Analysis</div>
       <div class="panel-body" id="mainAnalysis">
         <div class="scan-waiting">
           <div class="scan-waiting-radar">
             <div class="scan-waiting-ring r1"></div>
             <div class="scan-waiting-ring r2"></div>
             <div class="scan-waiting-ring r3"></div>
-            <div class="scan-waiting-icon">🔬</div>
+            <div class="scan-waiting-icon"></div>
           </div>
           <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         </div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-title" data-i18n="live_market_cap">📈 LIVE MARKET CAP</div>
+      <div class="rs-panel-label" data-i18n="live_market_cap">Live Price</div>
       <div class="panel-body" id="marketCap">
         <div class="scan-waiting">
           <div class="scan-waiting-radar">
             <div class="scan-waiting-ring r1"></div>
             <div class="scan-waiting-ring r2"></div>
             <div class="scan-waiting-ring r3"></div>
-            <div class="scan-waiting-icon">📈</div>
+            <div class="scan-waiting-icon"></div>
           </div>
           <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         </div>
@@ -130,24 +158,24 @@
     </div>
   </div>
 
-  <!-- SCAN SIGNALS + TOP HOLDERS -->
+  <!-- ── SCAN SIGNALS + TOP HOLDERS ───────────────────── -->
   <div class="grid-2">
     <div class="panel">
-      <div class="panel-title" data-i18n="signals_panel">SCAN SIGNALS</div>
+      <div class="rs-panel-label" data-i18n="signals_panel">Scan Signals</div>
       <div class="panel-body" id="scanSignals">
         <div class="scan-waiting">
           <div class="scan-waiting-radar">
             <div class="scan-waiting-ring r1"></div>
             <div class="scan-waiting-ring r2"></div>
             <div class="scan-waiting-ring r3"></div>
-            <div class="scan-waiting-icon">📡</div>
+            <div class="scan-waiting-icon"></div>
           </div>
           <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         </div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-title" data-i18n="top_holders_panel">TOP HOLDERS</div>
+      <div class="rs-panel-label" data-i18n="top_holders_panel">Top Holders</div>
       <div class="panel-body">
         <div id="holdersTable" class="holders-table">
           <div class="scan-waiting">
@@ -155,7 +183,7 @@
               <div class="scan-waiting-ring r1"></div>
               <div class="scan-waiting-ring r2"></div>
               <div class="scan-waiting-ring r3"></div>
-              <div class="scan-waiting-icon">👥</div>
+              <div class="scan-waiting-icon"></div>
             </div>
             <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
           </div>
@@ -164,31 +192,31 @@
     </div>
   </div>
 
-  <!-- DEV HISTORY + TOKEN LINKS -->
+  <!-- ── DEV HISTORY + TOKEN LINKS ────────────────────── -->
   <div class="grid-2">
     <div class="panel">
-      <div class="panel-title" data-i18n="dev_history_panel">🕵️ DEV HISTORY</div>
+      <div class="rs-panel-label" data-i18n="dev_history_panel">Dev History</div>
       <div class="panel-body" id="devHistoryPanel">
         <div class="scan-waiting">
           <div class="scan-waiting-radar">
             <div class="scan-waiting-ring r1"></div>
             <div class="scan-waiting-ring r2"></div>
             <div class="scan-waiting-ring r3"></div>
-            <div class="scan-waiting-icon">🕵️</div>
+            <div class="scan-waiting-icon"></div>
           </div>
           <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         </div>
       </div>
     </div>
     <div class="panel">
-      <div class="panel-title" data-i18n="token_links_panel">🔗 TOKEN LINKS</div>
+      <div class="rs-panel-label" data-i18n="token_links_panel">Token Links</div>
       <div class="panel-body" id="tokenLinksPanel">
         <div class="scan-waiting">
           <div class="scan-waiting-radar">
             <div class="scan-waiting-ring r1"></div>
             <div class="scan-waiting-ring r2"></div>
             <div class="scan-waiting-ring r3"></div>
-            <div class="scan-waiting-icon">🔗</div>
+            <div class="scan-waiting-icon"></div>
           </div>
           <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         </div>
@@ -196,11 +224,11 @@
     </div>
   </div>
 
-  <!-- BUNDLE ATTACK DETECTOR -->
+  <!-- ── BUNDLE ATTACK DETECTOR ───────────────────────── -->
   <div class="panel">
-    <div class="panel-header">
-      <div class="panel-title" data-i18n="bundle_panel_title">📦 BUNDLE ATTACK DETECTOR</div>
-      <div class="panel-badge" style="font-size:10px;background:rgba(232,160,32,0.15);color:#e8a020;border:1px solid rgba(232,160,32,0.3);padding:3px 10px;border-radius:8px;font-weight:700;letter-spacing:0.5px;">NEW</div>
+    <div class="rs-panel-hdr">
+      <div class="rs-panel-label" data-i18n="bundle_panel_title">Bundle Attack Detector</div>
+      <div class="rs-new-badge">NEW</div>
     </div>
     <div class="panel-body" id="bundlePanel">
       <div class="scan-waiting">
@@ -208,7 +236,7 @@
           <div class="scan-waiting-ring r1"></div>
           <div class="scan-waiting-ring r2"></div>
           <div class="scan-waiting-ring r3"></div>
-          <div class="scan-waiting-icon">📦</div>
+          <div class="scan-waiting-icon"></div>
         </div>
         <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
         <div class="scan-waiting-sub" data-i18n="bundle_waiting_sub">Detects coordinated wallet bundling at token launch</div>
@@ -216,23 +244,67 @@
     </div>
   </div>
 
-  <!-- COMMUNITY -->
+  <!-- ── LP PULL PREDICTOR ────────────────────────────── -->
   <div class="panel">
-    <div class="panel-title" data-i18n="community_panel">Scan2Moon Community</div>
+    <div class="rs-panel-hdr">
+      <div class="rs-panel-label">LP Pull Predictor</div>
+      <div class="rs-new-badge">NEW</div>
+    </div>
+    <div class="panel-body" id="lpPanel">
+      <div class="scan-waiting">
+        <div class="scan-waiting-radar">
+          <div class="scan-waiting-ring r1"></div>
+          <div class="scan-waiting-ring r2"></div>
+          <div class="scan-waiting-ring r3"></div>
+          <div class="scan-waiting-icon"></div>
+        </div>
+        <div class="scan-waiting-label" data-i18n="awaiting_scan">Awaiting Scan</div>
+        <div class="scan-waiting-sub">Predicts LP pull probability using burn status, pool age &amp; dev history</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── COMMUNITY ─────────────────────────────────────── -->
+  <div class="panel">
+    <div class="rs-panel-label" data-i18n="community_panel">Community</div>
     <div class="panel-body" id="communityPanel"></div>
   </div>
 
   <footer class="footer">
     <div class="footer-left" data-i18n="footer_disclaimer">Informational tool only. Always DYOR.</div>
     <div class="footer-right">
-      <span class="version">Version V2.0</span>
-      <span class="separator">•</span>
+      <span class="version">v2.0</span>
+      <span class="separator">·</span>
       <span class="powered" data-i18n="footer_powered">Powered by Scan2Moon</span>
     </div>
   </footer>
 
 </div>
 
+<!-- Progress bar toggle script -->
+<script>
+  (function() {
+    const bar = document.getElementById('rsScanProgressBar');
+    if (!bar) return;
+    // Hook into scan button click to show/hide progress bar
+    document.addEventListener('DOMContentLoaded', function() {
+      const btn = document.getElementById('scanBtn');
+      if (!btn) return;
+      btn.addEventListener('click', function() {
+        bar.classList.add('active');
+      });
+      // Remove bar when scan log finishes (log-done class added)
+      const observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+          if (m.target.classList && (m.target.classList.contains('log-done') || m.target.classList.contains('log-error'))) {
+            setTimeout(() => bar.classList.remove('active'), 600);
+          }
+        });
+      });
+      observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'] });
+    });
+  })();
+</script>
 
 <script type="module" src="script.js"></script>
 </body>

@@ -16,9 +16,9 @@ const DICT = {
 
   /* ── Navigation ── */
   nav_home:            { en: "HOME",        nl: "HOME" },
-  nav_scanners:        { en: "SCANNERS",    nl: "SCANNERS" },
+  nav_scanners:        { en: "ANALYSIS",    nl: "ANALYSE" },
   nav_radars:          { en: "RADARS",      nl: "RADARS" },
-  nav_insights:        { en: "INSIGHTS",    nl: "INZICHTEN" },
+  nav_insights:        { en: "PLATFORM",    nl: "PLATFORM" },
 
   nav_risk_scanner:    { en: "Risk Scanner",         nl: "Risico Scanner" },
   nav_risk_scanner_sub:{ en: "On-chain rug detection", nl: "On-chain rug detectie" },
@@ -35,11 +35,11 @@ const DICT = {
   nav_watchlist:       { en: "Token Watchlist",     nl: "Token Volglijst" },
   nav_watchlist_sub:   { en: "Your saved tokens",   nl: "Jouw opgeslagen tokens" },
 
-  nav_safe_ape:        { en: "Safe Ape Simulator",               nl: "Safe Ape Simulator" },
-  nav_safe_ape_sub:    { en: "Paper trading with risk intelligence", nl: "Papierhandel met risico-intelligentie" },
+  nav_safe_ape:        { en: "Paper Trading",                    nl: "Paper Trading" },
+  nav_safe_ape_sub:    { en: "Simulate trades with real risk data", nl: "Simuleer trades met echte risicodata" },
 
   nav_leaderboard:     { en: "Leaderboard",          nl: "Scorebord" },
-  nav_leaderboard_sub: { en: "Top Safe Ape traders", nl: "Top Safe Ape handelaars" },
+  nav_leaderboard_sub: { en: "Top risk-adjusted traders", nl: "Top risicogecorrigeerde handelaars" },
 
   nav_about:           { en: "About Scan2Moon",      nl: "Over Scan2Moon" },
   nav_about_sub:       { en: "Project, mission & roadmap", nl: "Project, missie & routekaart" },
@@ -182,7 +182,7 @@ const DICT = {
                          nl: "Analyseer portemonnee handelsgedrag & kopieer-handel risico" },
 
   /* ── Safe Ape ── */
-  safe_ape_title:      { en: "🦍 SAFE APE SIMULATOR",      nl: "🦍 SAFE APE SIMULATOR" },
+  safe_ape_title:      { en: "PAPER TRADING SIMULATOR",      nl: "PAPER TRADING SIMULATOR" },
 
   /* ── Watchlist ── */
   watchlist_title:     { en: "⭐ TOKEN WATCHLIST",          nl: "⭐ TOKEN VOLGLIJST" },
@@ -240,16 +240,16 @@ const DICT = {
   sa_token_placeholder: { en: "Paste token mint address to start trading…", nl: "Plak token mint adres om te beginnen met handelen…" },
   sa_analyse_btn:       { en: "🔍 Analyse Token",       nl: "🔍 Token Analyseren" },
   sa_disconnect:        { en: "Disconnect",              nl: "Verbreken" },
-  sa_risk_score:        { en: "🛡️ SCAN2MOON RISK SCORE", nl: "🛡️ SCAN2MOON RISICO SCORE" },
-  sa_market_signals:    { en: "📊 MARKET SIGNALS",      nl: "📊 MARKT SIGNALEN" },
-  sa_trade_panel:       { en: "⚡ TRADE",               nl: "⚡ HANDEL" },
+  sa_risk_score:        { en: "RISK SCORE",              nl: "RISICO SCORE" },
+  sa_market_signals:    { en: "MARKET SIGNALS",         nl: "MARKT SIGNALEN" },
+  sa_trade_panel:       { en: "TRADE",                  nl: "HANDEL" },
   sa_buy_tab:           { en: "BUY",                    nl: "KOPEN" },
   sa_sell_tab:          { en: "SELL",                   nl: "VERKOPEN" },
-  sa_buy_btn:           { en: "🦍 APE IN (BUY)",        nl: "🦍 APE IN (KOPEN)" },
-  sa_sell_btn:          { en: "🔴 EXIT POSITION (SELL)", nl: "🔴 POSITIE VERLATEN (VERKOPEN)" },
-  sa_top_holders:       { en: "🏆 TOP HOLDERS",         nl: "🏆 TOP HOUDERS" },
-  sa_holdings:          { en: "💼 YOUR HOLDINGS",       nl: "💼 JOUW BEZITTINGEN" },
-  sa_recent_trades:     { en: "📋 RECENT TRADES",       nl: "📋 RECENTE HANDEL" },
+  sa_buy_btn:           { en: "BUY POSITION",           nl: "POSITIE KOPEN" },
+  sa_sell_btn:          { en: "EXIT POSITION",          nl: "POSITIE VERLATEN" },
+  sa_top_holders:       { en: "TOP HOLDERS",            nl: "TOP HOUDERS" },
+  sa_holdings:          { en: "OPEN POSITIONS",         nl: "OPEN POSITIES" },
+  sa_recent_trades:     { en: "TRADE HISTORY",          nl: "HANDEL GESCHIEDENIS" },
 
   /* ── Watchlist ── */
   watchlist_sub:        { en: "Your saved tokens • Re-scan anytime • Track your picks",
@@ -258,7 +258,7 @@ const DICT = {
   wl_clear_all:         { en: "🗑️ Clear All",           nl: "🗑️ Alles Wissen" },
 
   /* ── Safe Ape header ── */
-  safe_ape_title_short: { en: "SAFE APE SIMULATOR",     nl: "SAFE APE SIMULATOR" },
+  safe_ape_title_short: { en: "PAPER TRADING SIMULATOR", nl: "PAPER TRADING SIMULATOR" },
   safe_ape_sub:         { en: "Paper trading with real Scan2Moon risk intelligence",
                           nl: "Papierhandel met echte Scan2Moon risico-intelligentie" },
 
@@ -268,7 +268,7 @@ const DICT = {
   ab_hero_sub:          { en: "Scan2Moon is a professional on-chain intelligence platform for the Solana ecosystem. We give every trader — from first-timers to seasoned degens — the tools to read the chain honestly, enter positions wisely, and build real discipline in the most volatile market on earth.",
                           nl: "Scan2Moon is een professioneel on-chain intelligentieplatform voor het Solana-ecosysteem. Wij geven elke handelaar — van beginners tot ervaren degens — de tools om de blockchain eerlijk te lezen, posities wijs in te nemen en echte discipline op te bouwen in de meest volatiele markt ter wereld." },
   ab_cta_scanner:       { en: "🛡️ Try Risk Scanner",   nl: "🛡️ Probeer Risico Scanner" },
-  ab_cta_ape:           { en: "🦍 Safe Ape Simulator",  nl: "🦍 Safe Ape Simulator" },
+  ab_cta_ape:           { en: "Paper Trading Simulator", nl: "Paper Trading Simulator" },
   ab_stat_tools:        { en: "Tools",                  nl: "Tools" },
   ab_stat_signals:      { en: "On-chain signals",       nl: "On-chain signalen" },
   ab_stat_version:      { en: "Latest version",         nl: "Nieuwste versie" },
@@ -282,12 +282,12 @@ const DICT = {
                           nl: "Waar we vandaan komen. Waar we naartoe gaan." },
 
   /* ── Leaderboard page ── */
-  lb_title:             { en: "🏆 SAFE APE LEADERBOARD", nl: "🏆 SAFE APE SCOREBORD" },
+  lb_title:             { en: "PERFORMANCE LEADERBOARD",  nl: "PRESTATIE SCOREBORD" },
   lb_subtitle:          { en: "Risk-adjusted rankings • Real discipline rewarded • Not just lucky degens",
                           nl: "Risico-gecorrigeerde ranglijsten • Echte discipline beloond • Niet alleen geluksvogels" },
   lb_mvp_today:         { en: "👑 MVP TODAY",            nl: "👑 MVP VANDAAG" },
   lb_mvp_week:          { en: "🔥 MVP THIS WEEK",        nl: "🔥 MVP DEZE WEEK" },
-  lb_mvp_month:         { en: "🦍 MVP THIS MONTH",       nl: "🦍 MVP DEZE MAAND" },
+  lb_mvp_month:         { en: "MONTH LEADER",             nl: "MAAND LEIDER" },
   lb_mvp_alltime:       { en: "🐐 ALL TIME MVP",         nl: "🐐 ALL TIME MVP" },
   lb_your_rank:         { en: "YOUR RANK",               nl: "JOUW RANG" },
   lb_share_rank:        { en: "🐦 Share on X",           nl: "🐦 Delen op X" },
@@ -336,7 +336,7 @@ const DICT = {
   ab_tool_entry_name:     { en: "Entry Radar",          nl: "Instap Radar" },
   ab_tool_entry_desc:     { en: "Real-time detection of newly listed Solana tokens that pass our safety filters. Momentum scoring, whale activity heatmap, safe entry price calculations, and auto-filtering of obvious traps.",
                             nl: "Real-time detectie van nieuw genoteerde Solana-tokens die onze veiligheidsfilters passeren. Momentumscore, walvisactiviteitheatmap, veilige instapprijsberekeningen en automatisch filteren van duidelijke valstrikken." },
-  ab_tool_ape_name:       { en: "Safe Ape Simulator",   nl: "Safe Ape Simulator" },
+  ab_tool_ape_name:       { en: "Paper Trading Simulator", nl: "Paper Trading Simulator" },
   ab_tool_ape_desc:       { en: "Paper-trade Solana tokens with live prices, real-time candle charts, and a full risk-intelligence layer on every position. Start with $10,000 Sol2Moon and build your track record without risking real capital.",
                             nl: "Paper-trade Solana-tokens met live prijzen, realtime kandelaargrafieken en een volledige risico-intelligentielaag op elke positie. Begin met $10.000 Sol2Moon en bouw je reputatie op zonder echt kapitaal te riskeren." },
   ab_tool_lb_name:        { en: "Leaderboard",          nl: "Scorebord" },
@@ -399,7 +399,7 @@ const DICT = {
   er_from_vol:        { en: "FROM VOL DATA",   nl: "VAN VOL DATA" },
   er_wallet_label:    { en: "wallet",          nl: "portemonnee" },
   er_1h_window:       { en: "~1h window",      nl: "~1u venster" },
-  er_view_dex:        { en: "📊 View on DexScreener", nl: "📊 Bekijk op DexScreener" },
+  er_view_dex:        { en: "📊 View on Birdeye", nl: "📊 Bekijk op Birdeye" },
   er_scan_whale:      { en: "🧬 Scan Whale",   nl: "🧬 Scan Walvis" },
   er_estimated_note:  { en: "📊 Estimated from 1H volume data across radar tokens · Auto-refreshes every 30s · Updated",
                         nl: "📊 Geschat van 1U volumedata over radartokens · Elke 30s vernieuwd · Bijgewerkt" },
@@ -545,7 +545,7 @@ const DICT = {
   guide_card2_title:    { en: "Track the Smart Money",   nl: "Volg het Slimme Geld" },
   guide_card2_desc:     { en: "Discover how to use Whale DNA to follow wallet behavior, spot early accumulation, and understand what smart money is doing right now.",
                           nl: "Ontdek hoe je Walvis DNA gebruikt om portemonnee-gedrag te volgen, vroege accumulatie te spotten en te begrijpen wat slim geld nu doet." },
-  guide_card3_tag:      { en: "🦍 Safe Ape",             nl: "🦍 Safe Ape" },
+  guide_card3_tag:      { en: "Paper Trading",           nl: "Paper Trading" },
   guide_card3_title:    { en: "Paper Trade Before You Risk Real SOL", nl: "Paper Trade Voordat Je Echt SOL Riskeert" },
   guide_card3_desc:     { en: "Learn to use the Safe Ape simulator to test your strategy, track paper trades, and build discipline without risking actual funds.",
                           nl: "Leer de Safe Ape simulator te gebruiken om je strategie te testen, papierhandels bij te houden en discipline op te bouwen zonder echt geld te riskeren." },
@@ -574,7 +574,7 @@ const DICT = {
                           nl: "Elk Solana token heeft een uniek mint adres — een code van 32–44 tekens bestaande uit letters en cijfers. Het wordt soms het \"Contract Adres\" of \"CA\" genoemd. Dit is wat Scan2Moon gebruikt om alle on-chain data van dat token op te zoeken." },
   gr_ch1_demo_label:    { en: "Example mint address",    nl: "Voorbeeld mint adres" },
   gr_ch1_steps_title:   { en: "How to find a token's mint address:", nl: "Hoe je het mint adres van een token vindt:" },
-  gr_ch1_step1:         { en: "Go to <strong>DexScreener.com</strong> (the most reliable source for Solana token data)", nl: "Ga naar <strong>DexScreener.com</strong> (de meest betrouwbare bron voor Solana tokendata)" },
+  gr_ch1_step1:         { en: "Go to <strong>Birdeye.so</strong> (the most reliable source for Solana token data)", nl: "Ga naar <strong>Birdeye.so</strong> (de meest betrouwbare bron voor Solana tokendata)" },
   gr_ch1_step2:         { en: "Search for the token by name — for example type <strong>\"GHOST\"</strong> in the search bar", nl: "Zoek het token op naam — typ bijvoorbeeld <strong>\"GHOST\"</strong> in de zoekbalk" },
   gr_ch1_step3:         { en: "Click on the correct token result (check the symbol and pair carefully)", nl: "Klik op het juiste tokenresultaat (controleer het symbool en paar zorgvuldig)" },
   gr_ch1_step4:         { en: "Look for <strong>\"Contract\"</strong> or <strong>\"CA\"</strong> on the token page — this is the mint address", nl: "Zoek naar <strong>\"Contract\"</strong> of <strong>\"CA\"</strong> op de tokenpagina — dit is het mint adres" },
@@ -685,10 +685,10 @@ const DICT = {
   gr_q1_ec:             { en: "❌ Nope — 87/100 is a full completed scan result. Moon Coin level.", nl: "❌ Nee — 87/100 is een volledig afgerond scanresultaat. Moon Munt niveau." },
   gr_q2_text:           { en: "Where do you find a token's Mint Address?", nl: "Waar vind je het Mint Adres van een token?" },
   gr_q2_a:              { en: "In your Phantom wallet — it's your own wallet address", nl: "In je Phantom wallet — het is jouw eigen portemonnee adres" },
-  gr_q2_b:              { en: "On DexScreener — search the token, copy the Contract Address (CA)", nl: "Op DexScreener — zoek het token op, kopieer het Contract Adres (CA)" },
+  gr_q2_b:              { en: "On Birdeye.so — search the token, copy the Contract Address (CA)", nl: "Op Birdeye.so — zoek het token op, kopieer het Contract Adres (CA)" },
   gr_q2_c:              { en: "The token name (like \"GHOST\") is the mint address", nl: "De tokennaam (zoals \"GHOST\") is het mint adres" },
   gr_q2_ea:             { en: "❌ Your wallet address is YOUR address — not the token's mint address. Never paste your own wallet.", nl: "❌ Jouw portemonnee adres is JOUW adres — niet het mint adres van het token. Plak nooit je eigen portemonnee." },
-  gr_q2_eb:             { en: "✅ Correct! DexScreener shows the Contract Address (CA) for every Solana token. That's the mint address.", nl: "✅ Correct! DexScreener toont het Contract Adres (CA) voor elk Solana token. Dat is het mint adres." },
+  gr_q2_eb:             { en: "✅ Correct! Birdeye.so shows the Contract Address (CA) for every Solana token. That's the mint address.", nl: "✅ Correct! Birdeye.so toont het Contract Adres (CA) voor elk Solana token. Dat is het mint adres." },
   gr_q2_ec:             { en: "❌ The token name is just a label — anyone can create a fake token with the same name. Always use the mint address.", nl: "❌ De tokennaam is slechts een label — iedereen kan een nep-token aanmaken met dezelfde naam. Gebruik altijd het mint adres." },
   gr_q3_text:           { en: "LP Strength scores 18/100 on a token you're about to buy. What does this mean?", nl: "LP Sterkte scoort 18/100 op een token dat je wilt kopen. Wat betekent dit?" },
   gr_q3_a:              { en: "Great! LP Strength doesn't affect the price much", nl: "Top! LP Sterkte heeft weinig invloed op de prijs" },
@@ -771,8 +771,8 @@ const DICT = {
   /* ── Common UI ── */
   on_chain_verified:   { en: "On-chain verified",          nl: "On-chain geverifieerd" },
   solana_rpc:          { en: "Solana RPC",                 nl: "Solana RPC" },
-  view_dexscreener:    { en: "View live chart on DexScreener →", nl: "Bekijk live grafiek op DexScreener →" },
-  real_time_data:      { en: "Real-time data · DexScreener", nl: "Real-time data · DexScreener" },
+  view_dexscreener:    { en: "View live chart →", nl: "Bekijk live grafiek →" },
+  real_time_data:      { en: "Real-time data · Birdeye", nl: "Real-time data · Birdeye" },
   loading:             { en: "Loading…",                   nl: "Laden…" },
   error_no_data:       { en: "⚠️ Could not fetch market data", nl: "⚠️ Marktdata kon niet worden opgehaald" },
 
@@ -782,15 +782,15 @@ const DICT = {
   sa_safe_yes:          { en: "✅ Yes, proceed",       nl: "✅ Ja, ga door" },
   sa_safe_caution:      { en: "⚠️ Use caution",        nl: "⚠️ Wees voorzichtig" },
   sa_lbl_lp_status:     { en: "LP Status",             nl: "LP Status" },
-  sa_lbl_safe_to_ape:   { en: "Safe to Ape?",          nl: "Veilig om te Apen?" },
+  sa_lbl_safe_to_ape:   { en: "Safe to Enter?",         nl: "Veilig om in te stappen?" },
   sa_lbl_24h_vol:       { en: "24H Volume",            nl: "24U Volume" },
 
   /* ── Safe Ape – Market Signals panel ── */
-  sa_sig_strong_buy:    { en: "🚀 STRONG BUY SIGNAL",   nl: "🚀 STERK KOOPSIGNAAL" },
-  sa_sig_bullish:       { en: "📈 BULLISH",              nl: "📈 BULLISH" },
-  sa_sig_neutral:       { en: "➡️ NEUTRAL / SIDEWAYS",   nl: "➡️ NEUTRAAL / ZIJWAARTS" },
-  sa_sig_bearish:       { en: "📉 BEARISH",              nl: "📉 BEARISH" },
-  sa_sig_strong_sell:   { en: "🚨 STRONG SELL PRESSURE", nl: "🚨 STERKE VERKOOPDRUK" },
+  sa_sig_strong_buy:    { en: "▲▲ STRONG BUY SIGNAL",   nl: "▲▲ STERK KOOPSIGNAAL" },
+  sa_sig_bullish:       { en: "▲ BULLISH",               nl: "▲ BULLISH" },
+  sa_sig_neutral:       { en: "· NEUTRAL / SIDEWAYS",    nl: "· NEUTRAAL / ZIJWAARTS" },
+  sa_sig_bearish:       { en: "▼ BEARISH",               nl: "▼ BEARISH" },
+  sa_sig_strong_sell:   { en: "▼▼ STRONG SELL PRESSURE", nl: "▼▼ STERKE VERKOOPDRUK" },
   sa_mom_bullish:       { en: "🚀 Bullish",              nl: "🚀 Stijgend" },
   sa_mom_neutral:       { en: "➡️ Neutral",              nl: "➡️ Neutraal" },
   sa_mom_bearish:       { en: "📉 Bearish",              nl: "📉 Dalend" },
@@ -991,9 +991,9 @@ export function applyTranslations() {
   document.querySelectorAll(".lang-flag-btn").forEach(btn => {
     btn.classList.toggle("lang-active", btn.dataset.lang === _lang);
   });
-
-  /* Dispatch event so pages can react and re-render dynamic content */
-  window.dispatchEvent(new CustomEvent("langchange", { detail: { lang: _lang } }));
+  /* NOTE: langchange event is dispatched by setLang(), NOT here.
+     Dispatching inside applyTranslations() caused infinite recursion:
+     applyTranslations → langchange → applyTranslations → … */
 }
 
 /* ── Set language and persist ─────────────────────────────────── */
@@ -1002,6 +1002,9 @@ export function setLang(lang) {
   _lang = lang;
   localStorage.setItem("s2m_lang", lang);
   applyTranslations();
+  /* Dispatch AFTER translations are applied so listeners can re-render
+     dynamic content that isn't covered by data-i18n attributes. */
+  window.dispatchEvent(new CustomEvent("langchange", { detail: { lang: _lang } }));
 }
 
 /* ── Auto-apply on module load ────────────────────────────────── */

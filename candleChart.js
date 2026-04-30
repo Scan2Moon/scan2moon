@@ -73,10 +73,13 @@ const TOOL_HINTS = {
 
 export class CandleChart {
 
-  constructor(containerId) {
+  constructor(containerId, opts = {}) {
     this._containerId  = containerId;
     this._container    = document.getElementById(containerId);
+    this._opts         = opts;          /* { noToolbar: true } hides drawing toolbar */
     this.tf            = "5m";
+    /* Neon Degen skin detection */
+    try { this._nd = localStorage.getItem('s2m_dash_skin') === 'neon_degen'; } catch { this._nd = false; }
     this.tfMs          = TF_MS["5m"];
     this.isLoading     = false;
     this.liveCandle    = null;
@@ -108,8 +111,8 @@ export class CandleChart {
     /* Container becomes a flex column: toolbar on top, chart canvas below */
     el.style.cssText = "display:flex;flex-direction:column;width:100%;height:100%;position:relative;";
 
-    /* ── Drawing toolbar (above the chart canvas) ── */
-    this._buildToolbar();
+    /* ── Drawing toolbar (above the chart canvas) — skipped for compact embeds ── */
+    if (!this._opts.noToolbar) this._buildToolbar();
 
     /* ── Inner canvas div — chart renders here, not on the full container ── */
     this._chartEl = document.createElement("div");
@@ -120,29 +123,29 @@ export class CandleChart {
     this._chart = LightweightCharts.createChart(this._chartEl, {
       autoSize: true,
       layout: {
-        background: { type: "solid", color: "#040d0b" },
-        textColor:  "rgba(207,255,244,0.45)",
+        background: { type: "solid", color: this._nd ? "#070010" : "#040d0b" },
+        textColor:  this._nd ? "rgba(220,170,255,0.50)" : "rgba(207,255,244,0.45)",
         fontFamily: "'Segoe UI', system-ui, sans-serif",
         fontSize:   11,
       },
       grid: {
-        vertLines: { color: "rgba(44,255,201,0.05)" },
-        horzLines: { color: "rgba(44,255,201,0.05)" },
+        vertLines: { color: this._nd ? "rgba(200,64,255,0.06)" : "rgba(44,255,201,0.05)" },
+        horzLines: { color: this._nd ? "rgba(200,64,255,0.06)" : "rgba(44,255,201,0.05)" },
       },
       crosshair: {
         mode:     LightweightCharts.CrosshairMode.Normal,
-        vertLine: { color: "rgba(207,255,244,0.22)", style: 0, width: 1, labelBackgroundColor: "#0d2820" },
-        horzLine: { color: "rgba(207,255,244,0.22)", style: 0, width: 1, labelBackgroundColor: "#0d2820" },
+        vertLine: { color: this._nd ? "rgba(200,150,255,0.28)" : "rgba(207,255,244,0.22)", style: 0, width: 1, labelBackgroundColor: this._nd ? "#1a0030" : "#0d2820" },
+        horzLine: { color: this._nd ? "rgba(200,150,255,0.28)" : "rgba(207,255,244,0.22)", style: 0, width: 1, labelBackgroundColor: this._nd ? "#1a0030" : "#0d2820" },
       },
       rightPriceScale: {
-        borderColor:  "rgba(44,255,201,0.12)",
-        textColor:    "rgba(207,255,244,0.45)",
+        borderColor:  this._nd ? "rgba(200,64,255,0.15)" : "rgba(44,255,201,0.12)",
+        textColor:    this._nd ? "rgba(220,170,255,0.50)" : "rgba(207,255,244,0.45)",
         scaleMargins: { top: 0.06, bottom: 0.22 },
         mode: LightweightCharts.PriceScaleMode.Logarithmic,
       },
       timeScale: {
-        borderColor:    "rgba(44,255,201,0.12)",
-        textColor:      "rgba(207,255,244,0.45)",
+        borderColor:    this._nd ? "rgba(200,64,255,0.15)" : "rgba(44,255,201,0.12)",
+        textColor:      this._nd ? "rgba(220,170,255,0.50)" : "rgba(207,255,244,0.45)",
         timeVisible:    true,
         secondsVisible: false,
         rightOffset:    5,
@@ -154,12 +157,12 @@ export class CandleChart {
 
     /* ── Candlestick series ── */
     this._candleSeries = this._chart.addCandlestickSeries({
-      upColor:         "#26c98a",
-      downColor:       "#ef5350",
-      borderUpColor:   "#26c98a",
-      borderDownColor: "#ef5350",
-      wickUpColor:     "#26c98a",
-      wickDownColor:   "#ef5350",
+      upColor:         this._nd ? "#39ff14" : "#26c98a",
+      downColor:       this._nd ? "#c840ff" : "#ef5350",
+      borderUpColor:   this._nd ? "#39ff14" : "#26c98a",
+      borderDownColor: this._nd ? "#c840ff" : "#ef5350",
+      wickUpColor:     this._nd ? "#39ff14" : "#26c98a",
+      wickDownColor:   this._nd ? "#c840ff" : "#ef5350",
       priceFormat: {
         type:      "custom",
         minMove:   0.000000001,
@@ -169,7 +172,7 @@ export class CandleChart {
 
     /* ── Volume histogram (bottom 20%) ── */
     this._volSeries = this._chart.addHistogramSeries({
-      color:            "rgba(38,201,138,0.4)",
+      color:            this._nd ? "rgba(57,255,20,0.38)" : "rgba(38,201,138,0.4)",
       priceFormat:      { type: "volume" },
       priceScaleId:     "vol",
       lastValueVisible: false,
@@ -184,9 +187,9 @@ export class CandleChart {
     this._legend.style.cssText = [
       "position:absolute", "top:0", "left:0", "right:72px",
       "height:26px", "padding:0 10px",
-      "background:rgba(4,14,10,0.92)",
+      this._nd ? "background:rgba(7,0,16,0.95)" : "background:rgba(4,14,10,0.92)",
       "font:11px 'Segoe UI',system-ui,sans-serif",
-      "color:rgba(207,255,244,0.55)",
+      this._nd ? "color:rgba(200,150,255,0.6)" : "color:rgba(207,255,244,0.55)",
       "pointer-events:none", "z-index:10",
       "display:flex", "align-items:center", "gap:10px",
       "white-space:nowrap", "overflow:hidden",
@@ -199,9 +202,9 @@ export class CandleChart {
     this._loadingEl.style.cssText = [
       "position:absolute", "inset:0",
       "display:flex", "align-items:center", "justify-content:center",
-      "background:rgba(4,13,10,0.88)",
+      this._nd ? "background:rgba(7,0,16,0.92)" : "background:rgba(4,13,10,0.88)",
       "font:13px 'Segoe UI',sans-serif",
-      "color:rgba(207,255,244,0.45)",
+      this._nd ? "color:rgba(200,150,255,0.5)" : "color:rgba(207,255,244,0.45)",
       "z-index:20", "pointer-events:none",
     ].join(";");
     this._loadingEl.textContent = "Loading chart data…";
@@ -391,7 +394,21 @@ export class CandleChart {
     ].sort((a, b) => a.time - b.time);
 
     lineSeries.setData(pts);
-    this._drawings.push({ type: "trendline", ref: lineSeries });
+    this._drawings.push({ type: "trendline", ref: lineSeries, pts });
+  }
+
+  /* ── Draw trendline from stored pts (used by importSerializedDrawings) ── */
+  _drawTrendLine(pts) {
+    const lineSeries = this._chart.addLineSeries({
+      color:                  "rgba(192,132,252,0.8)",
+      lineWidth:              1,
+      lineStyle:              LightweightCharts.LineStyle.Solid,
+      lastValueVisible:       false,
+      priceLineVisible:       false,
+      crosshairMarkerVisible: false,
+    });
+    lineSeries.setData(pts);
+    this._drawings.push({ type: "trendline", ref: lineSeries, pts });
   }
 
   /* ── Eraser ── */
@@ -533,7 +550,7 @@ export class CandleChart {
     const volData    = normalised.map(c => ({
       time:  c.time,
       value: c.vol,
-      color: c.close >= c.open ? "rgba(38,201,138,0.40)" : "rgba(239,83,80,0.38)",
+      color: c.close >= c.open ? (this._nd ? "rgba(57,255,20,0.38)" : "rgba(38,201,138,0.40)") : (this._nd ? "rgba(200,64,255,0.35)" : "rgba(239,83,80,0.38)"),
     }));
 
     normalised.forEach(c => { this._volData[c.time] = c.vol; });
@@ -568,13 +585,18 @@ export class CandleChart {
 
     if (!this._priceEma || this._priceEma <= 0) this._priceEma = price;
     const deviation = Math.abs(price - this._priceEma) / this._priceEma;
-    const isSpike   = deviation > 0.08;
+    /* Only block truly absurd API errors (price ≥ 2× off in a single tick).
+       The old 8 % threshold was too tight for volatile meme tokens — it silently
+       dropped every tick during a fast pump/dump, making the chart look completely
+       frozen even while the price was moving hard.                                */
+    const isSpike   = deviation > 0.50;
 
     if (isSpike) {
-      this._priceEma = this._priceEma * 0.90 + price * 0.10;
+      this._priceEma = this._priceEma * 0.85 + price * 0.15;
       return;
     }
-    this._priceEma = this._priceEma * 0.75 + price * 0.25;
+    /* Faster EMA (α = 0.5) so the live candle tracks price aggressively */
+    this._priceEma = this._priceEma * 0.50 + price * 0.50;
 
     const ts_sec = Math.floor(Math.floor(Date.now() / this.tfMs) * this.tfMs / 1000);
 
@@ -598,7 +620,7 @@ export class CandleChart {
     this._volSeries.update({
       time:  ts_sec,
       value: this._volData[ts_sec],
-      color: price >= this.liveCandle.open ? "rgba(38,201,138,0.40)" : "rgba(239,83,80,0.38)",
+      color: price >= this.liveCandle.open ? (this._nd ? "rgba(57,255,20,0.38)" : "rgba(38,201,138,0.40)") : (this._nd ? "rgba(200,64,255,0.35)" : "rgba(239,83,80,0.38)"),
     });
 
     this._renderLegend(this.liveCandle, this._volData[ts_sec]);
@@ -664,12 +686,25 @@ export class CandleChart {
       const ts = Math.floor(t / 1000);
 
       candleData.push({ time: ts, open: o, high: hi, low: lo, close: c });
-      volData.push({ time: ts, value: v, color: c >= o ? "rgba(38,201,138,0.40)" : "rgba(239,83,80,0.38)" });
+      volData.push({ time: ts, value: v, color: c >= o ? (this._nd ? "rgba(57,255,20,0.38)" : "rgba(38,201,138,0.40)") : (this._nd ? "rgba(200,64,255,0.35)" : "rgba(239,83,80,0.38)") });
     }
 
     this._candleSeries.setData(candleData);
     this._volSeries.setData(volData);
     this._chart.timeScale().scrollToRealTime();
+  }
+
+  /** Force the chart to re-measure its container and scroll to live price.
+   *  Call this after any layout change that might affect the chart's size
+   *  (e.g. a fullscreen modal opening/closing). */
+  refresh() {
+    if (!this._chart) return;
+    // Dispatch resize so Lightweight Charts' ResizeObserver re-measures
+    window.dispatchEvent(new Event("resize"));
+    // After the layout settles, scroll to the live edge
+    setTimeout(() => {
+      try { this._chart.timeScale().scrollToRealTime(); } catch {}
+    }, 80);
   }
 
   destroy() {
@@ -737,6 +772,33 @@ export class CandleChart {
       }));
 
     try { this._candleSeries.setMarkers(lwMarkers); } catch {}
+  }
+
+  /* ══════════════════════════════════════
+     DRAWING SERIALIZATION — for modal sync
+  ══════════════════════════════════════ */
+
+  /** Return a plain-object snapshot of all drawings + manual markers */
+  getSerializedDrawings() {
+    return {
+      drawings: this._drawings.map(d => {
+        if (d.type === "hline")     return { type: "hline",     price: d.price };
+        if (d.type === "trendline") return { type: "trendline", pts: d.pts };
+        return null;
+      }).filter(Boolean),
+      manualMarkers: this._manualMarkers.map(m => ({ rawMs: m.rawMs, type: m.type })),
+    };
+  }
+
+  /** Replay serialized drawings + manual markers onto this chart */
+  importSerializedDrawings(data) {
+    if (!data) return;
+    for (const d of (data.drawings || [])) {
+      if (d.type === "hline" && d.price > 0)               this._drawHLine(d.price);
+      if (d.type === "trendline" && d.pts?.length >= 2)     this._drawTrendLine(d.pts);
+    }
+    this._manualMarkers = (data.manualMarkers || []).map(m => ({ rawMs: m.rawMs, type: m.type }));
+    if (this._manualMarkers.length) this._applyMarkers();
   }
 
   /* ══════════════════════════════════════

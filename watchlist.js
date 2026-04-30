@@ -1,13 +1,17 @@
-// watchlist.js – Scan2Moon V2.0 Token Watchlist
-import { renderNav } from "./nav.js";
+const _DEBUG = false;
+
+// watchlist.js – Scan2Moon V2.1 Token Watchlist (WebSocket live prices)
+import { renderNav }        from "./nav.js";
 import { applyTranslations } from "./i18n.js";
 import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
+import { birdeyeWs }        from "./birdeye-ws.js";
 import "./community.js";
 
-const WL_KEY    = "s2m_watchlist";
-const WL_FAV_KEY = "s2m_wl_favorites";
-const SIM_API   = "/.netlify/functions/simulator";
-const SOL_PRICE = "/.netlify/functions/solPrice";
+const WL_KEY       = "s2m_watchlist";
+const WL_FAV_KEY   = "s2m_wl_favorites";
+const SIM_API      = "/.netlify/functions/simulator";
+const SOL_PRICE    = "/.netlify/functions/solPrice";
+const PRICE_ONLY   = "/.netlify/functions/priceOnly";
 
 /* ── Storage helpers ── */
 function loadWatchlist() {
@@ -20,6 +24,8 @@ function loadWatchlist() {
 function saveWatchlist(list) {
   localStorage.setItem(WL_KEY, JSON.stringify(list));
   _syncHotTokens();
+  // Re-sync WS subs so removed tokens get unsubscribed and new tokens get subscribed
+  _wlSyncWsSubs();
 }
 
 /* ── Favorites helpers ── */
@@ -152,110 +158,133 @@ function render() {
   const favList  = list.filter(t =>  favs.has(t.mint));
   const restList = list.filter(t => !favs.has(t.mint));
 
-  const renderCard = (t, i, isFav) => {
+  /* ── Favorite card — keeps flame effects, pro-tightened layout ── */
+  const renderFavCard = (t) => {
     const logoUrl = t.logo
       ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`
-      : "https://placehold.co/44x44";
-    const sc = scoreClass(t.totalScore);
+      : "https://placehold.co/36x36";
     const bc = badgeClass(t.totalScore);
-
-    const favRiskClass = isFav ? favColorClass(t.totalScore ?? 0) : "";
+    const favRiskClass = favColorClass(t.totalScore ?? 0);
 
     return `
-          <div class="wl-card${isFav ? ` wl-card--fav ${favRiskClass}` : ""}" id="wlcard-${i}">
-
-            <!-- Card header -->
-            <div class="wl-card-top">
-              <img class="wl-logo"
-                src="${logoUrl}"
-                onerror="this.src='https://placehold.co/44x44'"
-                referrerpolicy="no-referrer"
-              />
-              <div class="wl-token-info">
-                <div class="wl-token-name">${t.name || "Unknown"}</div>
-                <div class="wl-token-symbol">${t.symbol || ""}</div>
-              </div>
-              <div class="wl-card-actions">
-                <button class="wl-fav-btn${isFav ? " active" : ""}"
-                  onclick="toggleFavorite('${t.mint}')"
-                  title="${isFav ? "Remove from favorites" : "Add to favorites"}">★</button>
-                <button class="wl-remove-btn" onclick="removeToken('${t.mint}')" title="Remove from watchlist">✕</button>
-              </div>
-            </div>
-
-            <!-- Score -->
-            <div class="wl-score-row">
-              <div>
-                <span class="wl-score-num ${sc}" id="wl-score-${i}">${t.totalScore ?? "N/A"}</span>
-                <span class="wl-score-max">/100</span>
-              </div>
-              <div class="wl-risk-badge ${bc}" id="wl-badge-${i}">${t.riskLevel || "UNKNOWN"}</div>
-            </div>
-
-            <!-- Live price row -->
-            <div class="wl-live-row" id="wl-live-${i}">
-              <span class="wl-live-dot">●</span>
-              <span class="wl-live-price" id="wl-price-${i}">—</span>
-              <span class="wl-live-change" id="wl-change-${i}"></span>
-            </div>
-
-            <!-- Metrics -->
-            <div class="wl-metrics">
-              <div class="wl-metric">
-                <div class="wl-metric-label">Market Cap</div>
-                <div class="wl-metric-val" id="wl-mcap-${i}">${t.marketCap || "N/A"}</div>
-              </div>
-              <div class="wl-metric">
-                <div class="wl-metric-label">Liquidity</div>
-                <div class="wl-metric-val" id="wl-liq-${i}">${t.liquidity || "N/A"}</div>
-              </div>
-              <div class="wl-metric">
-                <div class="wl-metric-label">Top 10 Holders</div>
-                <div class="wl-metric-val">${t.top10 || "N/A"}</div>
-              </div>
-              <div class="wl-metric">
-                <div class="wl-metric-label">24H Volume</div>
-                <div class="wl-metric-val" id="wl-vol-${i}">—</div>
-              </div>
-            </div>
-
-            <!-- Footer -->
-            <div class="wl-card-footer">
-              <span class="wl-saved-time">Saved ${timeAgo(t.savedAt || t.scannedAt)}</span>
-            </div>
-
-            <!-- Action buttons — full-width row -->
-            <div class="wl-actions">
-              <a
-                href="https://dexscreener.com/solana/${t.mint}"
-                target="_blank"
-                rel="noopener noreferrer"
-                class="wl-action-btn wl-dex"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                Dex
-              </a>
-              <button
-                class="wl-action-btn wl-rescan"
-                onclick="rescanToken('${t.mint}')"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-                Re-scan
-              </button>
-              <button
-                class="wl-action-btn wl-trade-ape"
-                onclick="tradeOnSafeApe('${t.mint}')"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
-                Trade
-              </button>
-            </div>
-
+      <div class="wl-card wl-card--fav ${favRiskClass}" id="wlcard-${t.mint}">
+        <div class="wl-card-top">
+          <img class="wl-logo" src="${logoUrl}"
+            onerror="this.src='https://placehold.co/36x36'" referrerpolicy="no-referrer"/>
+          <div class="wl-token-info">
+            <div class="wl-token-name">${t.name || "Unknown"}</div>
+            <div class="wl-token-symbol">${t.symbol || ""}</div>
           </div>
-        `;
+          <div class="wl-card-actions">
+            <button class="wl-fav-btn active" onclick="toggleFavorite('${t.mint}')" title="Remove from favorites">★</button>
+            <button class="wl-remove-btn" onclick="removeToken('${t.mint}')" title="Remove">✕</button>
+          </div>
+        </div>
+
+        <div class="wl-fav-live-row">
+          <span class="wl-live-dot">●</span>
+          <span class="wl-live-price" id="wl-price-${t.mint}">—</span>
+          <span class="wl-live-change" id="wl-change-${t.mint}"></span>
+          <span class="wl-fav-inline-badge ${bc}" id="wl-badge-${t.mint}">${t.riskLevel || riskLevelFromScore(t.totalScore ?? 0)}</span>
+        </div>
+
+        <div class="wl-fav-metrics-row">
+          <div class="wl-fav-metric">
+            <div class="wl-fav-metric-label">MCap</div>
+            <div class="wl-fav-metric-val" id="wl-mcap-${t.mint}">${t.marketCap || "—"}</div>
+          </div>
+          <div class="wl-fav-metric">
+            <div class="wl-fav-metric-label">Liq</div>
+            <div class="wl-fav-metric-val" id="wl-liq-${t.mint}">${t.liquidity || "—"}</div>
+          </div>
+          <div class="wl-fav-metric">
+            <div class="wl-fav-metric-label">Vol 24h</div>
+            <div class="wl-fav-metric-val" id="wl-vol-${t.mint}">—</div>
+          </div>
+          <div class="wl-fav-metric">
+            <div class="wl-fav-metric-label">Top 10</div>
+            <div class="wl-fav-metric-val">${t.top10 || "—"}</div>
+          </div>
+        </div>
+
+        <div class="wl-card-footer">
+          <div class="wl-fav-footer-actions">
+            <a href="https://birdeye.so/token/${t.mint}?chain=solana" target="_blank" rel="noopener noreferrer" class="wl-fav-act wl-fav-dex">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>Dex
+            </a>
+            <button class="wl-fav-act wl-fav-rescan" onclick="rescanToken('${t.mint}')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>Scan
+            </button>
+            <button class="wl-fav-act wl-fav-trade" onclick="tradeOnSafeApe('${t.mint}')">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>Trade
+            </button>
+          </div>
+          <span class="wl-saved-time">Saved ${timeAgo(t.savedAt || t.scannedAt)}</span>
+        </div>
+
+        <span class="wl-bundle-warn" id="wl-bundle-warn-${t.mint}" style="display:none"
+          title="Bundle analysis may not have run. Re-scan for full score.">⚠️ Re-scan</span>
+      </div>
+    `;
   };
 
-  /* Build HTML — favorites in their own compact grid, rest in normal grid */
+  /* ── Regular token — professional table row ── */
+  const renderRow = (t) => {
+    const logoUrl = t.logo
+      ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`
+      : "https://placehold.co/32x32";
+    const bc = badgeClass(t.totalScore);
+
+    return `
+      <div class="wl-row" id="wlcard-${t.mint}">
+        <div class="wl-td wl-td-token">
+          <img class="wl-row-logo" src="${logoUrl}"
+            onerror="this.src='https://placehold.co/32x32'" referrerpolicy="no-referrer"/>
+          <div class="wl-row-info">
+            <span class="wl-row-name">${t.name || "Unknown"}</span>
+            <span class="wl-row-sym">${t.symbol || ""}</span>
+          </div>
+        </div>
+        <div class="wl-td wl-td-risk">
+          <span class="wl-row-badge ${bc}" id="wl-badge-${t.mint}">${t.riskLevel || riskLevelFromScore(t.totalScore ?? 0)}</span>
+          <span class="wl-bundle-warn" id="wl-bundle-warn-${t.mint}" style="display:none"
+            title="Bundle analysis may not have run. Re-scan for full score.">⚠️</span>
+        </div>
+        <div class="wl-td wl-td-price">
+          <span class="wl-live-dot wl-row-dot">●</span>
+          <div class="wl-price-col">
+            <span class="wl-live-price" id="wl-price-${t.mint}">—</span>
+            <span class="wl-live-change" id="wl-change-${t.mint}"></span>
+          </div>
+          <span class="wl-row-pnl" id="wl-pnl-${t.mint}"></span>
+        </div>
+        <div class="wl-td wl-td-mcap" id="wl-mcap-${t.mint}">${t.marketCap || "—"}</div>
+        <div class="wl-td wl-td-liq" id="wl-liq-${t.mint}">${t.liquidity || "—"}</div>
+        <div class="wl-td wl-td-vol"><span id="wl-vol-${t.mint}">—</span></div>
+        <div class="wl-td wl-td-age">${timeAgo(t.savedAt || t.scannedAt)}</div>
+        <div class="wl-td wl-td-actions">
+          <button class="wl-row-fav-btn" onclick="toggleFavorite('${t.mint}')" title="Add to favorites">★</button>
+          <a class="wl-row-act wl-row-dex" href="https://birdeye.so/token/${t.mint}?chain=solana"
+            target="_blank" rel="noopener noreferrer" title="View on Birdeye">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          </a>
+          <button class="wl-row-act wl-row-rescan" onclick="rescanToken('${t.mint}')" title="Re-scan">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+          </button>
+          <button class="wl-row-act wl-row-trade" onclick="tradeOnSafeApe('${t.mint}')" title="Paper Trade">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </button>
+          <button class="wl-row-remove" onclick="removeToken('${t.mint}')" title="Remove from watchlist">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          </button>
+        </div>
+        <!-- Anchor for injectPnlStrip — kept hidden so existing card logic works -->
+        <div class="wl-card-footer" style="display:none;position:absolute"></div>
+      </div>
+    `;
+  };
+
+  /* Build HTML — favorites as glow cards, rest as professional table */
   let gridHtml = "";
 
   if (favList.length > 0) {
@@ -272,7 +301,7 @@ function render() {
         </button>
       </div>`;
     gridHtml += '<div class="wl-fav-grid">';
-    gridHtml += favList.map((t, i) => renderCard(t, i, true)).join("");
+    gridHtml += favList.map((t) => renderFavCard(t)).join("");
     gridHtml += "</div>";
   }
 
@@ -280,9 +309,21 @@ function render() {
     if (favList.length > 0) {
       gridHtml += `<div class="wl-section-label">All Tokens <span class="wl-section-count">${restList.length}</span></div>`;
     }
-    gridHtml += '<div class="wl-grid">';
-    gridHtml += restList.map((t, i) => renderCard(t, favList.length + i, false)).join("");
-    gridHtml += "</div>";
+    gridHtml += `
+      <div class="wl-table">
+        <div class="wl-table-head">
+          <div class="wl-th wl-th-token">Token</div>
+          <div class="wl-th wl-th-risk">Risk</div>
+          <div class="wl-th wl-th-price">Price / 24h</div>
+          <div class="wl-th wl-th-mcap">Market Cap</div>
+          <div class="wl-th wl-th-liq">Liquidity</div>
+          <div class="wl-th wl-th-vol">Vol 24h</div>
+          <div class="wl-th wl-th-age">Saved</div>
+        </div>
+        <div class="wl-table-body">
+          ${restList.map((t) => renderRow(t)).join("")}
+        </div>
+      </div>`;
   }
 
   body.innerHTML = gridHtml;
@@ -313,13 +354,13 @@ window.tradeOnSafeApe = function(mint) {
    LIVE REFRESH — 30s Birdeye tick (prices + scores, same data as Risk Scanner)
    ============================================================ */
 function fmtSol(n) {
-  if (!n && n !== 0) return "0 SOL";
+  if (!n && n !== 0) return "0 S2M";
   const abs = Math.abs(n);
   const str = abs < 0.001 ? abs.toFixed(6)
             : abs < 0.1   ? abs.toFixed(4)
             : abs < 10    ? abs.toFixed(3)
             : abs.toFixed(2);
-  return (n < 0 ? "-" : "") + str + " SOL";
+  return (n < 0 ? "-" : "") + str + " S2M";
 }
 
 function fmtUsd(v) {
@@ -346,6 +387,59 @@ let _simProfile       = null;  /* cached simulator profile */
 let _solUsd           = 0;
 let _solUsdFetchedAt  = 0;
 
+/* ── Birdeye WS price subscriptions for watchlist cards ────────────────────
+   Map of mint → unsub fn.  Re-synced whenever the watchlist list changes.
+   WS ticks update the price/change DOM elements immediately on each trade,
+   giving true real-time movement instead of 30s snapshot updates.          */
+const _wlWsSubs = new Map();
+
+/** Update the live price row of a watchlist card on each WS tick */
+function _wlMakePriceHandler(mint) {
+  return (wsData) => {
+    // wsData.price is always set — normalised by birdeye-ws.js
+    const price = wsData?.price;
+    if (!(price > 0)) return;
+
+    const priceEl = document.getElementById(`wl-price-${mint}`);
+    if (priceEl) priceEl.textContent = fmtPrice(price);
+
+    // Update P/L strip in real time
+    const h = _simProfile?.holdings?.[mint];
+    const card = document.getElementById(`wlcard-${mint}`);
+    if (h && h.amount > 0 && price > 0 && h.totalCostSol > 0 && card) {
+      const costSol   = h.totalCostSol;
+      const curValSol = (_solUsd > 0)
+        ? (h.amount * price / _solUsd)
+        : (h.avgPrice > 0 ? costSol * (price / h.avgPrice) : costSol);
+      const pnlSol = curValSol - costSol;
+      const pnlPct = (pnlSol / costSol) * 100;
+      injectPnlStrip(card, pnlSol, pnlPct);
+    }
+  };
+}
+
+/** Subscribe/unsubscribe WS to exactly the current watchlist mints */
+function _wlSyncWsSubs() {
+  const list    = loadWatchlist();
+  const current = new Set(list.map(t => t.mint));
+
+  // Remove stale subs (token removed from watchlist)
+  for (const [mint, unsub] of _wlWsSubs) {
+    if (!current.has(mint)) { unsub(); _wlWsSubs.delete(mint); }
+  }
+  // Add new subs
+  for (const mint of current) {
+    if (_wlWsSubs.has(mint)) continue;
+    const unsub = birdeyeWs.subscribe(mint, null, _wlMakePriceHandler(mint));
+    _wlWsSubs.set(mint, unsub);
+  }
+}
+
+function _wlStopAllWsSubs() {
+  for (const unsub of _wlWsSubs.values()) unsub();
+  _wlWsSubs.clear();
+}
+
 async function fetchSolPrice() {
   if (Date.now() - _solUsdFetchedAt < 10000) return; /* refresh max every 10s */
   try {
@@ -369,10 +463,10 @@ async function fetchSimProfile() {
 /* Risk level string from score — mirrors scanSignals.js */
 function riskLevelFromScore(score) {
   if (score >= 80) return "🌕 MOON COIN";
-  if (score >= 65) return "LOW RUG RISK";
-  if (score >= 45) return "MODERATE RISK";
-  if (score >= 25) return "HIGH RUG RISK";
-  return "EXTREME RISK 🚨";
+  if (score >= 65) return "✅ LOW RISK";
+  if (score >= 45) return "⚠️ MID RISK";
+  if (score >= 25) return "🔴 HIGH RISK";
+  return "🚨 EXTREME RISK";
 }
 
 let _listDirty = false; /* track if we need to saveWatchlist after tick */
@@ -439,110 +533,90 @@ async function liveRefreshTick() {
   _listDirty = false;
   _liveRefreshRunning = true;
 
-  /* ── Sequential processing — one token at a time ──────────────────────────
-     Promise.allSettled fires all tokens simultaneously, which bursts Birdeye
-     with 13 concurrent requests even with internal staggering.
-     Sequential ensures at most 1 API call in flight at any time.
-     Cache hits (90s in-memory cache) are instant — no delay applied.
-     Only actual Birdeye calls (cache miss) trigger the 1100ms inter-token gap,
-     keeping us safely under the 1 req/sec rate limit.                         */
-  for (let i = 0; i < sortedList.length; i++) {
-    const t = sortedList[i];
+  /* ── Parallel processing — all tokens fire simultaneously ──────────────────
+     Each request hits our Netlify scanToken function which checks:
+       L1 Redis (instant) → L2 Neon (fast) → L3 Birdeye (only on cold miss)
+     The server-side cache means concurrent requests for different mints are
+     safe — most will hit Redis and return in <100ms.  Each token's DOM updates
+     the moment its data arrives, so the page fills in progressively rather
+     than waiting for every token to finish before showing anything.           */
+  await Promise.allSettled(sortedList.map(async (t) => {
+    const birdeyeEntry = await fetchBirdeyeScore(t.mint, 0);
 
-    /* Snapshot cache state before fetching so we know if it was a real call */
-    const isCached = _wlBirdeyeCache[t.mint] &&
-                     (Date.now() - _wlBirdeyeCache[t.mint].ts) < WL_BIRDEYE_TTL;
+    /* Update this token's UI as soon as its data arrives */
+    const card = document.getElementById(`wlcard-${t.mint}`);
+    if (!card || !birdeyeEntry?.pair) return;
 
-    const birdeyeEntry = await fetchBirdeyeScore(t.mint, 0); /* no internal stagger */
+    const pair  = birdeyeEntry.pair;
+    const price = parseFloat(pair.priceUsd || "0");
+    const pc24h = pair.priceChange?.h24 ?? null;
+    const mcap  = pair.marketCap ?? pair.fdv ?? 0;
+    const liq   = pair.liquidity?.usd ?? 0;
+    const vol24 = pair.volume?.h24 ?? 0;
 
-    /* ── Update this card's UI immediately as data arrives ── */
-    const card = document.getElementById(`wlcard-${i}`);
-    if (card && birdeyeEntry?.pair) {
-      const pair  = birdeyeEntry.pair;
-      const price = parseFloat(pair.priceUsd || "0");
-      const pc24h = pair.priceChange?.h24 ?? null;
-      const mcap  = pair.marketCap ?? pair.fdv ?? 0;
-      const liq   = pair.liquidity?.usd ?? 0;
-      const vol24 = pair.volume?.h24 ?? 0;
-
-      const priceEl  = document.getElementById(`wl-price-${i}`);
-      const changeEl = document.getElementById(`wl-change-${i}`);
-      if (priceEl)  priceEl.textContent = fmtPrice(price);
-      if (changeEl && pc24h !== null) {
-        const sign = pc24h >= 0 ? "+" : "";
-        changeEl.textContent = `${sign}${pc24h.toFixed(2)}% 24h`;
-        changeEl.className   = "wl-live-change " + (pc24h >= 0 ? "wl-ch-pos" : "wl-ch-neg");
-      }
-
-      const mcapEl = document.getElementById(`wl-mcap-${i}`);
-      const liqEl  = document.getElementById(`wl-liq-${i}`);
-      const volEl  = document.getElementById(`wl-vol-${i}`);
-      if (mcapEl) mcapEl.textContent = fmtUsd(mcap);
-      if (liqEl)  liqEl.textContent  = fmtUsd(liq);
-      if (volEl)  volEl.textContent  = fmtUsd(vol24);
-
-      /* ── P/L strip ── */
-      const h = _simProfile?.holdings?.[t.mint];
-      if (h && h.amount > 0 && price > 0 && h.totalCostSol > 0) {
-        const costSol   = h.totalCostSol;
-        /* curValSol: use live SOL price for accurate USD→SOL conversion.
-           Falls back to price-ratio estimate only if solPrice is unavailable. */
-        const curValSol = (_solUsd > 0)
-          ? (h.amount * price / _solUsd)
-          : (h.avgPrice > 0 ? costSol * (price / h.avgPrice) : costSol);
-        const pnlSol    = curValSol - costSol;
-        const pnlPct    = (pnlSol / costSol) * 100;
-        injectPnlStrip(card, pnlSol, pnlPct);
-      }
-
-      /* ── Risk score ── */
-      window.scanIsPumpFun    = birdeyeEntry?.isPumpFun    ?? t.isPumpFun    ?? false;
-      window.scanHasGraduated = birdeyeEntry?.hasGraduated ?? t.hasGraduated ?? false;
-      window.scanCreator      = t.mintAuthority   || undefined;
-      window.scanFreezeAuth   = t.freezeAuthority || undefined;
-      window.scanDevPercent   = t.devPercent       || undefined;
-
-      const top10PctNum = t.top10PctNum ?? parseFloat(t.top10) ?? 0;
-      const bundleScore = t.bundleScore ?? 75;
-      const liveScore   = computeRiskScore(pair, top10PctNum, bundleScore);
-      const liveLevel   = riskLevelFromScore(liveScore);
-
-      const scoreEl = document.getElementById(`wl-score-${i}`);
-      const badgeEl = document.getElementById(`wl-badge-${i}`);
-      if (scoreEl) {
-        scoreEl.textContent = liveScore;
-        scoreEl.className   = "wl-score-num " + scoreClass(liveScore);
-      }
-      if (badgeEl) {
-        badgeEl.textContent = liveLevel;
-        badgeEl.className   = "wl-risk-badge " + badgeClass(liveScore);
-      }
-
-      if (card.classList.contains("wl-card--fav")) {
-        const newFavClass = favColorClass(liveScore);
-        if (!card.classList.contains(newFavClass)) {
-          card.classList.remove("wl-card--fav-moon", "wl-card--fav-green",
-                                "wl-card--fav-orange", "wl-card--fav-red");
-          card.classList.add(newFavClass);
-        }
-      }
-
-      if (t.totalScore !== liveScore) {
-        t.totalScore = liveScore;
-        t.riskLevel  = liveLevel;
-        _listDirty   = true;
-      }
+    const priceEl  = document.getElementById(`wl-price-${t.mint}`);
+    const changeEl = document.getElementById(`wl-change-${t.mint}`);
+    if (priceEl)  priceEl.textContent = fmtPrice(price);
+    if (changeEl && pc24h !== null) {
+      const sign = pc24h >= 0 ? "+" : "";
+      changeEl.textContent = `${sign}${pc24h.toFixed(2)}% 24h`;
+      changeEl.className   = "wl-live-change " + (pc24h >= 0 ? "wl-ch-pos" : "wl-ch-neg");
     }
 
-    /* ── Rate-limit guard: only delay after a real Birdeye call ──
-       1100ms ≈ just over 1 req/sec — stays safely inside Birdeye's limit.
-       Cached responses are instant; no delay added for them.               */
-    if (!isCached) {
-      await new Promise(r => setTimeout(r, 1100));
-    }
-  }
+    const mcapEl = document.getElementById(`wl-mcap-${t.mint}`);
+    const liqEl  = document.getElementById(`wl-liq-${t.mint}`);
+    const volEl  = document.getElementById(`wl-vol-${t.mint}`);
+    if (mcapEl) mcapEl.textContent = fmtUsd(mcap);
+    if (liqEl)  liqEl.textContent  = fmtUsd(liq);
+    if (volEl)  volEl.textContent  = fmtUsd(vol24);
 
-  /* Save only if scores actually changed — avoids pointless writes */
+    /* ── P/L strip ── */
+    const h = _simProfile?.holdings?.[t.mint];
+    if (h && h.amount > 0 && price > 0 && h.totalCostSol > 0) {
+      const costSol   = h.totalCostSol;
+      const curValSol = (_solUsd > 0)
+        ? (h.amount * price / _solUsd)
+        : (h.avgPrice > 0 ? costSol * (price / h.avgPrice) : costSol);
+      const pnlSol = curValSol - costSol;
+      const pnlPct = (pnlSol / costSol) * 100;
+      injectPnlStrip(card, pnlSol, pnlPct);
+    }
+
+    /* ── Risk badge — show stored score from last full scan ── */
+    const storedScore = t.totalScore ?? 0;
+    const storedLevel = t.riskLevel  || riskLevelFromScore(storedScore);
+
+    const badgeEl = document.getElementById(`wl-badge-${t.mint}`);
+    if (badgeEl) {
+      badgeEl.textContent = storedLevel;
+      const isRow  = !!badgeEl.closest(".wl-row");
+      const isFavC = !!badgeEl.closest(".wl-card--fav");
+      const base   = isRow ? "wl-row-badge" : isFavC ? "wl-fav-inline-badge" : "wl-risk-badge";
+      badgeEl.className = `${base} ${badgeClass(storedScore)}`;
+    }
+
+    /* ── Bundle staleness indicator ── */
+    const bundleWarnEl = document.getElementById(`wl-bundle-warn-${t.mint}`);
+    if (bundleWarnEl) {
+      const BUNDLE_STALE_MS = 30 * 60 * 1000;
+      const bundleIsDefault = t.bundleScore === 75 || t.bundleScore == null;
+      const bundleNeverRan  = !t.bundleScoreUpdatedAt;
+      const bundleIsOld     = t.bundleScoreUpdatedAt &&
+        (Date.now() - new Date(t.bundleScoreUpdatedAt).getTime() > BUNDLE_STALE_MS);
+      bundleWarnEl.style.display = (bundleIsDefault && (bundleNeverRan || bundleIsOld))
+        ? "inline" : "none";
+    }
+
+    if (card.classList.contains("wl-card--fav")) {
+      const newFavClass = favColorClass(storedScore);
+      if (!card.classList.contains(newFavClass)) {
+        card.classList.remove("wl-card--fav-moon", "wl-card--fav-green",
+                              "wl-card--fav-orange", "wl-card--fav-red");
+        card.classList.add(newFavClass);
+      }
+    }
+  }));
+
   if (_listDirty) saveWatchlist(list);
   _liveRefreshRunning = false;
 }
@@ -552,10 +626,14 @@ async function startLiveRefresh() {
   await Promise.all([fetchSimProfile(), fetchSolPrice()]);
   await liveRefreshTick();
   /* Refresh every 30s — matches Birdeye Redis cache TTL.
-     Cached hits are instant so this is free after the first load. */
+     Cached hits are instant so this is free after the first load.
+     This still handles metadata (mc, liq, vol, risk score).
+     Live prices are now handled by Birdeye WS (sub-second latency). */
   _liveRefreshTimer = setInterval(liveRefreshTick, 30000);
   /* Keep SOL price fresh for P/L calculations */
   setInterval(fetchSolPrice, 30000);
+  /* Start Birdeye WS price subs for all watchlist tokens */
+  _wlSyncWsSubs();
 
   /* ── Background OHLCV prefetch ─────────────────────────────────────────────
      After liveRefreshTick finishes warming the scanToken cache, silently
@@ -570,37 +648,42 @@ async function _fdPrefetchFavoritesOhlcv() {
   const favMints = [...loadFavorites()].slice(0, FAV_DASH_MAX);
   if (!favMints.length) return;
 
-  /* Wait a tick for the browser to be idle */
+  /* Small idle delay so page render isn't blocked */
   await new Promise(r => setTimeout(r, 500));
 
-  for (const mint of favMints) {
-    if (_liveRefreshRunning) {
-      /* liveRefreshTick fired mid-prefetch — pause until it finishes */
-      await new Promise(r => setTimeout(r, 1500));
-    }
+  /* Prefetch all favorite mints in parallel — ohlcvData has its own
+     Redis+Neon cache so parallel requests are safe and much faster than
+     the old 1100ms-per-token sequential approach.                       */
+  await Promise.all(favMints.map(async (mint) => {
     const key = `${mint}_ohlcv_15m`;
-    if (_fdBarCache[key]) continue;   /* already in memory — skip */
+    if (_fdBarCache[key]) return;  /* already in memory */
     try {
-      const t0 = Date.now();
       const r = await fetch(`/.netlify/functions/ohlcvData?mint=${encodeURIComponent(mint)}&tf=15m`);
-      if (r.ok) {
-        const d = await r.json();
-        const bars = (d.bars || []).filter(b => b.time > 0 && b.close > 0).sort((a,b) => a.time - b.time);
-        if (bars.length >= 2) {
-          _fdBarCache[key] = bars;
-          console.log(`[Prefetch] 15m ${mint.slice(0,8)}…: ${bars.length} bars cached (${d.source || "?"}, ${Date.now()-t0}ms)`);
-        }
-      }
-      const elapsed = Date.now() - t0;
-      if (elapsed < 250) continue;  /* cache hit — no wait */
-      const gap = 1100 - elapsed;
-      if (gap > 0) await new Promise(r => setTimeout(r, gap));
-    } catch { /* non-fatal: prefetch failure just means first open is slower */ }
-  }
-  console.log("[Prefetch] OHLCV prefetch complete — dashboard open will be fast.");
+      if (!r.ok) return;
+      const d = await r.json();
+      const bars = (d.bars || []).filter(b => b.time > 0 && b.close > 0).sort((a, b) => a.time - b.time);
+      if (bars.length >= 2) _fdBarCache[key] = bars;
+    } catch { /* non-fatal */ }
+  }));
+
+  _DEBUG && console.log("[Prefetch] OHLCV prefetch complete.");
 }
 
 function injectPnlStrip(card, pnlSol, pnlPct) {
+  /* Table row — update the compact P/L span in the price cell */
+  if (card.classList.contains("wl-row")) {
+    const mint  = card.id.replace("wlcard-", "");
+    const pnlEl = document.getElementById(`wl-pnl-${mint}`);
+    if (pnlEl) {
+      const isPos = pnlSol >= 0;
+      const sign  = isPos ? "+" : "";
+      pnlEl.className   = "wl-row-pnl " + (isPos ? "wl-pnl-pos" : "wl-pnl-neg");
+      pnlEl.textContent = `${sign}${pnlPct.toFixed(1)}%`;
+    }
+    return;
+  }
+
+  /* Favorite card — inject full strip above footer */
   card.querySelector(".wl-sim-pnl")?.remove();
 
   const isPos  = pnlSol >= 0;
@@ -611,7 +694,7 @@ function injectPnlStrip(card, pnlSol, pnlPct) {
   strip.className = "wl-sim-pnl";
   strip.innerHTML = `
     <div class="wl-sim-pnl-header">
-      <span class="wl-sim-pnl-label">🎮 Safe Ape Position</span>
+      <span class="wl-sim-pnl-label">Position</span>
       <span class="wl-sim-pnl-value ${cls}">
         <span class="wl-pnl-pct">${sign}${pnlPct.toFixed(2)}%</span>
         <span class="wl-pnl-sep">·</span>
@@ -623,7 +706,6 @@ function injectPnlStrip(card, pnlSol, pnlPct) {
     </div>
   `;
 
-  /* Insert above the card footer */
   const footer = card.querySelector(".wl-card-footer");
   footer ? card.insertBefore(strip, footer) : card.appendChild(strip);
 }
@@ -703,7 +785,7 @@ async function _fdFetchBars(pairAddr, tf, forceRefresh = false, mint = null) {
       if (srcSec >= tgtSec) continue;         /* can't upsample to finer res */
       const resampled = _fdResampleBars(src, tgtSec);
       if (resampled.length >= 2) {
-        console.log(`[FavDash] ${tf} ${(pairAddr||mint).slice(0,8)}…: ${resampled.length} bars (resampled from ${srcTf})`);
+        _DEBUG && console.log(`[FavDash] ${tf} ${(pairAddr||mint).slice(0,8)}…: ${resampled.length} bars (resampled from ${srcTf})`);
         _fdBarCache[cacheKey] = resampled;
         return resampled;
       }
@@ -724,7 +806,7 @@ async function _fdFetchBars(pairAddr, tf, forceRefresh = false, mint = null) {
           .map(b => ({ time: Number(b.time), value: Number(b.close) }))
           .sort((a, b) => a.time - b.time);
         if (bars.length >= 2) {
-          console.log(`[FavDash] ${tf} ${mint.slice(0,8)}…: ${bars.length} bars (ohlcvData/birdeye)`);
+          _DEBUG && console.log(`[FavDash] ${tf} ${mint.slice(0,8)}…: ${bars.length} bars (ohlcvData/birdeye)`);
           _fdBarCache[cacheKey] = bars;
           return bars;
         }
@@ -740,13 +822,13 @@ async function _fdFetchBars(pairAddr, tf, forceRefresh = false, mint = null) {
       if (srcTf === tf) continue;
       const src = _fdBarCache[`${pairAddr || mint}_${srcTf}`];
       if (src && src.length >= 2) {
-        console.log(`[FavDash] ${tf} ${(pairAddr||mint).slice(0,8)}…: using ${srcTf} bars as shape fallback`);
+        _DEBUG && console.log(`[FavDash] ${tf} ${(pairAddr||mint).slice(0,8)}…: using ${srcTf} bars as shape fallback`);
         return src;
       }
     }
   }
 
-  console.log(`[FavDash] ${tf} ${(pairAddr||mint).slice(0,8)}…: 0 bars (birdeye returned nothing)`);
+  _DEBUG && console.log(`[FavDash] ${tf} ${(pairAddr||mint).slice(0,8)}…: 0 bars (birdeye returned nothing)`);
   return [];
 }
 
@@ -770,14 +852,14 @@ async function _fdFetchOHLCV(pairAddr, tf, mint) {
         .filter(b => b.time > 0 && b.close > 0)
         .sort((a, b) => a.time - b.time);
       if (bars.length >= 2) {
-        console.log(`[FavDash] OHLCV ${tf} ${mintAddr.slice(0,8)}…: ${bars.length} bars (${d.source})`);
+        _DEBUG && console.log(`[FavDash] OHLCV ${tf} ${mintAddr.slice(0,8)}…: ${bars.length} bars (${d.source})`);
         _fdBarCache[cacheKey] = bars;
         return bars;
       }
     }
   } catch (_) { /* network error */ }
 
-  console.log(`[FavDash] OHLCV ${tf} ${mintAddr.slice(0,8)}…: no data`);
+  _DEBUG && console.log(`[FavDash] OHLCV ${tf} ${mintAddr.slice(0,8)}…: no data`);
   return [];
 }
 
@@ -792,7 +874,7 @@ function _fdSafeSetData(series, bars) {
                  Number.isFinite(b.value) && b.value > 0);
   if (!clean.length) return false;
   try { series.setData(clean); return true; }
-  catch (e) { console.warn("[FavDash] setData error:", e.message, "bars:", clean.length); return false; }
+  catch (e) { _DEBUG && console.warn("[FavDash] setData error:", e.message, "bars:", clean.length); return false; }
 }
 
 /* ── Switch timeframe for one card ── */
@@ -935,10 +1017,12 @@ async function _fdBuild(favMints) {
     .slice(0, FAV_DASH_MAX);
 
   const count = tokens.length;
-  const rows  = count <= 3 ? 1 : count <= 6 ? 2 : 3;
+  const cols  = count === 1 ? 1 : count === 2 ? 2 : count === 3 ? 3 : count <= 4 ? 2 : 3;
+  const rows  = Math.ceil(count / cols);
 
   const grid = document.getElementById("favDashGrid");
   grid.innerHTML = "";
+  grid.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
   grid.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
   _fdCharts = {};
   _fdPairMap = {};
@@ -982,70 +1066,46 @@ async function _fdBuild(favMints) {
         <div class="fdc-chart-loading">Loading chart…</div>
       </div>
       <div class="fdc-footer">
-        <span class="fdc-score-num wl-score-num ${sc}" id="fdcs-${t.mint}">${t.totalScore ?? "—"}</span>
-        <span class="fdc-score-max">/100</span>
-        <span class="fdc-risk-badge wl-risk-badge ${bc}" id="fdcl-${t.mint}">${t.riskLevel || "—"}</span>
+        <span class="fdc-risk-badge wl-risk-badge ${bc}" id="fdcl-${t.mint}">${t.riskLevel || riskLevelFromScore(t.totalScore ?? 0)}</span>
         <span class="fdc-age" id="fdca-${t.mint}"></span>
       </div>
     `;
     grid.appendChild(card);
   });
 
-  /* ── Fetch initial pair data sequentially ─────────────────────────────────
-     Most tokens will already be in _wlBirdeyeCache from liveRefreshTick.
-     Sequential ensures we don't burst Birdeye if caches are cold.           */
+  /* ── Fetch all pair data in parallel ───────────────────────────────────────
+     Requests go to our own Netlify function (scanToken) which has Redis+Neon
+     caching — firing them in parallel is safe and cuts wait time from
+     N×1100ms down to ~one round-trip for the slowest token.                  */
   let anyStale = false;
-  for (const t of tokens) {
-    const isCached = _wlBirdeyeCache[t.mint] &&
-                     (Date.now() - _wlBirdeyeCache[t.mint].ts) < WL_BIRDEYE_TTL;
+  await Promise.all(tokens.map(async (t) => {
     const entry = await fetchBirdeyeScore(t.mint, 0);
-    if (!entry?.pair) {
-      if (!isCached) await new Promise(r => setTimeout(r, 1100));
-      continue;
-    }
+    if (!entry?.pair) return;
     if (entry.stale) anyStale = true;
     _fdPairMap[t.mint]  = t.mint;
     _fdPairData[t.mint] = entry.pair;
     _fdUpdateCard(t.mint, entry.pair, t);
-    if (!isCached) await new Promise(r => setTimeout(r, 1100));
-  }
-  /* Show/hide stale warning banner */
+  }));
   _fdShowStaleBanner(anyStale);
 
-  /* ── Create LightweightCharts charts + load OHLCV ───────────────────────────
-     Smart-delay pattern:
-       • Cache hit  (< 250ms) → next chart starts immediately — no wait
-       • Birdeye call (≥ 250ms) → enforce 1100ms total spacing so we stay
-         under the 1 req/sec rate limit
-     This means: on warm ohlcvData cache all 9 charts appear in < 1 second.
-     On cold cache they load sequentially but still as fast as the rate limit
-     allows.                                                                   */
-  await new Promise(r => setTimeout(r, 100)); /* let browser paint grid first */
+  /* ── Create chart containers (sync) then load all OHLCV in parallel ────────
+     ohlcvData hits Redis L1 → Neon L2 → Birdeye L3.  Our Netlify function
+     handles the Birdeye rate limit internally, so parallel browser requests
+     are safe.  Let the browser paint the empty grid first (one tick).        */
+  await new Promise(r => setTimeout(r, 80));
 
-  /* Wait until liveRefreshTick is done (max 30s) — shares same Birdeye budget */
-  const waitStart = Date.now();
-  while (_liveRefreshRunning && (Date.now() - waitStart) < 30000) {
-    await new Promise(r => setTimeout(r, 200));
-  }
-
+  const chartQueue = [];
   for (const t of tokens) {
     const pa = _fdPairMap[t.mint];
-    if (!pa) continue;                          /* no pair = chart stays "No chart data" */
-
-    const loadEl = _fdInitChart(t);             /* sync: creates chart container only */
-    if (!loadEl) continue;                      /* _fdInitChart returns null if no pair */
-
-    const t0 = Date.now();
-    await _fdLoadChartData(t.mint, pa, "15m", loadEl); /* awaited — we time it */
-
-    const elapsed = Date.now() - t0;
-    if (elapsed >= 250) {
-      /* Real Birdeye call — enforce 1100ms total gap to respect rate limit */
-      const remaining = 1100 - elapsed;
-      if (remaining > 0) await new Promise(r => setTimeout(r, remaining));
-    }
-    /* Cache hit (< 250ms): no extra wait — browser paints immediately */
+    if (!pa) continue;
+    const loadEl = _fdInitChart(t);
+    if (loadEl) chartQueue.push({ t, pa, loadEl });
   }
+
+  /* Fire all OHLCV requests simultaneously — charts render as each resolves */
+  await Promise.all(chartQueue.map(({ t, pa, loadEl }) =>
+    _fdLoadChartData(t.mint, pa, "15m", loadEl)
+  ));
 }
 
 async function _fdPrefetchAllTfs(tokens) {
@@ -1097,7 +1157,7 @@ async function _fdPrefetchAllTfs(tokens) {
   const likelyRateLimited = succeeded > 0 && noData.size > 0;
 
   if (likelyRateLimited && alive()) {
-    console.log(`[FavDash] Retrying ${noData.size} token(s)…`);
+    _DEBUG && console.log(`[FavDash] Retrying ${noData.size} token(s)…`);
     await wait(2000);
     for (const t of tokens) {
       if (!alive()) return;
@@ -1136,7 +1196,7 @@ async function _fdPrefetchAllTfs(tokens) {
       const resampled = _fdResampleBars(_fdBarCache[`${pa}_15m`], 3600);
       if (resampled.length >= 2) {
         _fdBarCache[`${pa}_1h`] = resampled;
-        console.log(`[FavDash] 1h ${pa.slice(0,8)}…: ${resampled.length} bars (resampled fallback)`);
+        _DEBUG && console.log(`[FavDash] 1h ${pa.slice(0,8)}…: ${resampled.length} bars (resampled fallback)`);
       }
     }
     _fdUpgradeChart(t.mint, "1h");
@@ -1158,7 +1218,7 @@ async function _fdPrefetchAllTfs(tokens) {
         const resampled = _fdResampleBars(src, 43200);
         if (resampled.length >= 2) {
           _fdBarCache[`${pa}_12h`] = resampled;
-          console.log(`[FavDash] 12h ${pa.slice(0,8)}…: ${resampled.length} bars (resampled fallback)`);
+          _DEBUG && console.log(`[FavDash] 12h ${pa.slice(0,8)}…: ${resampled.length} bars (resampled fallback)`);
         }
       }
     }
@@ -1166,7 +1226,7 @@ async function _fdPrefetchAllTfs(tokens) {
     await wait(3000);
   }
 
-  if (alive()) console.log("[FavDash] Background OHLCV fetch complete.");
+  if (alive()) _DEBUG && console.log("[FavDash] Background OHLCV fetch complete.");
 }
 
 /* Upgrade a chart with freshly fetched data.
@@ -1196,7 +1256,7 @@ function _fdUpgradeChart(mint, tf) {
   cd.shapeFallback = false; /* clear static flag — live tick can now extend bars */
   if (_fdSafeSetData(cd.series, bars)) {
     try { cd.chart.timeScale().fitContent(); } catch {}
-    console.log(`[FavDash] Upgraded ${mint.slice(0,8)}… chart from ${wasLabel} → real (${tf}, ${bars.length} bars)`);
+    _DEBUG && console.log(`[FavDash] Upgraded ${mint.slice(0,8)}… chart from ${wasLabel} → real (${tf}, ${bars.length} bars)`);
   }
 }
 
@@ -1235,32 +1295,33 @@ function _fdInitChart(t, tf = "15m") {
   wrapEl.appendChild(loadEl);
 
   /* Create LightweightCharts instance — compact settings for small cards */
+  const _nd = (function(){ try { return localStorage.getItem('s2m_dash_skin') === 'neon_degen'; } catch { return false; } })();
   const chart = LightweightCharts.createChart(chartDiv, {
     autoSize: true,
     layout: {
-      background: { type: "solid", color: "#040d0b" },
-      textColor:  "rgba(207,255,244,0.40)",
+      background: { type: "solid", color: _nd ? "#070010" : "#040d0b" },
+      textColor:  _nd ? "rgba(220,170,255,0.45)" : "rgba(207,255,244,0.40)",
       fontFamily: "'Segoe UI', system-ui, sans-serif",
       fontSize:   10,
     },
     grid: {
-      vertLines: { color: "rgba(44,255,201,0.04)" },
-      horzLines: { color: "rgba(44,255,201,0.04)" },
+      vertLines: { color: _nd ? "rgba(200,64,255,0.05)" : "rgba(44,255,201,0.04)" },
+      horzLines: { color: _nd ? "rgba(200,64,255,0.05)" : "rgba(44,255,201,0.04)" },
     },
     crosshair: {
       mode:     LightweightCharts.CrosshairMode.Normal,
-      vertLine: { color: "rgba(207,255,244,0.18)", labelBackgroundColor: "#0d2820" },
-      horzLine: { color: "rgba(207,255,244,0.18)", labelBackgroundColor: "#0d2820" },
+      vertLine: { color: _nd ? "rgba(200,150,255,0.25)" : "rgba(207,255,244,0.18)", labelBackgroundColor: _nd ? "#1a0030" : "#0d2820" },
+      horzLine: { color: _nd ? "rgba(200,150,255,0.25)" : "rgba(207,255,244,0.18)", labelBackgroundColor: _nd ? "#1a0030" : "#0d2820" },
     },
     rightPriceScale: {
-      borderColor:  "rgba(44,255,201,0.08)",
-      textColor:    "rgba(207,255,244,0.40)",
+      borderColor:  _nd ? "rgba(200,64,255,0.1)"  : "rgba(44,255,201,0.08)",
+      textColor:    _nd ? "rgba(220,170,255,0.45)" : "rgba(207,255,244,0.40)",
       scaleMargins: { top: 0.06, bottom: 0.05 },
       mode: LightweightCharts.PriceScaleMode.Logarithmic,
     },
     timeScale: {
-      borderColor:    "rgba(44,255,201,0.08)",
-      textColor:      "rgba(207,255,244,0.40)",
+      borderColor:    _nd ? "rgba(200,64,255,0.1)"  : "rgba(44,255,201,0.08)",
+      textColor:      _nd ? "rgba(220,170,255,0.45)" : "rgba(207,255,244,0.40)",
       timeVisible:    true,
       secondsVisible: false,
       rightOffset:    3,
@@ -1270,14 +1331,14 @@ function _fdInitChart(t, tf = "15m") {
     handleScale:  { mouseWheel: true, pinch: true },
   });
 
-  /* Candlestick series — green up / red down */
+  /* Candlestick series — neon green/violet for neon_degen, teal/red for original */
   const candleSeries = chart.addCandlestickSeries({
-    upColor:         "#26c98a",
-    downColor:       "#ef5350",
-    borderUpColor:   "#26c98a",
-    borderDownColor: "#ef5350",
-    wickUpColor:     "#26c98a",
-    wickDownColor:   "#ef5350",
+    upColor:         _nd ? "#39ff14" : "#26c98a",
+    downColor:       _nd ? "#c840ff" : "#ef5350",
+    borderUpColor:   _nd ? "#39ff14" : "#26c98a",
+    borderDownColor: _nd ? "#c840ff" : "#ef5350",
+    wickUpColor:     _nd ? "#39ff14" : "#26c98a",
+    wickDownColor:   _nd ? "#c840ff" : "#ef5350",
     priceFormat: {
       type:      "custom",
       minMove:   0.000000001,
@@ -1326,7 +1387,7 @@ async function _fdLoadChartData(mint, pairAddr, tf, loadEl) {
     cd.candleSeries.setData(bars);
     cd.chart.timeScale().fitContent();
   } catch (e) {
-    console.warn("[FavDash] candleSeries.setData error:", e.message);
+    _DEBUG && console.warn("[FavDash] candleSeries.setData error:", e.message);
   }
 }
 
@@ -1354,25 +1415,18 @@ function _fdUpdateCard(mint, pair, storedToken) {
       : `${Math.floor(min / 1440)}d old`;
   }
 
-  /* Live risk score */
+  /* Stored risk score — keep the last verified scanner score, not a live recompute.
+     Re-scan sends the user to risk-scanner.html for a fresh on-chain verified score. */
   if (storedToken) {
-    window.scanIsPumpFun    = _fdPairMap[mint] ? (storedToken.isPumpFun    ?? false) : false;
-    window.scanHasGraduated = storedToken.hasGraduated ?? false;
-    window.scanCreator      = storedToken.mintAuthority   || undefined;
-    window.scanFreezeAuth   = storedToken.freezeAuthority || undefined;
-    window.scanDevPercent   = storedToken.devPercent      || undefined;
+    const storedScore = storedToken.totalScore ?? 0;
+    const storedLevel = storedToken.riskLevel  || riskLevelFromScore(storedScore);
+    const levelEl     = document.getElementById(`fdcl-${mint}`);
+    if (levelEl) { levelEl.textContent = storedLevel; levelEl.className = `fdc-risk-badge wl-risk-badge ${badgeClass(storedScore)}`; }
 
-    const liveScore = computeRiskScore(pair, storedToken.top10PctNum ?? 0, storedToken.bundleScore ?? 75);
-    const liveLevel = riskLevelFromScore(liveScore);
-    const scoreEl   = document.getElementById(`fdcs-${mint}`);
-    const levelEl   = document.getElementById(`fdcl-${mint}`);
-    if (scoreEl) { scoreEl.textContent = liveScore; scoreEl.className = `fdc-score-num wl-score-num ${scoreClass(liveScore)}`; }
-    if (levelEl) { levelEl.textContent = liveLevel; levelEl.className = `fdc-risk-badge wl-risk-badge ${badgeClass(liveScore)}`; }
-
-    /* Recolour card border if risk tier changed */
+    /* Recolour card border using stored score */
     const card = document.getElementById(`fdc-${mint}`);
     if (card) {
-      const newCls = _fdCardClass(liveScore);
+      const newCls = _fdCardClass(storedScore);
       if (!card.classList.contains(newCls)) {
         card.classList.remove("fdc-moon", "fdc-green", "fdc-orange", "fdc-red");
         card.classList.add(newCls);
@@ -1981,7 +2035,7 @@ window._ltOpenChart = async function(mint) {
       const mod = await import("./candleChart.js");
       window.CandleChart = mod.CandleChart;
     } catch (e) {
-      console.warn("[LiveTrades] candleChart.js failed to load:", e);
+      _DEBUG && console.warn("[LiveTrades] candleChart.js failed to load:", e);
       const cont = el("ltChartContainer");
       if (cont) cont.innerHTML = `<div style="padding:60px;text-align:center;color:rgba(44,255,201,0.4);font-size:14px">Chart engine unavailable</div>`;
       return;
@@ -2215,10 +2269,10 @@ function _ltBuildTradeForm(mode, mint, symbol, holding, price) {
         </div>
         <div class="lt-trade-input-wrap">
           <input type="number" id="ltTradeAmountInput" class="lt-trade-input"
-                 placeholder="SOL amount" min="0" step="0.01" oninput="window._ltUpdateBuyPreview()"/>
+                 placeholder="S2M amount" min="0" step="0.01" oninput="window._ltUpdateBuyPreview()"/>
           <span class="lt-trade-input-unit">◎</span>
         </div>
-        <div class="lt-trade-preview" id="ltTradePreview">Enter SOL amount to see token estimate</div>
+        <div class="lt-trade-preview" id="ltTradePreview">Enter S2M amount to see token estimate</div>
         <button class="lt-trade-exec-btn lt-exec-buy" onclick="window._ltExecuteTrade()">🟢 BUY ${symbol || "Token"}</button>
       </div>`;
   } else {
@@ -2241,7 +2295,7 @@ function _ltBuildTradeForm(mode, mint, symbol, holding, price) {
                  placeholder="Token amount" min="0" step="any" oninput="window._ltUpdateSellPreview()"/>
           <span class="lt-trade-input-unit">${symbol || "tokens"}</span>
         </div>
-        <div class="lt-trade-preview" id="ltTradePreview">Enter token amount to see SOL estimate</div>
+        <div class="lt-trade-preview" id="ltTradePreview">Enter token amount to see S2M estimate</div>
         <button class="lt-trade-exec-btn lt-exec-sell" onclick="window._ltExecuteTrade()">🔴 SELL ${symbol || "Token"}</button>
       </div>`;
   }
@@ -2271,7 +2325,7 @@ window._ltUpdateBuyPreview = function() {
   const pair     = _ltPairCache[_ltTradeMint];
   const priceUsd = parseFloat(pair?.priceUsd || "0");
   const solUsd   = _solUsd || 150;
-  if (!sol || !priceUsd || !solUsd) { prev.textContent = "Enter SOL amount to see token estimate"; return; }
+  if (!sol || !priceUsd || !solUsd) { prev.textContent = "Enter S2M amount to see token estimate"; return; }
   const tokens = (sol * solUsd) / priceUsd;
   const sym    = pair?.baseToken?.symbol || "tokens";
   const fmtT   = tokens >= 1e6 ? (tokens/1e6).toFixed(2)+"M" : tokens >= 1000 ? (tokens/1000).toFixed(1)+"K" : tokens.toFixed(2);
@@ -2286,9 +2340,9 @@ window._ltUpdateSellPreview = function() {
   const pair     = _ltPairCache[_ltTradeMint];
   const priceUsd = parseFloat(pair?.priceUsd || "0");
   const solUsd   = _solUsd || 150;
-  if (!tokens || !priceUsd || !solUsd) { prev.textContent = "Enter token amount to see SOL estimate"; return; }
+  if (!tokens || !priceUsd || !solUsd) { prev.textContent = "Enter token amount to see S2M estimate"; return; }
   const solRec = (tokens * priceUsd) / solUsd;
-  prev.textContent = `≈ ${solRec.toFixed(4)} ◎ SOL`;
+  prev.textContent = `≈ ${solRec.toFixed(4)} S2M`;
 };
 
 window._ltExecuteTrade = async function() {
@@ -2372,51 +2426,43 @@ window._ltExecuteTrade = async function() {
 };
 
 /* ── Dedicated chart price ticker ───────────────────────────────────────────
-   Two-speed design:
-   • Fast loop (3s) — calls priceOnly (Birdeye /defi/price, 5s Redis TTL)
-     → drives the live candle so the chart updates in near-real-time
+   V2.1 Design:
+   • Fast feed — Birdeye WebSocket (real-time, replaces 3s REST polling)
+     → drives the live candle so the chart updates on every trade
    • Slow loop (30s) — calls scanToken (full pair data)
      → refreshes P/L badge, priceChange, volume estimates                     */
 
 let _ltChartSlowInterval = null;  /* 30s full scanToken refresh */
+let _ltChartWsUnsub      = null;  /* cleanup fn for Birdeye WS chart sub */
+let _ltChartFastInterval = null;  /* 4s REST poll — belt-and-suspenders alongside WS */
 
-/* ── Fast 3s price tick — only fetches the current price ── */
-async function _ltChartFastTick() {
-  if (!_ltChartInst || !_ltChartMint) return;
-  try {
-    const r = await fetch(`/.netlify/functions/priceOnly?mint=${encodeURIComponent(_ltChartMint)}`);
-    if (!r.ok) return;
-    const d = await r.json();
-    const price = d?.price;
-    if (!price || price <= 0) return;
+/* ── WS handler for the Live Trades chart ── */
+function _ltOnWsTick(wsData) {
+  // wsData.price is always set — normalised by birdeye-ws.js
+  const price = wsData?.price;
+  if (!(price > 0) || !_ltChartInst) return;
 
-    /* Update header price */
-    const cpEl = document.getElementById("ltChartPriceEl");
-    if (cpEl) cpEl.textContent = _ltFmtPrice(price);
+  /* Update header price */
+  const cpEl = document.getElementById("ltChartPriceEl");
+  if (cpEl) cpEl.textContent = _ltFmtPrice(price);
 
-    /* Quickly refresh P/L badge using cached pair data */
-    const holding = _simProfile?.holdings?.[_ltChartMint];
-    if (holding && price > 0 && holding.totalCostSol > 0) {
-      const cost   = holding.totalCostSol;
-      const curVal = (_solUsd > 0 && holding.amount > 0)
-        ? (holding.amount * price / _solUsd)
-        : (holding.avgPrice > 0 ? cost * (price / holding.avgPrice) : cost);
-      _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
-    }
-
-    /* Drive the live candle (volume estimated from cached pair data) */
-    const cachedPair = _ltPairCache[_ltChartMint];
-    const vol5m      = parseFloat(cachedPair?.volume?.m5 || "0");
-    const tfMs       = _ltChartInst.tfMs || 900_000;
-    const volEst     = vol5m > 0 ? vol5m / (300_000 / tfMs) : 0;
-    _ltChartInst.tick(price, volEst);
-
-    /* Also keep _ltPairCache price in sync for _ltUpdateInPlace */
-    if (cachedPair) cachedPair.priceUsd = String(price);
-
-  } catch (e) {
-    console.warn("[ltChartFastTick]", e.message);
+  /* Quickly refresh P/L badge */
+  const holding = _simProfile?.holdings?.[_ltChartMint];
+  if (holding && price > 0 && holding.totalCostSol > 0) {
+    const cost   = holding.totalCostSol;
+    const curVal = (_solUsd > 0 && holding.amount > 0)
+      ? (holding.amount * price / _solUsd)
+      : (holding.avgPrice > 0 ? cost * (price / holding.avgPrice) : cost);
+    _ltUpdateChartPnlBadge({ pnlSol: curVal - cost, pnlPct: ((curVal - cost) / cost) * 100 });
   }
+
+  /* Drive the live candle with real WS volume */
+  const vol = wsData?.v || 0; // normalised by birdeye-ws.js
+  _ltChartInst.tick(price, vol);
+
+  /* Keep _ltPairCache price in sync for _ltUpdateInPlace */
+  const cachedPair = _ltPairCache[_ltChartMint];
+  if (cachedPair) cachedPair.priceUsd = String(price);
 }
 
 /* ── Slow 30s full tick — fetches complete pair data ── */
@@ -2436,22 +2482,43 @@ async function _ltChartSlowTick() {
       _wlBirdeyeCache[_ltChartMint].ts   = Date.now();
     }
   } catch (e) {
-    console.warn("[ltChartSlowTick]", e.message);
+    _DEBUG && console.warn("[ltChartSlowTick]", e.message);
   }
 }
 
 function _ltStartChartTicker() {
   _ltStopChartTicker();
-  /* Fire both loops immediately, then on their respective intervals */
-  _ltChartFastTick();
+  if (!_ltChartMint) return;
+  const mintSnap = _ltChartMint; // capture for async safety
+
+  /* Subscribe Birdeye WS for real-time candle ticks (primary) */
+  const unsub1 = birdeyeWs.subscribe(mintSnap, null, _ltOnWsTick);  // price-only
+  const unsub2 = birdeyeWs.subscribe(mintSnap, "5m", _ltOnWsTick);  // 5m OHLCV
+  _ltChartWsUnsub = () => { unsub1(); unsub2(); };
+
+  /* Belt-and-suspenders: REST poll every 4s alongside WS */
+  const _ltRestPoll = async () => {
+    if (!_ltChartInst) return;
+    try {
+      const r = await fetch(`${PRICE_ONLY}?mint=${encodeURIComponent(mintSnap)}`);
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d?.ok && d.price > 0) _ltOnWsTick({ address: mintSnap, price: d.price, v: 0 });
+    } catch { /* non-critical */ }
+  };
+  _ltChartFastInterval = setInterval(_ltRestPoll, 4000);
+  _ltRestPoll(); // immediate first tick
+
+  /* Slow metadata refresh on interval */
   _ltChartSlowTick();
-  _ltChartInterval      = setInterval(_ltChartFastTick, 3_000);
-  _ltChartSlowInterval  = setInterval(_ltChartSlowTick, 30_000);
+  _ltChartSlowInterval = setInterval(_ltChartSlowTick, 30_000);
 }
 
 function _ltStopChartTicker() {
-  if (_ltChartInterval)     { clearInterval(_ltChartInterval);     _ltChartInterval     = null; }
-  if (_ltChartSlowInterval) { clearInterval(_ltChartSlowInterval); _ltChartSlowInterval = null; }
+  if (_ltChartWsUnsub)      { _ltChartWsUnsub();                            _ltChartWsUnsub      = null; }
+  if (_ltChartInterval)     { clearInterval(_ltChartInterval);              _ltChartInterval     = null; }
+  if (_ltChartSlowInterval) { clearInterval(_ltChartSlowInterval);          _ltChartSlowInterval = null; }
+  if (_ltChartFastInterval) { clearInterval(_ltChartFastInterval);          _ltChartFastInterval = null; }
 }
 
 window._ltCloseChart = function() {

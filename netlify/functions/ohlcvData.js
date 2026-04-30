@@ -6,20 +6,23 @@
 //   L2  Neon Postgres  (persistent, survives cold starts)
 //   L3  Birdeye API    (source of truth, ~200ms)
 
-const { getDb, redisGet, redisSet, CORS } = require("./db");
+const { getDb, redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis } = require("./db");
 
 // ── Timeframe config ──────────────────────────────────────────────────────
 // redisTtl: seconds to serve from Redis without hitting Birdeye.
-//   Longer = fewer Birdeye calls = fast dashboard opens for repeat users.
-//   15m candle closes every 15 min → 5 min (300s) cache is always accurate.
+//   IMPORTANT: Live candle updates now come via Birdeye WebSocket (birdeye-ws.js).
+//   ohlcvData is only used for the HISTORICAL candles on initial chart load.
+//   Short TTLs ensure the initial load is never more than 1 candle period stale.
+//   1m → 8s TTL  (at most 1 candle behind when chart opens)
+//   5m → 25s TTL (safe margin — WS handles the rest)
 // staleAfterSec: how long Neon data is considered fresh (falls back to Birdeye when exceeded).
 const TF_CONFIG = {
-  "1m":  { birdeyeType: "1m",  redisTtl: 20,   barSec: 60,     limit: 500, staleAfterSec: 30    },
-  "5m":  { birdeyeType: "5m",  redisTtl: 60,   barSec: 300,    limit: 300, staleAfterSec: 120   },
-  "15m": { birdeyeType: "15m", redisTtl: 300,  barSec: 900,    limit: 200, staleAfterSec: 600   },
-  "1h":  { birdeyeType: "1H",  redisTtl: 600,  barSec: 3600,   limit: 200, staleAfterSec: 1800  },
-  "4h":  { birdeyeType: "4H",  redisTtl: 1800, barSec: 14400,  limit: 200, staleAfterSec: 7200  },
-  "1d":  { birdeyeType: "1D",  redisTtl: 7200, barSec: 86400,  limit: 200, staleAfterSec: 86400 },
+  "1m":  { birdeyeType: "1m",  redisTtl: 8,    barSec: 60,     limit: 500, staleAfterSec: 15    },
+  "5m":  { birdeyeType: "5m",  redisTtl: 25,   barSec: 300,    limit: 300, staleAfterSec: 60    },
+  "15m": { birdeyeType: "15m", redisTtl: 120,  barSec: 900,    limit: 200, staleAfterSec: 300   },
+  "1h":  { birdeyeType: "1H",  redisTtl: 300,  barSec: 3600,   limit: 200, staleAfterSec: 900   },
+  "4h":  { birdeyeType: "4H",  redisTtl: 900,  barSec: 14400,  limit: 200, staleAfterSec: 3600  },
+  "1d":  { birdeyeType: "1D",  redisTtl: 3600, barSec: 86400,  limit: 200, staleAfterSec: 43200 },
 };
 
 // ── Birdeye fetch with 429 retry ──────────────────────────────────────────
@@ -57,10 +60,6 @@ async function fetchBirdeye(mint, tf) {
   const items = json?.data?.items;
   if (!Array.isArray(items) || items.length === 0) return [];
 
-  // Log first item to detect field names (remove after confirmed)
-  console.log("[Birdeye OHLCV] sample item keys:", Object.keys(items[0]));
-  console.log("[Birdeye OHLCV] sample item:", JSON.stringify(items[0]));
-
   return items.map(b => ({
     time:   Math.floor(b.unixTime ?? b.time ?? 0),
     open:   b.open  ?? b.o ?? 0,
@@ -75,24 +74,19 @@ async function fetchBirdeye(mint, tf) {
 
 // ── Upsert bars into Neon ─────────────────────────────────────────────────
 async function upsertBars(sql, mint, tf, bars) {
-  if (!bars.length) return;
-  // Batch upsert in chunks of 100 to avoid query length limits
-  const chunkSize = 100;
-  for (let i = 0; i < bars.length; i += chunkSize) {
-    const chunk = bars.slice(i, i + chunkSize);
-    for (const b of chunk) {
-      await sql`
-        INSERT INTO ohlcv_cache (mint, tf, ts, open, high, low, close, volume)
-        VALUES (${mint}, ${tf}, ${b.time}, ${b.open}, ${b.high}, ${b.low}, ${b.close}, ${b.volume})
-        ON CONFLICT (mint, tf, ts) DO UPDATE
-          SET open  = EXCLUDED.open,
-              high  = GREATEST(ohlcv_cache.high, EXCLUDED.high),
-              low   = LEAST(ohlcv_cache.low,  EXCLUDED.low),
-              close = EXCLUDED.close,
-              volume = EXCLUDED.volume,
-              fetched_at = NOW()
-      `;
-    }
+  const CHUNK = 50;
+  for (let i = 0; i < bars.length; i += CHUNK) {
+    const slice = bars.slice(i, i + CHUNK);
+    await Promise.all(slice.map(b => sql`
+      INSERT INTO ohlcv_cache (mint, tf, ts, open, high, low, close, volume)
+      VALUES (${mint}, ${tf}, ${b.time}, ${b.open}, ${b.high}, ${b.low}, ${b.close}, ${b.volume})
+      ON CONFLICT (mint, tf, ts) DO UPDATE
+        SET high  = GREATEST(ohlcv_cache.high, EXCLUDED.high),
+            low   = LEAST(ohlcv_cache.low,  EXCLUDED.low),
+            close = EXCLUDED.close,
+            volume = EXCLUDED.volume,
+            fetched_at = NOW()
+    `));
   }
 }
 
@@ -124,15 +118,26 @@ async function loadFromNeon(sql, mint, tf) {
   }));
 }
 
+const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
 // ── Main handler ──────────────────────────────────────────────────────────
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: CORS, body: "" };
   }
 
+  // C5: Rate limiting — 30 requests per 10 seconds per IP
+  const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  if (await isRateLimitedRedis(ip, 30, 10)) {
+    return { statusCode: 429, headers: { ...CORS_429, "Retry-After": "10" },
+             body: JSON.stringify({ error: "Too many requests — slow down." }) };
+  }
+
   const { mint, tf = "15m" } = event.queryStringParameters || {};
-  if (!mint) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "mint required" }) };
+
+  // C6: Validate mint address format before hitting Birdeye
+  if (!mint || !MINT_RE.test(mint)) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Invalid or missing mint address" }) };
   }
   if (!TF_CONFIG[tf]) {
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: `tf must be one of: ${Object.keys(TF_CONFIG).join(",")}` }) };
@@ -197,8 +202,8 @@ exports.handler = async (event) => {
 
   // Store in Neon + Redis (fire-and-forget)
   Promise.all([
-    sql ? upsertBars(sql, mint, tf, bars).catch(e => console.warn("Neon upsert:", e.message)) : Promise.resolve(),
-    redisSet(cacheKey, bars, cfg.redisTtl).catch(e => console.warn("Redis set:", e.message)),
+    sql ? upsertBars(sql, mint, tf, bars).catch(e => console.warn("Neon write:", e.message)) : Promise.resolve(),
+    redisSet(cacheKey, bars, cfg.redisTtl).catch(() => {}),
   ]);
 
   return {

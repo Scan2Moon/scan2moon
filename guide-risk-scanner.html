@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Guide 01 — Risk Scanner | Scan2Moon</title>
+  <meta name="description" content="The complete Risk Scanner guide. Learn the 12 signals, read your score, spot red flags — and prove it with a quiz." />
+  <meta property="og:title"       content="S2M – From Zero to Moon | Scan2Moon Guide" />
+  <meta property="og:description" content="Master the Risk Scanner in 8 minutes. 100 XP + 1 SOL reward." />
+  <meta property="og:image"       content="https://scan2moon.com/headerweb.jpg" />
+  <meta name="twitter:card"       content="summary_large_image" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="guide.css" />
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="skin-global.js"></script>
+</head>
+<body class="page-guide-rs">
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by module -->
+
+  <!-- ═══════════════════════════════
+       STICKY PROGRESS BAR
+  ═══════════════════════════════ -->
+  <div class="guide-progress-bar-wrap" id="guideProgressBar">
+    <div class="guide-progress-track">
+      <div class="guide-progress-fill" id="guideProgressFill"></div>
+    </div>
+    <div class="guide-progress-label" id="guideProgressLabel">Chapter 1 / 5</div>
+  </div>
+
+  <!-- ═══════════════════════════════
+       GUIDE TOOLBAR
+  ═══════════════════════════════ -->
+  <div class="grs-toolbar">
+    <div class="grs-toolbar-left">
+      <a href="guide.html" class="grs-back-link">← All Guides</a>
+      <div class="grs-tb-divider"></div>
+      <div class="grs-tag">GUIDE 01</div>
+      <div class="grs-tb-divider"></div>
+      <div class="grs-tb-title">Risk Scanner Masterclass</div>
+    </div>
+    <div class="grs-toolbar-right">
+      <div class="grs-reward-chip-sm grs-chip-sm-xp">100 XP</div>
+      <div class="grs-reward-chip-sm grs-chip-sm-sol">1 SOL</div>
+      <div class="grs-reward-chip-sm grs-chip-sm-bonus">+100 XP Perfect</div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════
+       GUIDE HEADER
+  ═══════════════════════════════ -->
+  <div class="grs-header">
+    <div class="grs-header-inner">
+      <div class="grs-header-left">
+        <div class="grs-header-tag">Risk Scanner · Guide 01</div>
+        <h1 class="grs-header-title" data-i18n="gr_title">S2M — From Zero to Moon</h1>
+        <p class="grs-header-sub" data-i18n="gr_subtitle">Everything you need to scan a Solana token with confidence — 4 chapters, a live example, and a knowledge quiz at the end.</p>
+        <div class="grs-meta-row">
+          <div class="grs-meta-pill">~8 min read</div>
+          <div class="grs-meta-pill">5-question quiz</div>
+          <div class="grs-meta-pill">Live demo included</div>
+        </div>
+      </div>
+      <div class="grs-header-right">
+        <div class="grs-reward-card">
+          <div class="grs-reward-card-label">COMPLETION REWARD</div>
+          <div class="grs-reward-card-main">
+            <div class="grs-reward-row">
+              <div class="grs-reward-icon grs-icon-xp">XP</div>
+              <div>
+                <div class="grs-reward-val grs-val-teal">+100 XP</div>
+                <div class="grs-reward-sub">academy points</div>
+              </div>
+            </div>
+            <div class="grs-reward-row">
+              <div class="grs-reward-icon grs-icon-sol">◎</div>
+              <div>
+                <div class="grs-reward-val grs-val-gold">+1 SOL</div>
+                <div class="grs-reward-sub">simulator balance</div>
+              </div>
+            </div>
+            <div class="grs-reward-divider"></div>
+            <div class="grs-reward-bonus">
+              <span class="grs-bonus-badge">BONUS</span>
+              <span>+100 XP for first-try perfect score</span>
+            </div>
+          </div>
+          <div class="grs-reward-card-note">Earned once per account · resets with account</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════
+       CHAPTER NAV STRIP
+  ═══════════════════════════════ -->
+  <div class="grs-chapter-nav">
+    <a href="#chapter1" class="grs-ch-link">01 · Mint Address</a>
+    <a href="#chapter2" class="grs-ch-link">02 · Risk Score</a>
+    <a href="#chapter3" class="grs-ch-link">03 · 12 Signals</a>
+    <a href="#chapter4" class="grs-ch-link">04 · Red Flags</a>
+    <a href="#chapter5" class="grs-ch-link grs-ch-quiz">05 · Quiz &amp; Reward</a>
+  </div>
+
+  <div class="guide-divider"></div>
+
+  <!-- ═══════════════════════════════
+       CHAPTER 1
+  ═══════════════════════════════ -->
+  <section class="guide-chapter" id="chapter1" data-chapter="1">
+    <div class="grs-chapter-hdr">
+      <div class="grs-chapter-num-badge">01</div>
+      <div>
+        <div class="grs-chapter-eyebrow" data-i18n="gr_ch1_num">Chapter 1 of 4</div>
+        <h2 class="grs-chapter-title" data-i18n="gr_ch1_title">Finding a Token's Mint Address</h2>
+      </div>
+    </div>
+    <p class="guide-chapter-lead" data-i18n-html="gr_ch1_lead">
+      Before you can scan a token, you need its <strong style="color:#cffff4;">mint address</strong>. Think of it as the token's unique fingerprint on the Solana blockchain — it never changes and there can only be one.
+    </p>
+
+    <div class="guide-box guide-box-tip">
+      <strong data-i18n="gr_ch1_tip_title">What is a mint address?</strong>
+      <span data-i18n="gr_ch1_tip_body">Every Solana token has a unique mint address — a 32–44 character code made of letters and numbers. It's sometimes called the "Contract Address" or "CA". This is what Scan2Moon uses to look up all on-chain data for that token.</span>
+    </div>
+
+    <div class="mint-demo">
+      <div class="mint-demo-label" data-i18n="gr_ch1_demo_label">Example mint address</div>
+      <div class="mint-demo-addr">BBKPiLM9KjdJW7oQSKt99RVWcZdhF6sEHRKnwqeBGHST</div>
+    </div>
+
+    <h3 class="grs-section-title" data-i18n="gr_ch1_steps_title">How to find a token's mint address:</h3>
+    <ol class="guide-steps">
+      <li><span data-i18n-html="gr_ch1_step1">Go to <strong>DexScreener.com</strong> (the most reliable source for Solana token data)</span></li>
+      <li><span data-i18n-html="gr_ch1_step2">Search for the token by name — for example type <strong>"GHOST"</strong> in the search bar</span></li>
+      <li><span data-i18n="gr_ch1_step3">Click on the correct token result (check the symbol and pair carefully)</span></li>
+      <li><span data-i18n-html="gr_ch1_step4">Look for <strong>"Contract"</strong> or <strong>"CA"</strong> on the token page — this is the mint address</span></li>
+      <li><span data-i18n="gr_ch1_step5">Copy the full address and paste it into the Scan2Moon search bar</span></li>
+    </ol>
+
+    <div class="guide-box guide-box-warn">
+      <strong data-i18n="gr_ch1_warn_title">Never use the token name to scan</strong>
+      <span data-i18n="gr_ch1_warn_body">Anyone can create a fake token called "GHOST" or "SOL". Always use the actual mint address to make sure you're scanning the real token, not an impostor.</span>
+    </div>
+
+    <div class="guide-box guide-box-danger">
+      <strong data-i18n="gr_ch1_danger_title">Token mint vs. wallet address</strong>
+      <span data-i18n="gr_ch1_danger_body">A wallet address is YOUR address on Solana. A mint address is the TOKEN's address. They look similar but are completely different. Pasting your own wallet address into Scan2Moon will not work — it needs a token mint.</span>
+    </div>
+  </section>
+
+  <div class="guide-divider"></div>
+
+  <!-- ═══════════════════════════════
+       CHAPTER 2
+  ═══════════════════════════════ -->
+  <section class="guide-chapter" id="chapter2" data-chapter="2">
+    <div class="grs-chapter-hdr">
+      <div class="grs-chapter-num-badge">02</div>
+      <div>
+        <div class="grs-chapter-eyebrow" data-i18n="gr_ch2_num">Chapter 2 of 4</div>
+        <h2 class="grs-chapter-title" data-i18n="gr_ch2_title">Reading the Risk Score</h2>
+      </div>
+    </div>
+    <p class="guide-chapter-lead" data-i18n-html="gr_ch2_lead">
+      Every scan produces a single number from 0 to 100. This is the <strong style="color:#cffff4;">Risk Score</strong> — the higher the number, the safer the token looks based on its on-chain signals.
+    </p>
+
+    <div class="grs-score-table">
+      <div class="grs-score-row">
+        <div class="grs-score-bar-col"><div class="grs-score-band" style="background:linear-gradient(90deg,#2cffc9,#1dbfa1);width:100%;box-shadow:0 0 12px rgba(44,255,201,0.35);"></div></div>
+        <div class="grs-score-range" style="color:#2cffc9;">80–100</div>
+        <div class="grs-score-verdict grs-v-moon">MOON COIN</div>
+        <div class="grs-score-desc">Strong signals, healthy liquidity, low rug risk.</div>
+      </div>
+      <div class="grs-score-row">
+        <div class="grs-score-bar-col"><div class="grs-score-band" style="background:linear-gradient(90deg,#7fffe1,#2cffc9);width:78%;"></div></div>
+        <div class="grs-score-range" style="color:#7fffe1;">65–79</div>
+        <div class="grs-score-verdict grs-v-good">LOW RISK</div>
+        <div class="grs-score-desc">Solid picture. Watch for any weak individual signals.</div>
+      </div>
+      <div class="grs-score-row">
+        <div class="grs-score-bar-col"><div class="grs-score-band" style="background:linear-gradient(90deg,#ffd166,#ffb432);width:56%;"></div></div>
+        <div class="grs-score-range" style="color:#ffd166;">45–64</div>
+        <div class="grs-score-verdict grs-v-warn">MODERATE</div>
+        <div class="grs-score-desc">Mixed signals. Trade carefully and size your position down.</div>
+      </div>
+      <div class="grs-score-row">
+        <div class="grs-score-bar-col"><div class="grs-score-band" style="background:linear-gradient(90deg,#ff8c42,#e06030);width:36%;"></div></div>
+        <div class="grs-score-range" style="color:#ff8c42;">25–44</div>
+        <div class="grs-score-verdict grs-v-high">HIGH RISK</div>
+        <div class="grs-score-desc">Multiple red flags. Not recommended unless you know the project well.</div>
+      </div>
+      <div class="grs-score-row">
+        <div class="grs-score-bar-col"><div class="grs-score-band" style="background:linear-gradient(90deg,#ff4d6d,#cc2244);width:18%;box-shadow:0 0 8px rgba(255,77,109,0.3);"></div></div>
+        <div class="grs-score-range" style="color:#ff4d6d;">0–24</div>
+        <div class="grs-score-verdict grs-v-ext">EXTREME</div>
+        <div class="grs-score-desc">Serious danger signs. Avoid unless you are prepared to lose everything.</div>
+      </div>
+    </div>
+
+    <div class="guide-box guide-box-tip">
+      <strong data-i18n="gr_ch2_tip_title">How is the score calculated?</strong>
+      <span data-i18n="gr_ch2_tip_body">Scan2Moon checks 12 independent signals and weights each one based on importance. No single signal can inflate your score — the system requires clean signals across the board to score high.</span>
+    </div>
+
+    <div class="guide-box guide-box-warn">
+      <strong data-i18n="gr_ch2_warn_title">The score is a tool, not a guarantee</strong>
+      <span data-i18n="gr_ch2_warn_body">A high score reduces risk — it does not eliminate it. Always trade with money you can afford to lose, regardless of scan results.</span>
+    </div>
+  </section>
+
+  <div class="guide-divider"></div>
+
+  <!-- ═══════════════════════════════
+       CHAPTER 3
+  ═══════════════════════════════ -->
+  <section class="guide-chapter" id="chapter3" data-chapter="3">
+    <div class="grs-chapter-hdr">
+      <div class="grs-chapter-num-badge">03</div>
+      <div>
+        <div class="grs-chapter-eyebrow" data-i18n="gr_ch3_num">Chapter 3 of 4</div>
+        <h2 class="grs-chapter-title" data-i18n="gr_ch3_title">The 12 Signals — What They Mean</h2>
+      </div>
+    </div>
+    <p class="guide-chapter-lead" data-i18n="gr_ch3_lead">
+      Below the Risk Score you'll see a grid of 12 signals. Each one scores 0–100 individually. Here's what each signal measures and why it matters:
+    </p>
+
+    <div class="signals-guide-grid">
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-mid"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig1_name">Token Age Trust</div>
+          <div class="signal-guide-weight">14%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig1_desc">How old is the token? Brand-new tokens (under 30 mins) score very low — there's no track record yet.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-key"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig2_name">Market Integrity</div>
+          <div class="signal-guide-weight">12%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig2_desc">Is the price crashing? A token down 65%+ in 24h scores near zero — someone is selling hard.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-high"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig3_name">Pump Danger</div>
+          <div class="signal-guide-weight">9%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig3_desc">Detects pump-and-dump setup: extreme price spike with weak volume or fast reversal.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-key"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig4_name">LP Strength</div>
+          <div class="signal-guide-weight">8%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig4_desc">How much real money is in the liquidity pool? Below $5K means a single sell can crash the price.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-high"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig5_name">MC / Liq Ratio</div>
+          <div class="signal-guide-weight">8%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig5_desc">Market Cap ÷ Liquidity. If the ratio is 1000× or higher, the price cannot be sustained.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-mid"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig6_name">Sell Pressure</div>
+          <div class="signal-guide-weight">8%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig6_desc">How many people are selling vs. buying right now? High sell pressure signals a possible price collapse.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-high"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig7_name">Dev Behavior</div>
+          <div class="signal-guide-weight">7%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig7_desc">What is the developer wallet doing? Active mint authority means they can print unlimited tokens.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-key"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig8_name">Bundle Attack Score</div>
+          <div class="signal-guide-weight">8%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig8_desc">Were there bot-coordinated buys at launch? Bundle attackers buy in bulk, inflate price, then dump.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-key"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig9_name">Pump.fun Launch Risk</div>
+          <div class="signal-guide-weight">12%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig9_desc">Still on the bonding curve? Tokens on pump.fun have "virtual" liquidity — not real exit liquidity.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-low"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig10_name">LP Stability</div>
+          <div class="signal-guide-weight">5%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig10_desc">Is the liquidity pool growing, stable, or shrinking? A rapidly draining pool is a red flag.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-low"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig11_name">Volume Consistency</div>
+          <div class="signal-guide-weight">4%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig11_desc">Sudden massive volume spikes followed by silence often indicate wash trading or artificial hype.</div>
+      </div>
+      <div class="signal-guide-card">
+        <div class="signal-guide-card-top">
+          <div class="signal-guide-dot dot-low"></div>
+          <div class="signal-guide-name" data-i18n="gr_sig12_name">Vol / MCap Ratio</div>
+          <div class="signal-guide-weight">5%</div>
+        </div>
+        <div class="signal-guide-desc" data-i18n="gr_sig12_desc">Volume relative to market cap. Extreme values suggest manipulation in either direction.</div>
+      </div>
+    </div>
+
+    <div class="guide-box guide-box-tip">
+      <strong data-i18n="gr_ch3_tip_title">Which signals matter most?</strong>
+      <span data-i18n-html="gr_ch3_tip_body">The three signals with the biggest weight are <strong>Token Age Trust (14%)</strong>, <strong>Market Integrity (12%)</strong>, and <strong>Pump.fun Launch Risk (12%)</strong>. LP Strength is lower weight but acts as a hard override — extremely low liquidity caps the total score regardless of other signals.</span>
+    </div>
+  </section>
+
+  <div class="guide-divider"></div>
+
+  <!-- ═══════════════════════════════
+       CHAPTER 4
+  ═══════════════════════════════ -->
+  <section class="guide-chapter" id="chapter4" data-chapter="4">
+    <div class="grs-chapter-hdr">
+      <div class="grs-chapter-num-badge grs-num-danger">04</div>
+      <div>
+        <div class="grs-chapter-eyebrow" data-i18n="gr_ch4_num">Chapter 4 of 4</div>
+        <h2 class="grs-chapter-title" data-i18n="gr_ch4_title">Red Flags — When to Walk Away</h2>
+      </div>
+    </div>
+    <p class="guide-chapter-lead" data-i18n="gr_ch4_lead">
+      Even if you're excited about a token, these signals should give you serious pause. Skipping a bad trade is just as profitable as catching a good one.
+    </p>
+
+    <div class="redflag-list">
+      <div class="redflag-item">
+        <span class="redflag-icon">🔴</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf1_title">Score below 30 — Extreme Risk</strong><span data-i18n="gr_ch4_rf1_body">Multiple systems are flagging danger. The on-chain data is warning you clearly.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🔴</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf2_title">LP Strength under 30 / 100</strong><span data-i18n="gr_ch4_rf2_body">Very weak liquidity. One whale sell can wipe the pool. You may not be able to exit.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🔴</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf3_title">Freeze Authority: Active</strong><span data-i18n="gr_ch4_rf3_body">The developer can freeze your token balance and block you from selling at any time.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🟡</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf4_title">Token under 10 minutes old</strong><span data-i18n="gr_ch4_rf4_body">Brand-new tokens have no track record. Bots and bundlers are most active in the first few minutes.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🟡</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf5_title">Pump.fun Launch Risk below 40</strong><span data-i18n="gr_ch4_rf5_body">Token is still on the bonding curve. Check if it has graduated to Raydium or Meteora.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🔴</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf6_title">Bundle Attack Score below 40</strong><span data-i18n="gr_ch4_rf6_body">Coordinated bot buys at launch were detected. You are likely buying from bundlers right now.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🟡</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf7_title">Dev Holdings above 15%</strong><span data-i18n="gr_ch4_rf7_body">The developer controls a large portion of supply. A single sell can crash the price significantly.</span></div>
+      </div>
+      <div class="redflag-item">
+        <span class="redflag-icon">🟡</span>
+        <div class="redflag-text"><strong data-i18n="gr_ch4_rf8_title">Top 10 holders above 70%</strong><span data-i18n="gr_ch4_rf8_body">A handful of wallets own most of the supply. Coordinated dumping can crash the price instantly.</span></div>
+      </div>
+    </div>
+
+    <div class="guide-box guide-box-tip">
+      <strong data-i18n="gr_ch4_tip_title">The discipline rule</strong>
+      <span data-i18n="gr_ch4_tip_body">If three or more red flags appear in a single scan, consider it a hard pass regardless of the hype around that token.</span>
+    </div>
+  </section>
+
+  <div class="guide-divider"></div>
+
+  <!-- ═══════════════════════════════
+       LIVE EXAMPLE CTA
+  ═══════════════════════════════ -->
+  <div class="grs-live-cta">
+    <div class="grs-live-dot"></div>
+    <div class="grs-live-inner">
+      <div class="grs-live-left">
+        <div class="grs-live-label">LIVE DEMO</div>
+        <div class="grs-live-title" data-i18n="gr_live_title">Try a Live Example</div>
+        <div class="grs-live-sub" data-i18n="gr_live_body">Click below to auto-fill a real token (GHOST) into the Risk Scanner. Watch all 12 signals run live and see the score calculated in real time.</div>
+      </div>
+      <button class="grs-live-btn" onclick="launchLiveExample()" data-i18n="gr_live_btn">
+        Run Live Scan →
+      </button>
+    </div>
+  </div>
+
+  <div class="guide-divider"></div>
+
+  <!-- ═══════════════════════════════
+       QUIZ
+  ═══════════════════════════════ -->
+  <section class="guide-chapter" id="chapter5" data-chapter="5">
+    <div class="grs-chapter-hdr">
+      <div class="grs-chapter-num-badge grs-num-quiz">05</div>
+      <div>
+        <div class="grs-chapter-eyebrow" data-i18n="gr_quiz_ch_num">Knowledge Check</div>
+        <h2 class="grs-chapter-title" data-i18n="gr_quiz_ch_title">Prove What You Know</h2>
+      </div>
+    </div>
+
+    <div class="grs-quiz-reward-strip">
+      <div class="grs-qr-item">
+        <div class="grs-qr-val grs-qr-teal">100 XP</div>
+        <div class="grs-qr-label">on pass (4/5+)</div>
+      </div>
+      <div class="grs-qr-sep"></div>
+      <div class="grs-qr-item">
+        <div class="grs-qr-val grs-qr-gold">1 SOL</div>
+        <div class="grs-qr-label">simulator reward</div>
+      </div>
+      <div class="grs-qr-sep"></div>
+      <div class="grs-qr-item">
+        <div class="grs-qr-val grs-qr-purple">+100 XP</div>
+        <div class="grs-qr-label">perfect first try</div>
+      </div>
+      <div class="grs-qr-sep"></div>
+      <div class="grs-qr-item grs-qr-note">
+        Earned once per account · reset to earn again
+      </div>
+    </div>
+
+    <div class="guide-quiz-wrap" id="quizWrap">
+      <div class="quiz-header">
+        <h2 data-i18n="gr_quiz_title">Risk Scanner Quiz</h2>
+        <p data-i18n="gr_quiz_sub">Select the best answer for each question. Wrong answers show an explanation.</p>
+      </div>
+
+      <!-- Q1 -->
+      <div class="quiz-question-block" id="qblock1">
+        <div class="quiz-q-text"><span class="quiz-q-num">Q1.</span> <span data-i18n="gr_q1_text">You scan a token and see 87/100. What does this mean?</span></div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="answer(1,'A')"><span class="quiz-option-indicator" id="qi1A">◯</span><span data-i18n="gr_q1_a">The token is extremely risky and might rug</span></button>
+          <button class="quiz-option" onclick="answer(1,'B')"><span class="quiz-option-indicator" id="qi1B">◯</span><span data-i18n="gr_q1_b">Moon Coin — strong on-chain signals, low rug risk</span></button>
+          <button class="quiz-option" onclick="answer(1,'C')"><span class="quiz-option-indicator" id="qi1C">◯</span><span data-i18n="gr_q1_c">The scan is still loading</span></button>
+        </div>
+        <div class="quiz-explanation" id="qe1"></div>
+      </div>
+
+      <!-- Q2 -->
+      <div class="quiz-question-block" id="qblock2">
+        <div class="quiz-q-text"><span class="quiz-q-num">Q2.</span> <span data-i18n="gr_q2_text">Where do you find a token's Mint Address?</span></div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="answer(2,'A')"><span class="quiz-option-indicator" id="qi2A">◯</span><span data-i18n="gr_q2_a">In your Phantom wallet — it's your own wallet address</span></button>
+          <button class="quiz-option" onclick="answer(2,'B')"><span class="quiz-option-indicator" id="qi2B">◯</span><span data-i18n="gr_q2_b">On DexScreener — search the token, copy the Contract Address (CA)</span></button>
+          <button class="quiz-option" onclick="answer(2,'C')"><span class="quiz-option-indicator" id="qi2C">◯</span><span data-i18n="gr_q2_c">The token name (like "GHOST") is the mint address</span></button>
+        </div>
+        <div class="quiz-explanation" id="qe2"></div>
+      </div>
+
+      <!-- Q3 -->
+      <div class="quiz-question-block" id="qblock3">
+        <div class="quiz-q-text"><span class="quiz-q-num">Q3.</span> <span data-i18n="gr_q3_text">LP Strength scores 18/100 on a token you're about to buy. What does this mean?</span></div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="answer(3,'A')"><span class="quiz-option-indicator" id="qi3A">◯</span><span data-i18n="gr_q3_a">Great! LP Strength doesn't affect the price much</span></button>
+          <button class="quiz-option" onclick="answer(3,'B')"><span class="quiz-option-indicator" id="qi3B">◯</span><span data-i18n="gr_q3_b">Very weak liquidity — one big sell can crash the price. High rug risk.</span></button>
+          <button class="quiz-option" onclick="answer(3,'C')"><span class="quiz-option-indicator" id="qi3C">◯</span><span data-i18n="gr_q3_c">It means the developer is active and engaged</span></button>
+        </div>
+        <div class="quiz-explanation" id="qe3"></div>
+      </div>
+
+      <!-- Q4 -->
+      <div class="quiz-question-block" id="qblock4">
+        <div class="quiz-q-text"><span class="quiz-q-num">Q4.</span> <span data-i18n="gr_q4_text">What does the Bundle Attack Detector check for?</span></div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="answer(4,'A')"><span class="quiz-option-indicator" id="qi4A">◯</span><span data-i18n="gr_q4_a">Whether the token is listed on multiple exchanges</span></button>
+          <button class="quiz-option" onclick="answer(4,'B')"><span class="quiz-option-indicator" id="qi4B">◯</span><span data-i18n="gr_q4_b">Bot-coordinated buys at launch that could dump on retail later</span></button>
+          <button class="quiz-option" onclick="answer(4,'C')"><span class="quiz-option-indicator" id="qi4C">◯</span><span data-i18n="gr_q4_c">Whether the smart contract has been formally audited</span></button>
+        </div>
+        <div class="quiz-explanation" id="qe4"></div>
+      </div>
+
+      <!-- Q5 -->
+      <div class="quiz-question-block" id="qblock5">
+        <div class="quiz-q-text"><span class="quiz-q-num">Q5.</span> <span data-i18n="gr_q5_text">Freeze Authority is "Active" on a token you're holding. What is the real danger?</span></div>
+        <div class="quiz-options">
+          <button class="quiz-option" onclick="answer(5,'A')"><span class="quiz-option-indicator" id="qi5A">◯</span><span data-i18n="gr_q5_a">Nothing — Freeze Authority is always active on Solana tokens</span></button>
+          <button class="quiz-option" onclick="answer(5,'B')"><span class="quiz-option-indicator" id="qi5B">◯</span><span data-i18n="gr_q5_b">The developer can freeze your token balance and prevent you from selling</span></button>
+          <button class="quiz-option" onclick="answer(5,'C')"><span class="quiz-option-indicator" id="qi5C">◯</span><span data-i18n="gr_q5_c">It means the token price is temporarily locked and won't move</span></button>
+        </div>
+        <div class="quiz-explanation" id="qe5"></div>
+      </div>
+
+      <!-- SUBMIT -->
+      <div style="text-align:center; margin-top:28px;">
+        <button id="submitQuizBtn" onclick="submitQuiz()" class="grs-submit-btn" disabled>
+          Submit Answers →
+        </button>
+        <div class="grs-quiz-prog" id="quizProgress" data-i18n="gr_quiz_progress_init">Answer all 5 questions to continue</div>
+      </div>
+
+      <!-- RESULT -->
+      <div class="quiz-result" id="quizResult">
+        <div class="quiz-result-score" id="quizResultScore"></div>
+        <div class="quiz-result-label" id="quizResultLabel"></div>
+
+        <!-- Pass: Badge -->
+        <div class="badge-card-wrap" id="badgeWrap">
+          <div class="badge-card" id="badgeCard">
+            <span class="badge-card-moon">🌕</span>
+            <div class="badge-card-title" data-i18n="gr_badge_certified">Certified</div>
+            <div class="badge-card-name" data-i18n="gr_badge_user">Scan2Moon User</div>
+            <div class="badge-card-sub" data-i18n="gr_badge_course">Risk Scanner Masterclass</div>
+            <div class="badge-card-sep"></div>
+            <div class="badge-card-score">
+              <span>✅</span> <span id="badgeScoreText">5/5 Correct</span>
+            </div>
+            <!-- reward block injected here by guide-risk-scanner-app.js -->
+          </div>
+          <div class="badge-share-row">
+            <button class="badge-share-btn btn-x" onclick="shareOnX()">𝕏 Share on X</button>
+            <button class="badge-share-btn" onclick="saveAsImage()" style="background:rgba(44,255,201,0.12);color:#2cffc9;border:1px solid rgba(44,255,201,0.3);cursor:pointer;">Save as Image</button>
+            <a href="risk-scanner.html" class="badge-share-btn btn-scan">Open Risk Scanner →</a>
+          </div>
+          <p style="font-size:12px;color:rgba(207,255,244,0.3);text-align:center;margin-top:10px;" data-i18n="gr_screenshot_hint">Take a screenshot of the badge above to share it</p>
+        </div>
+
+        <!-- Fail -->
+        <div class="quiz-fail-msg" id="quizFailMsg">
+          <p style="font-size:14px;color:rgba(207,255,244,0.6);margin-bottom:6px;" data-i18n="gr_result_fail_sub">Review the chapters above and try again — you've got this.</p>
+          <button class="quiz-retry-btn" onclick="retryQuiz()">Try Again →</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════════════════
+       BOTTOM NAV
+  ═══════════════════════════════ -->
+  <div class="grs-bottom-nav">
+    <a href="guide.html" class="grs-bottom-link">← All Guides</a>
+    <a href="risk-scanner.html" class="grs-bottom-link grs-bottom-primary">Open Risk Scanner →</a>
+  </div>
+
+</div><!-- /app -->
+
+<script type="module" src="./guide-risk-scanner-init.js"></script>
+<script src="./guide-risk-scanner-app.js"></script>
+</body>
+</html>

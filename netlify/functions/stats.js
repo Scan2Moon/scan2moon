@@ -15,7 +15,7 @@ const path = require("path");
 
 const CORS = {
   "Content-Type": "application/json",
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://scan2moon.com",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
@@ -94,7 +94,7 @@ exports.handler = async function (event) {
     try { body = JSON.parse(event.body || "{}"); } catch {}
   }
 
-  const isProduction  = !!process.env.NETLIFY_BLOBS_CONTEXT;
+  const isProduction  = !!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY_DEV;
   const hasRedis      = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 
   // Rate limit stat increments (not GET reads)

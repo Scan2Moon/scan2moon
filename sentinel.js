@@ -1,3 +1,5 @@
+const _DEBUG = false;
+
 /* ============================================================
    Scan2Moon — Sentinel AI Agent (frontend)
    ============================================================ */
@@ -49,14 +51,16 @@ export async function askSentinel() {
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "HTTP " + res.status);
+      // Surface the specific Groq error so it's visible in the modal (not just the console)
+      const msg = err.error || `HTTP ${res.status}`;
+      throw new Error(msg);
     }
 
     const { analysis } = await res.json();
     renderSentinelAnalysis(scanData, analysis);
 
   } catch (err) {
-    console.error("[Sentinel] Error:", err);
+    _DEBUG && console.error("[Sentinel] Error:", err);
     setModalState("error", err.message);
   }
 }

@@ -195,6 +195,10 @@ export async function renderBundlePanel(mint) {
         ⛓️ ${t("bundle_analyzed")}
         <span class="bd-footer-sep">•</span>
         ${esc(String(data.uniqueWallets))} ${data.uniqueWallets !== 1 ? t("bundle_wallets_examined") : t("bundle_wallet_examined")}
+        <span class="bd-footer-sep">•</span>
+        <span title="Bundle detection requires raw on-chain transaction data that Birdeye does not yet expose. All market/price data on this platform is powered by Birdeye.">
+          Tx data: Solana RPC
+        </span>
       </div>
       ${data.pumpFunOrigin ? `
       <div class="bd-explanation bd-warn" style="margin-top:10px; font-size:0.82em;">

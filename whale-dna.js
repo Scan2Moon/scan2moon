@@ -1,3 +1,5 @@
+const _DEBUG = false;
+
 /* ============================================================
    Scan2Moon – whale-dna.js  (V2.0)
    Whale DNA: Wallet behavior profiling + Copy-Trade Risk Score
@@ -5,10 +7,9 @@
 
 import { renderNav } from "./nav.js";
 import { applyTranslations } from "./i18n.js";
-import { callRpc }   from "./rpc.js";
 import "./community.js";
 
-const DEX_API = "https://api.dexscreener.com/latest/dex/tokens/";
+const TOKEN_BATCH_API = "/.netlify/functions/batchTokenData"; // Birdeye-backed batch token data
 
 /* ============================================================
    INIT
@@ -67,6 +68,7 @@ async function startScan() {
 
   document.getElementById("dnaProfilePanel").style.display  = "block";
   document.getElementById("dnaStatsRow").style.display      = "grid";
+  document.getElementById("dnaTop50Panel").style.display    = "none";
   document.getElementById("dnaHoldingsPanel").style.display = "block";
 
   showLoading("Fetching wallet token accounts…", 5);
@@ -103,20 +105,35 @@ async function startScan() {
     // STEP 4: Per-token stats
     const processed = withData.map(calcTokenStats);
 
-    updateProgress(94, "Profiling trader archetype…");
+    updateProgress(92, "Checking deploy history…");
 
-    // STEP 5: Build full DNA
-    const dna = buildDnaProfile(processed, allAccounts.length, wallet, enrichedDust, noData);
+    // STEP 5: Fetch deploy history (non-fatal — adds RUG DEPLOYER / DEV WALLET archetypes)
+    let deployData = null;
+    try {
+      const dRes = await fetch(`/.netlify/functions/devWallet?wallet=${encodeURIComponent(wallet)}`);
+      if (dRes.ok) deployData = await dRes.json();
+    } catch { /* non-fatal */ }
+
+    updateProgress(96, "Profiling trader archetype…");
+
+    // STEP 6: Build full DNA (pass deploy data for new archetypes)
+    const dna = buildDnaProfile(processed, allAccounts.length, wallet, enrichedDust, noData, deployData);
 
     updateProgress(100, "DNA decoded!");
+
+    document.getElementById("dnaTop50Panel").style.display = "block";
 
     renderDnaProfile(dna, wallet);
     renderPerformanceStats(dna);
     renderCopyScore(dna);
+    renderTop50(processed);
     renderHoldings(processed);
 
+    // STEP 7: Save profile to DB (non-fatal, fire-and-forget)
+    saveWalletProfile(wallet, dna).catch(() => {});
+
   } catch (err) {
-    console.error("Whale DNA scan failed:", err);
+    _DEBUG && console.error("Whale DNA scan failed:", err);
     showError("Scan failed: " + (err.message || "Unknown error. Check console."));
   } finally {
     btn.disabled = false;
@@ -125,44 +142,60 @@ async function startScan() {
 }
 
 /* ============================================================
-   FETCH ALL TOKEN ACCOUNTS
+   SAVE PROFILE TO DB (fire-and-forget after every scan)
    ============================================================ */
-async function fetchAllTokenAccounts(wallet) {
-  /* Query both token programs in parallel — same fix as portfolio scanner */
-  const [respV1, respV2] = await Promise.all([
-    callRpc("getTokenAccountsByOwner", [
-      wallet,
-      { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
-      { encoding: "jsonParsed", commitment: "confirmed" }
-    ]).catch(() => null),
-    callRpc("getTokenAccountsByOwner", [
-      wallet,
-      { programId: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
-      { encoding: "jsonParsed", commitment: "confirmed" }
-    ]).catch(() => null),
-  ]);
-
-  const allAccounts = [
-    ...(respV1?.value ?? []),
-    ...(respV2?.value ?? []),
-  ];
-
-  return allAccounts
-    .map(acc => {
-      const info = acc.account?.data?.parsed?.info;
-      if (!info) return null;
-      return {
-        mint:      info.mint,
-        decimals:  info.tokenAmount?.decimals ?? 0,
-        uiAmount:  Number(info.tokenAmount?.uiAmount ?? 0),
-        rawAmount: info.tokenAmount?.amount ?? "0",
-      };
-    })
-    .filter(Boolean);
+async function saveWalletProfile(wallet, dna) {
+  try {
+    await fetch("/.netlify/functions/walletProfile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        wallet,
+        archetype:     dna.archetype.id,
+        copyScore:     dna.copyScore,
+        winRate:       dna.winRate,
+        totalValue:    dna.totalValueUsd,
+        totalDeployed: dna.totalDeployed  ?? 0,
+        rugRate:       dna.deployRugRate  ?? 0,
+        tags:          dna.tags.map(t => t.text),
+        metadata: {
+          rugCount:    dna.rugCount,
+          tokenCount:  dna.tokenCount,
+          highRiskRatio: dna.highRiskRatio,
+          avgPosition: dna.avgPosition,
+        },
+      }),
+    });
+  } catch { /* non-fatal — scan still works if save fails */ }
 }
 
 /* ============================================================
-   ENRICH WITH DEXSCREENER
+   FETCH ALL TOKEN ACCOUNTS VIA BIRDEYE (walletTokens serverless fn)
+   Replaces: callRpc("getTokenAccountsByOwner") via Helius RPC.
+   ============================================================ */
+async function fetchAllTokenAccounts(wallet) {
+  const res  = await fetch(`/.netlify/functions/walletTokens?wallet=${encodeURIComponent(wallet)}`, {
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await res.json();
+
+  if (!data.ok) {
+    if (data.planRestricted) {
+      throw new Error("Wallet scan requires Birdeye Standard plan.");
+    }
+    throw new Error(data.error || "Wallet token fetch failed");
+  }
+
+  return (data.tokens || []).map(t => ({
+    mint:      t.mint,
+    decimals:  t.decimals  ?? 0,
+    uiAmount:  t.uiAmount  ?? 0,
+    rawAmount: "0",
+  }));
+}
+
+/* ============================================================
+   ENRICH WITH BIRDEYE (via batchTokenData serverless fn)
    ============================================================ */
 async function enrichTokens(accounts, progressStart = 20, progressEnd = 75) {
   const BATCH = 25;
@@ -175,35 +208,49 @@ async function enrichTokens(accounts, progressStart = 20, progressEnd = 75) {
     updateProgress(Math.min(pct, progressEnd), `Enriching tokens ${i + 1}–${Math.min(i + BATCH, accounts.length)} of ${accounts.length}…`);
 
     try {
-      const res   = await fetch(`${DEX_API}${mints}`);
-      const data  = await res.json();
-      const pairs = data.pairs || [];
+      const res  = await fetch(`${TOKEN_BATCH_API}?mints=${encodeURIComponent(mints)}`, {
+        signal: AbortSignal.timeout(15000),
+      });
+      const data = await res.json();
+
+      // Build mint → token map for O(1) lookup
+      const byMint = {};
+      for (const t of data.tokens || []) {
+        if (t.mint) byMint[t.mint] = t;
+      }
 
       for (const acc of slice) {
-        const pair = pairs
-          .filter(p => p.baseToken?.address === acc.mint && p.chainId === "solana")
-          .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] || null;
+        const t = byMint[acc.mint] || null;
+
+        // Estimate token age from Birdeye createdAt
+        let age = null;
+        if (t?.createdAt) {
+          const ts = typeof t.createdAt === "string"
+            ? new Date(t.createdAt).getTime()
+            : (t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt);
+          age = Math.floor((Date.now() - ts) / 86400000);
+        }
 
         results.push({
           ...acc,
-          pair,
-          name:     pair?.baseToken?.name   ?? "Unknown Token",
-          symbol:   pair?.baseToken?.symbol ?? acc.mint.slice(0, 6) + "…",
-          logo:     pair?.info?.imageUrl    ?? null,
-          priceUsd: pair ? parseFloat(pair.priceUsd || "0") : null,
-          mcap:     pair?.fdv ?? pair?.marketCap ?? 0,
-          liq:      pair?.liquidity?.usd ?? 0,
-          pc1h:     pair?.priceChange?.h1  ?? null,
-          pc24h:    pair?.priceChange?.h24 ?? null,
-          vol24h:   pair?.volume?.h24 ?? 0,
-          buys24h:  pair?.txns?.h24?.buys  ?? 0,
-          sells24h: pair?.txns?.h24?.sells ?? 0,
-          pairAddr: pair?.pairAddress ?? null,
-          age:      pair?.pairCreatedAt ? Math.floor((Date.now() - pair.pairCreatedAt) / 86400000) : null,
+          pair:     null,
+          name:     t?.name     ?? "Unknown Token",
+          symbol:   t?.symbol   ?? acc.mint.slice(0, 6) + "…",
+          logo:     t?.logoUri  ?? null,
+          priceUsd: t ? parseFloat(t.priceUsd ?? 0) : null,
+          mcap:     parseFloat(t?.marketCap ?? 0),
+          liq:      parseFloat(t?.liquidity ?? 0),
+          pc1h:     t?.priceChange1h  ?? null,
+          pc24h:    t?.priceChange24h ?? null,
+          vol24h:   parseFloat(t?.volume24h ?? 0),
+          buys24h:  parseInt(t?.buy24h  ?? 0),
+          sells24h: parseInt(t?.sell24h ?? 0),
+          pairAddr: null,
+          age,
         });
       }
     } catch (err) {
-      console.warn("DexScreener batch failed:", err);
+      _DEBUG && console.warn("Birdeye batch token fetch failed:", err);
       for (const acc of slice) {
         results.push({ ...acc, pair: null, name: "Unknown", symbol: "???", logo: null, priceUsd: null });
       }
@@ -262,7 +309,7 @@ function classifyForRugs(enrichedTokens) {
 /* ============================================================
    BUILD DNA PROFILE
    ============================================================ */
-function buildDnaProfile(tokens, totalAccounts, wallet, enrichedDust, noDataTokens) {
+function buildDnaProfile(tokens, totalAccounts, wallet, enrichedDust, noDataTokens, deployData) {
   const totalValueUsd = tokens.reduce((s, t) => s + t.currentValueUsd, 0);
 
   const positiveToday = tokens.filter(t => (t.pc24h ?? 0) > 0).length;
@@ -304,20 +351,26 @@ function buildDnaProfile(tokens, totalAccounts, wallet, enrichedDust, noDataToke
     t.currentValueUsd < 0.50 && t.score < 30 && (t.liq ?? 0) < 500
   ).length;
 
+  // Deploy history from devWallet endpoint (may be null if call failed)
+  const totalDeployed = deployData?.totalDeployed ?? 0;
+  const deployRugRate = deployData?.rugRate       ?? 0;
+  const deployRugCount = deployData?.rugCount     ?? 0;
+
   const archetype = detectArchetype({
     winRate, highRiskRatio, newTokenRatio, totalAccounts,
     totalValueUsd, avgPosition, lowLiqCount, tokens,
+    totalDeployed, deployRugRate,
   });
 
   const copyScore = calcCopyScore({
     winRate, highRiskRatio, newTokenRatio, totalAccounts,
     totalValueUsd, avgPosition, archetype, tokens,
-    rugCount: totalRugged,
+    rugCount: totalRugged, totalDeployed, deployRugRate,
   });
 
   const tags = buildTags({
     winRate, highRiskRatio, newTokenRatio, totalValueUsd,
-    avgPosition, tokens, totalRugged,
+    avgPosition, tokens, totalRugged, totalDeployed, deployRugRate,
   });
 
   return {
@@ -328,6 +381,7 @@ function buildDnaProfile(tokens, totalAccounts, wallet, enrichedDust, noDataToke
     avgPosition, highRiskRatio, highRiskCount,
     newTokenRatio, newTokens, lowLiqCount, avgLiquidity,
     rugCount: totalRugged, deadCount: totalDead, deadBagsHeld,
+    totalDeployed, deployRugRate, deployRugCount,
     archetype, copyScore, tags,
   };
 }
@@ -335,7 +389,27 @@ function buildDnaProfile(tokens, totalAccounts, wallet, enrichedDust, noDataToke
 /* ──────────────────────────── */
 /*  ARCHETYPE DETECTION         */
 /* ──────────────────────────── */
-function detectArchetype({ winRate, highRiskRatio, newTokenRatio, totalAccounts, totalValueUsd, avgPosition, lowLiqCount, tokens }) {
+function detectArchetype({ winRate, highRiskRatio, newTokenRatio, totalAccounts, totalValueUsd, avgPosition, lowLiqCount, tokens, totalDeployed = 0, deployRugRate = 0 }) {
+
+  // -- New archetypes powered by our own deploy history data ---------------
+
+  // RUG DEPLOYER: has launched tokens before, majority rugged
+  if (totalDeployed >= 2 && deployRugRate >= 50)
+    return { id:"rug_deployer", emoji:"💀", name:"RUG DEPLOYER", color:"#ff4d6d",
+      desc:`Deployed ${totalDeployed} token${totalDeployed > 1 ? "s" : ""} on-chain with a ${deployRugRate}% rug rate. This wallet has a history of creating and abandoning tokens. Extreme caution.` };
+
+  // DEV WALLET: has deployed tokens (not necessarily rugged)
+  if (totalDeployed >= 1 && deployRugRate < 50)
+    return { id:"dev_wallet", emoji:"🛠️", name:"DEV WALLET", color:"#ff9632",
+      desc:`Active token deployer. Has launched ${totalDeployed} token${totalDeployed > 1 ? "s" : ""} on-chain${deployRugRate > 0 ? ` (${deployRugRate}% rug rate)` : " with a clean record"}. Treat as a creator wallet, not a regular trader.` };
+
+  // KNOWN SMART MONEY: consistent high performer, disciplined risk
+  if (winRate >= 70 && highRiskRatio < 0.2 && totalValueUsd >= 5000)
+    return { id:"smart_money", emoji:"🧠", name:"KNOWN SMART MONEY", color:"#2cffc9",
+      desc:"Consistently profitable across a large portfolio with disciplined risk management. High-confidence copy-trade candidate. Scan2Moon classified." };
+
+  // -- Original archetypes -------------------------------------------------
+
   if (totalAccounts > 80 && avgPosition < 5)
     return { id:"bot",         emoji:"🤖", name:"BOT / SNIPER",  color:"#c07aff",
       desc:"Highly automated activity. Dozens of micro-positions. Likely a sniper bot or automated trading script." };
@@ -365,7 +439,7 @@ function detectArchetype({ winRate, highRiskRatio, newTokenRatio, totalAccounts,
 /* ──────────────────────────── */
 /*  COPY-TRADE SCORE            */
 /* ──────────────────────────── */
-function calcCopyScore({ winRate, highRiskRatio, newTokenRatio, totalAccounts, totalValueUsd, avgPosition, archetype, tokens, rugCount }) {
+function calcCopyScore({ winRate, highRiskRatio, newTokenRatio, totalAccounts, totalValueUsd, avgPosition, archetype, tokens, rugCount, totalDeployed = 0, deployRugRate = 0 }) {
   let score = 50;
   score += Math.round((winRate / 100) * 25);
   score -= Math.round(highRiskRatio * 25);
@@ -377,21 +451,28 @@ function calcCopyScore({ winRate, highRiskRatio, newTokenRatio, totalAccounts, t
   if (rugCount >= 10) score -= 15;
   else if (rugCount >= 5) score -= 8;
   else if (rugCount >= 2) score -= 3;
-  if (archetype.id === "smart")       score += 12;
-  if (archetype.id === "whale")       score += 8;
-  if (archetype.id === "flipper")     score += 5;
-  if (archetype.id === "degen")       score -= 15;
-  if (archetype.id === "bot")         score -= 20;
-  if (archetype.id === "sniper")      score -= 5;
-  if (archetype.id === "diamond")     score += 3;
-  if (archetype.id === "accumulator") score += 2;
+  // New archetype score modifiers
+  if (archetype.id === "smart_money")  score += 18;
+  if (archetype.id === "smart")        score += 12;
+  if (archetype.id === "whale")        score += 8;
+  if (archetype.id === "flipper")      score += 5;
+  if (archetype.id === "degen")        score -= 15;
+  if (archetype.id === "bot")          score -= 20;
+  if (archetype.id === "sniper")       score -= 5;
+  if (archetype.id === "diamond")      score += 3;
+  if (archetype.id === "accumulator")  score += 2;
+  if (archetype.id === "rug_deployer") score -= 35; // never copy a rug deployer
+  if (archetype.id === "dev_wallet")   score -= 15; // deployers aren't traders
+  // Deploy rug penalty on top
+  if (deployRugRate >= 80) score -= 20;
+  else if (deployRugRate >= 50) score -= 10;
   return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 /* ──────────────────────────── */
 /*  BEHAVIOR TAGS               */
 /* ──────────────────────────── */
-function buildTags({ winRate, highRiskRatio, newTokenRatio, totalValueUsd, avgPosition, tokens, totalRugged }) {
+function buildTags({ winRate, highRiskRatio, newTokenRatio, totalValueUsd, avgPosition, tokens, totalRugged, totalDeployed = 0, deployRugRate = 0 }) {
   const tags = [];
   if (winRate >= 65)           tags.push({ text:"✅ High Win Rate",        cls:"dna-tag-green"  });
   if (winRate < 35)            tags.push({ text:"📉 Low Win Rate",         cls:"dna-tag-red"    });
@@ -407,6 +488,12 @@ function buildTags({ winRate, highRiskRatio, newTokenRatio, totalValueUsd, avgPo
   if (tokens.length <= 5)      tags.push({ text:"🎯 Concentrated Bets",    cls:"dna-tag-yellow" });
   if (totalRugged >= 5)        tags.push({ text:"🪦 Rug Survivor",         cls:"dna-tag-red"    });
   if (totalRugged === 0)       tags.push({ text:"🧹 Clean History",        cls:"dna-tag-green"  });
+  // Deploy history tags (unique to Scan2Moon)
+  if (totalDeployed >= 1 && deployRugRate >= 50)
+                               tags.push({ text:"💀 Serial Rugger",        cls:"dna-tag-red"    });
+  if (totalDeployed >= 1 && deployRugRate < 20)
+                               tags.push({ text:"🛠️ Legit Deployer",       cls:"dna-tag-yellow" });
+  if (totalDeployed === 0)     tags.push({ text:"👤 No Deploys On-Chain",  cls:"dna-tag-blue"   });
   return tags;
 }
 
@@ -714,6 +801,53 @@ function buildShareText(dna, verdict, score) {
 }
 
 /* ============================================================
+   RENDER TOP 50 BY VALUE
+   ============================================================ */
+function renderTop50(tokens) {
+  const el = document.getElementById("dnaTop50Body");
+  if (!el) return;
+
+  const top50 = [...tokens]
+    .sort((a, b) => b.currentValueUsd - a.currentValueUsd)
+    .slice(0, 50);
+
+  if (!top50.length) {
+    el.innerHTML = `<div class="dna-empty"><div class="dna-empty-icon">💎</div><div class="dna-empty-title">No token data available</div></div>`;
+    return;
+  }
+
+  const rows = top50.map((t, i) => {
+    const logo     = t.logo
+      ? `/.netlify/functions/logoProxy?url=${encodeURIComponent(t.logo)}`
+      : "https://placehold.co/32x32/0a2a1e/2cffc9?text=?";
+    const pc24h    = t.pc24h ?? 0;
+    const pnlCls   = pc24h > 0 ? "t50-up" : pc24h < 0 ? "t50-down" : "t50-flat";
+    const pnlSign  = pc24h > 0 ? "+" : "";
+    const rank     = i + 1;
+    const rankCls  = rank === 1 ? "t50-rank-gold" : rank === 2 ? "t50-rank-silver" : rank === 3 ? "t50-rank-bronze" : "";
+    const valFmt   = formatUsd(t.currentValueUsd);
+    const amtFmt   = formatAmount(t.uiAmount) + " " + t.symbol;
+
+    return `
+      <div class="t50-row">
+        <div class="t50-rank ${rankCls}">${rank}</div>
+        <img class="t50-logo" src="${logo}"
+          onerror="this.src='https://placehold.co/32x32/0a2a1e/2cffc9?text=?'"
+          alt="${t.symbol}" />
+        <div class="t50-info">
+          <div class="t50-symbol">${t.symbol}</div>
+          <div class="t50-name">${t.name}</div>
+        </div>
+        <div class="t50-amount">${amtFmt}</div>
+        <div class="t50-value">${valFmt}</div>
+        <div class="t50-change ${pnlCls}">${pnlSign}${pc24h.toFixed(2)}%</div>
+      </div>`;
+  }).join("");
+
+  el.innerHTML = `<div class="t50-list">${rows}</div>`;
+}
+
+/* ============================================================
    RENDER HOLDINGS TABLE
    ============================================================ */
 let allHoldings = [];
@@ -796,7 +930,7 @@ function renderHoldingRows(tokens) {
           <span class="dna-risk-badge ${t.riskClass}">${t.riskLabel}</span>
         </td>
         <td>
-          <a href="https://dexscreener.com/solana/${t.mint}" target="_blank" rel="noopener noreferrer"
+          <a href="https://birdeye.so/token/${t.mint}?chain=solana" target="_blank" rel="noopener noreferrer"
              style="font-size:11px;color:#2cffc9;opacity:.7;text-decoration:none;">Chart ↗</a>
         </td>
       </tr>

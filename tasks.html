@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Missions &amp; Tasks — Scan2Moon</title>
+  <meta name="description" content="Complete missions, earn XP, unlock badges and track your Scan2Moon journey." />
+  <meta property="og:type"        content="website" />
+  <meta property="og:site_name"   content="Scan2Moon" />
+  <meta property="og:url"         content="https://scan2moon.com/tasks.html" />
+  <meta property="og:title"       content="Missions &amp; Tasks — Scan2Moon" />
+  <meta property="og:description" content="Complete missions, earn XP and unlock badges on Scan2Moon." />
+  <meta property="og:image"       content="https://scan2moon.com/headerweb.jpg" />
+  <meta name="twitter:card"       content="summary_large_image" />
+  <meta name="twitter:site"       content="@Scan2Moon" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="safe-ape.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <link rel="stylesheet" href="tasks.css" />
+  <link rel="stylesheet" href="academy.css" />
+  <script src="skin-global.js"></script>
+</head>
+<body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- ══════════════════════════════════════
+       PAGE HERO
+  ══════════════════════════════════════ -->
+  <div class="tasks-hero">
+    <div class="tasks-hero-inner">
+      <div class="tasks-hero-icon">⚡</div>
+      <div class="tasks-hero-text">
+        <h1 class="tasks-hero-title">MISSIONS &amp; TASKS</h1>
+        <p class="tasks-hero-sub">Complete challenges · Earn XP · Unlock badges &amp; SOL rewards</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       NOT CONNECTED GATE
+  ══════════════════════════════════════ -->
+  <div id="tasksGate">
+    <div class="sa-connect-hero">
+      <div class="dash-scanner-anim">
+        <div class="scan-ring scan-ring-1"></div>
+        <div class="scan-ring scan-ring-2"></div>
+        <div class="scan-ring scan-ring-3"></div>
+        <div class="scan-sweep"></div>
+        <div class="scan-dot scan-dot-1"></div>
+        <div class="scan-dot scan-dot-2"></div>
+        <div class="scan-dot scan-dot-3"></div>
+        <div class="scan-center">S2M</div>
+      </div>
+      <div class="sa-connect-title">YOUR MISSIONS</div>
+      <div class="sa-connect-sub">Connect your Phantom wallet to track your progress and earn rewards.</div>
+      <button class="sa-wallet-connect-btn" id="tasksConnectBtn">
+        🔗 Connect Phantom Wallet
+      </button>
+      <div class="sa-connect-note">Same wallet as the Safe Ape Simulator — your progress loads automatically</div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       TASKS APP
+  ══════════════════════════════════════ -->
+  <div id="tasksApp" style="display:none;">
+
+    <!-- ── S2M SOCIAL TASKS (accordion, injected by tasks.js) ── -->
+    <div id="tasksSocialPanel" style="padding:0 12px;margin-bottom:0;"></div>
+
+    <!-- ── SPONSORED TASKS (accordion, injected by tasks.js) ── -->
+    <div id="tasksSponsoredPanel" style="padding:0 12px;margin-bottom:10px;"></div>
+
+    <!-- ── OVERVIEW BANNER ──────────────────── -->
+    <div id="tasksOverview" style="padding:0 12px;"></div>
+
+    <!-- ── MISSIONS ─────────────────────────── -->
+    <div class="tasks-acc-wrap" id="tasks-acc-missions" style="margin:10px 12px 0;">
+      <div class="tasks-acc-header" onclick="window.toggleTasksAcc('missions')">
+        <div class="tasks-acc-color-bar" style="background:#a78bfa;"></div>
+        <div class="tasks-acc-icon">🎯</div>
+        <div class="tasks-acc-title-group">
+          <div class="tasks-acc-title">Missions</div>
+          <div class="tasks-acc-subtitle">Core challenges · XP progression</div>
+        </div>
+        <div class="tasks-acc-chevron">▼</div>
+      </div>
+      <div class="tasks-acc-body">
+        <div id="tasksMissions"><!-- injected by tasks.js --></div>
+      </div>
+    </div>
+
+    <!-- ── LOGIN STREAK ──────────────────────── -->
+    <div class="tasks-acc-wrap" id="tasks-acc-streak" style="margin:10px 12px 0;">
+      <div class="tasks-acc-header" onclick="window.toggleTasksAcc('streak')">
+        <div class="tasks-acc-color-bar" style="background:#ff7043;"></div>
+        <div class="tasks-acc-icon">🔥</div>
+        <div class="tasks-acc-title-group">
+          <div class="tasks-acc-title">Login Streak</div>
+          <div class="tasks-acc-subtitle">Daily logins · Streak milestones</div>
+        </div>
+        <div class="tasks-acc-chevron">▼</div>
+      </div>
+      <div class="tasks-acc-body">
+        <div id="tasksStreak"><!-- injected by tasks.js --></div>
+      </div>
+    </div>
+
+    <!-- ── DAILY CHALLENGES (placeholder accordion) ────── -->
+    <div class="tasks-acc-wrap tasks-soon-panel" id="tasks-acc-daily" style="margin:10px 12px 0;">
+      <div class="tasks-acc-header" onclick="window.toggleTasksAcc('daily')">
+        <div class="tasks-acc-color-bar" style="background:#34d399;"></div>
+        <div class="tasks-acc-icon">📅</div>
+        <div class="tasks-acc-title-group">
+          <div class="tasks-acc-title">Daily Challenges</div>
+          <div class="tasks-acc-subtitle">Resets every 24 hours · Quick XP</div>
+        </div>
+        <div class="tasks-acc-chip soon">COMING SOON</div>
+        <div class="tasks-acc-chevron">▼</div>
+      </div>
+      <div class="tasks-acc-body">
+        <div class="tasks-soon-content">
+          <div class="tasks-soon-preview">
+            <div class="tasks-soon-item tasks-blur">🔍 Scan 3 tokens today <span>+30 XP</span></div>
+            <div class="tasks-soon-item tasks-blur">💰 Make a profitable trade <span>+25 XP</span></div>
+            <div class="tasks-soon-item tasks-blur">🌙 Share your stats on X <span>+20 XP</span></div>
+          </div>
+          <div class="tasks-soon-badge">
+            <span>⏱️</span>
+            <div>
+              <strong>Resets every 24 hours</strong>
+              <span>Daily challenges go live when Academy launches</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── WEEKLY CHALLENGES (placeholder accordion) ───── -->
+    <div class="tasks-acc-wrap tasks-soon-panel" id="tasks-acc-weekly" style="margin:10px 12px 10px;">
+      <div class="tasks-acc-header" onclick="window.toggleTasksAcc('weekly')">
+        <div class="tasks-acc-color-bar" style="background:#f59e0b;"></div>
+        <div class="tasks-acc-icon">🏆</div>
+        <div class="tasks-acc-title-group">
+          <div class="tasks-acc-title">Weekly Challenges</div>
+          <div class="tasks-acc-subtitle">Resets every Monday · Bigger rewards</div>
+        </div>
+        <div class="tasks-acc-chip soon">COMING SOON</div>
+        <div class="tasks-acc-chevron">▼</div>
+      </div>
+      <div class="tasks-acc-body">
+        <div class="tasks-soon-content">
+          <div class="tasks-soon-preview">
+            <div class="tasks-soon-item tasks-blur">🔍 Scan 20 tokens this week <span>+100 XP</span></div>
+            <div class="tasks-soon-item tasks-blur">💎 Achieve 60%+ win rate <span>+150 XP</span></div>
+            <div class="tasks-soon-item tasks-blur">🤝 Refer a friend to S2M <span>+0.1 SOL</span></div>
+          </div>
+          <div class="tasks-soon-badge">
+            <span>📅</span>
+            <div>
+              <strong>Resets every Monday</strong>
+              <span>Bigger rewards for bigger commitment</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#tasksApp -->
+
+
+</div><!-- /.app -->
+
+<script type="module" src="tasks.js"></script>
+</body>
+</html>

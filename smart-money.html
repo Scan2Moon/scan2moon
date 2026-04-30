@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Smart Money — Scan2Moon</title>
+  <meta name="description" content="Track tokens where known profitable wallets are entering. Real-time smart money activity on Solana." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="home.css" />
+  <script src="skin-global.js"></script>
+</head>
+<body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+
+<div class="app">
+
+  <!-- HEADER IMAGE -->
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by home.js → nav.js -->
+
+  <!-- ═══════════════════════════════════════
+       PAGE HEADER
+  ═══════════════════════════════════════ -->
+  <div class="pg-header pg-header--gold">
+    <div class="pg-header-sweep"></div>
+    <div class="pg-header-inner">
+      <div class="pg-header-left">
+        <div class="pg-header-icon pg-header-icon--gold">·</div>
+        <div>
+          <div class="pg-header-title">SMART MONEY</div>
+          <div class="pg-header-sub">Profitable wallet activity · Tokens entered within 60s of launch</div>
+        </div>
+      </div>
+      <div class="pg-header-right">
+        <div class="sm-stats-row">
+          <span class="sm-stat-pill" id="smStatTokens">— tokens</span>
+          <span class="sm-stat-pill" id="smStatWallets">— wallets tracked</span>
+          <span class="sm-stat-pill sm-stat-update" id="smStatUpdate">Syncing…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       SMART MONEY PANEL
+  ═══════════════════════════════════════ -->
+  <div class="panel tg-panel" id="tgSmartMoneyView">
+
+    <!-- Info bar -->
+    <div class="sm-info-bar">
+      <span>Tokens where <strong>known profitable wallets</strong> bought within the first <strong>60 seconds</strong> of launch</span>
+      <span class="sm-info-refresh">· Updates every 2 min</span>
+      <a class="sm-api-badge" href="mailto:mental.degen@gmail.com?subject=Smart Money API Access">API Access ↗</a>
+    </div>
+
+    <!-- Layout: wallet sidebar + feed -->
+    <div class="sm-layout">
+
+      <!-- Tracked wallets sidebar -->
+      <div class="sm-sidebar">
+        <div class="sm-sidebar-title">
+          <div class="sm-sidebar-shape"></div>
+          TRACKED WALLETS
+        </div>
+        <div id="smWalletList" class="sm-wallet-list">
+          <!-- injected by home.js -->
+        </div>
+      </div>
+
+      <!-- Live feed -->
+      <div class="sm-feed-col">
+        <div class="sm-feed" id="smFeed">
+          <div class="sm-loading" id="smLoading">
+            <div class="tg-spinner"></div>
+            <div class="tg-loading-text">Scanning smart money activity…</div>
+          </div>
+          <div class="sm-empty" id="smEmpty" style="display:none;">
+            <div class="sm-empty-shape">·</div>
+            <div class="sm-empty-title">No signals in the last 24h</div>
+            <div class="sm-empty-sub">Feed updates every 2 minutes as new pairs launch</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+  <!-- COMMUNITY PANEL -->
+  <div id="communityPanel"></div>
+
+  <footer class="footer">
+    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-right">
+      <span class="version">Version V2.0</span>
+      <span class="separator">•</span>
+      <span class="powered">Scan2Moon · Solana Analytics</span>
+    </div>
+  </footer>
+
+</div>
+
+<script type="module" src="home.js?v=1776969471"></script>
+</body>
+</html>

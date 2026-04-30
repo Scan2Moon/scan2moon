@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Academy — Scan2Moon</title>
+  <meta name="description" content="Learn to trade Solana memecoins safely. Master the Risk Scanner, AI Sentinel, and proven trading strategies." />
+  <meta property="og:type"        content="website" />
+  <meta property="og:site_name"   content="Scan2Moon" />
+  <meta property="og:url"         content="https://scan2moon.com/academy.html" />
+  <meta property="og:title"       content="S2M Academy — Learn to Trade Safely" />
+  <meta property="og:description" content="Courses, quizzes and certifications for Solana memecoin traders." />
+  <meta property="og:image"       content="https://scan2moon.com/headerweb.jpg" />
+  <meta name="twitter:card"       content="summary_large_image" />
+  <meta name="twitter:site"       content="@Scan2Moon" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="safe-ape.css" />
+  <link rel="stylesheet" href="dashboard.css" />
+  <link rel="stylesheet" href="academy.css" />
+  <script src="skin-global.js"></script>
+</head>
+<body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+<div class="app">
+
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by nav.js -->
+
+  <!-- ══════════════════════════════════════
+       PAGE HERO
+  ══════════════════════════════════════ -->
+  <div class="acad-hero">
+    <div class="acad-hero-inner">
+      <div class="acad-hero-icon">🎓</div>
+      <div>
+        <h1 class="acad-hero-title">SCAN2MOON ACADEMY</h1>
+        <p class="acad-hero-sub">
+          Learn to read on-chain data, interpret risk signals, and trade Solana memecoins with discipline.
+          Complete courses to earn XP, SOL rewards, and exclusive badges.
+        </p>
+        <div class="acad-sentinel-badge">
+          <span>◈</span> Powered by AI Sentinel — real threat detection used in all examples
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       NOT CONNECTED GATE
+  ══════════════════════════════════════ -->
+  <div id="acadGate">
+    <div class="acad-gate">
+      <div style="font-size:56px;line-height:1;margin-bottom:8px;">🎓</div>
+      <div class="acad-gate-title">Connect Your Wallet to Track Progress</div>
+      <div class="acad-gate-sub">
+        Your course progress, XP, and earned badges are saved to your wallet profile.
+      </div>
+      <button class="sa-wallet-connect-btn" id="acadConnectBtn">
+        🔗 Connect Phantom Wallet
+      </button>
+      <p style="font-size:11px;color:rgba(207,255,244,0.3);font-weight:600;margin-top:12px;">
+        You can browse all courses without connecting — connect to save your progress.
+      </p>
+    </div>
+    <!-- Courses still rendered in browse mode below -->
+    <div id="acadBrowseMode"></div>
+  </div>
+
+  <!-- ══════════════════════════════════════
+       ACADEMY APP (logged in)
+  ══════════════════════════════════════ -->
+  <div id="acadApp" style="display:none;">
+
+    <!-- Progress overview -->
+    <div id="acadProgress"><!-- injected by academy.js --></div>
+
+    <!-- Courses list -->
+    <div class="acad-courses" id="acadCourses"><!-- injected by academy.js --></div>
+
+    <!-- Glossary -->
+    <div id="acadGlossary"><!-- injected by academy.js --></div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════
+       LESSON / QUIZ MODAL (shared)
+  ══════════════════════════════════════ -->
+  <div id="acadModalContainer"></div>
+
+</div><!-- /.app -->
+
+<script type="module" src="academy.js"></script>
+</body>
+</html>

@@ -1,6 +1,7 @@
-// UPDATED FILE: tokenStats.js
-const DEXSCREENER_API = "https://api.dexscreener.com/latest/dex/tokens/";
-const DEXSCREENER_PAIR_API = "https://api.dexscreener.com/latest/dex/pairs/solana/";
+const _DEBUG = false;
+
+// UPDATED FILE: tokenStats.js — now uses Birdeye via scanData singleton
+import { getScanData } from "./scanData.js";
 
 function formatNumber(num) {
   if (num === undefined || num === null) return "N/A";
@@ -51,65 +52,23 @@ export async function renderTokenStats(mint) {
   container.innerHTML = "Loading token stats...";
 
   try {
-    const res = await fetch(`${DEXSCREENER_API}${mint}`);
-    if (!res.ok) {
+    const data = await getScanData(mint);
+    if (!data?.pair) {
       container.innerHTML = "Market data unavailable. Try again shortly.";
       return;
     }
-    const data = await res.json();
 
-    if (!data.pairs || data.pairs.length === 0) {
-      container.innerHTML = "No market data found.";
-      return;
-    }
+    const pair = data.pair;
 
-    /* ── Smart pair selection (mirrors scanSignals.js logic) ──
-       Pump.fun tokens have a virtual bonding-curve pair (OLD) and a
-       real Raydium/Orca pair (NEW). Always use the newest real pair. */
-    const solanaPairs = data.pairs.filter(p => p.chainId === "solana");
-    // For pump.fun tokens prefer a real DEX pair (Meteora/Raydium) over the bonding curve.
-    // DexScreener API under-reports liquidity for DLMM pools so we filter first, then sort.
-    const isPumpFunToken = mint.toLowerCase().endsWith("pump");
-    const realDexPairs = isPumpFunToken
-      ? solanaPairs.filter(p => !String(p.dexId || "").toLowerCase().includes("pump"))
-      : solanaPairs;
-    const pool = realDexPairs.length > 0 ? realDexPairs : solanaPairs;
-    let pair = pool.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0]
-             || data.pairs[0];
-
-    const priceUsd = pair.priceUsd;
-    const priceSol = pair.priceNative;
-    const volume24h = pair.volume?.h24;
-
-    let pairCreated = null;
-
-    if (pair.pairAddress && pair.chainId === "solana") {
-      try {
-        const pairRes = await fetch(
-          `${DEXSCREENER_PAIR_API}${pair.pairAddress}`
-        );
-        if (!pairRes.ok) throw new Error(`Pair fetch ${pairRes.status}`);
-        const pairData = await pairRes.json();
-
-        if (pairData.pairs && pairData.pairs.length > 0) {
-          const rawTimestamp = pairData.pairs[0].pairCreatedAt;
-          if (rawTimestamp) {
-            pairCreated =
-              rawTimestamp < 1000000000000
-                ? rawTimestamp * 1000
-                : rawTimestamp;
-          }
-        }
-      } catch (e) {
-        console.warn("Pair created fetch failed:", e);
-      }
-    }
+    const priceUsd  = pair.priceUsd;
+    const priceSol  = pair.priceNative;
+    const volume24h = pair.volume?.h24 ?? 0;
+    const pairCreated = pair.pairCreatedAt ?? null;
 
     /* ================= PRICE CHANGES ================= */
-
-    const pc5m  = pair.priceChange?.m5 ?? null;
-    const pc1h  = pair.priceChange?.h1 ?? null;
-    const pc6h  = pair.priceChange?.h6 ?? null;
+    const pc5m  = pair.priceChange?.m5  ?? null;
+    const pc1h  = pair.priceChange?.h1  ?? null;
+    const pc6h  = pair.priceChange?.h6  ?? null;
     const pc24h = pair.priceChange?.h24 ?? null;
 
     let pc12h = null;
@@ -118,27 +77,16 @@ export async function renderTokenStats(mint) {
     }
 
     /* ================= BUY / SELL ================= */
-
-    const buys24h = pair.txns?.h24?.buys || 0;
-    const sells24h = pair.txns?.h24?.sells || 0;
+    const buys24h      = pair.txns?.h24?.buys  || 0;
+    const sells24h     = pair.txns?.h24?.sells || 0;
     const totalTxns24h = buys24h + sells24h;
 
-    const buyPercent =
-      totalTxns24h > 0 ? (buys24h / totalTxns24h) * 100 : 0;
+    const buyPercent  = totalTxns24h > 0 ? (buys24h / totalTxns24h) * 100 : 0;
     const sellPercent = 100 - buyPercent;
-
     const netPressure = buys24h - sells24h;
 
-    window.scanNetBuyPressure = {
-      buys: buys24h,
-      sells: sells24h,
-      net: netPressure,
-      buyPercent,
-      sellPercent
-    };
-
-    // ✅ FIX: Expose vol24h and buys24h so saveScanToHistory can calc avgTxSize
-    window.scanVol24h = volume24h || 0;
+    window.scanNetBuyPressure = { buys: buys24h, sells: sells24h, net: netPressure, buyPercent, sellPercent };
+    window.scanVol24h  = volume24h;
     window.scanBuys24h = buys24h;
 
     container.innerHTML = `
@@ -215,7 +163,7 @@ export async function renderTokenStats(mint) {
     `;
 
   } catch (e) {
-    console.error("Failed to load token stats:", e);
+    _DEBUG && console.error("Failed to load token stats:", e);
     container.innerHTML = "Failed to load token stats.";
   }
 }

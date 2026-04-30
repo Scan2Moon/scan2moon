@@ -1,7 +1,98 @@
 [build]
-  publish = "."
+  command   = "npm run build"
+  publish   = "dist"
   functions = "netlify/functions"
+
+# ── Local development ────────────────────────────────────────────────────────
+# Run:  netlify dev
+# This starts Vite + Netlify functions together. Access at localhost:8888.
+# All /.netlify/functions/ calls work exactly like production.
+# Do NOT use "npm run dev" alone — functions won't be available.
+[dev]
+  command    = "vite"
+  targetPort = 3000
+  port       = 8888
+  autoLaunch = true
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["@netlify/blobs"]
+  external_node_modules = ["@netlify/blobs", "@neondatabase/serverless"]
+
+# ── Scheduled cache warmer: keeps hot tokens fresh every 2 minutes ──
+[functions."warmCache"]
+  schedule = "*/2 * * * *"
+
+# ── newPairs: served from DB, quick ──────────────────────────────────────────
+[functions."newPairs"]
+  timeout = 15
+
+# ── detectNewPairs: our own signal — scans Birdeye every 2 min, stores in Neon ──
+[functions."detectNewPairs"]
+  schedule = "*/2 * * * *"
+  timeout  = 26
+
+# ── Security headers on every response ──────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+    Strict-Transport-Security = "max-age=63072000; includeSubDomains; preload"
+    Content-Security-Policy = "default-src 'self'; script-src 'unsafe-inline' 'self' cdn.jsdelivr.net unpkg.com; connect-src 'self' cdn.jsdelivr.net unpkg.com wss://public-api.birdeye.so https://public-api.birdeye.so https://price.jup.ag https://api.coingecko.com https://api.binance.com https://www.okx.com https://api.mainnet-beta.solana.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; frame-src https://jup.ag; frame-ancestors 'none';"
+
+# ── Cache static assets aggressively (1 year) ───────────────────────────────
+# Note: for true 1-year caching to work safely, filenames should include a
+# content hash (e.g. app.a1b2c3.js) so deploys automatically bust the cache.
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/*.css"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/*.png"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/*.jpg"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/*.webp"
+  [headers.values]
+    Cache-Control = "public, max-age=604800, stale-while-revalidate=86400"
+
+# ── HTML pages: always revalidate ───────────────────────────────────────────
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# ── Block direct access to .env (safety net) ────────────────────────────────
+[[redirects]]
+  from = "/.env"
+  to = "/404"
+  status = 404
+  force = true
+
+# ── detectOnchain: watches Pump.fun + Raydium on-chain via Helius every 1 min ──
+[functions."detectOnchain"]
+  schedule = "* * * * *"
+  timeout  = 26
+
+# ── detectSmartMoney: cross-refs early buyers vs smart wallet list every 2 min ──
+[functions."detectSmartMoney"]
+  schedule = "*/2 * * * *"
+  timeout  = 26
+
+# ── checkRenewals: downgrades expired paid keys, sends reminder/expiry emails ──
+[functions."checkRenewals"]
+  schedule = "0 8 * * *"

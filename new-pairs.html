@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>New Pairs — Scan2Moon</title>
+  <meta name="description" content="Freshly launched Solana token pairs. Filter by age, liquidity, volume and risk." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="home.css" />
+  <script src="skin-global.js"></script>
+</head>
+<body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+
+<div class="app">
+
+  <!-- HEADER IMAGE -->
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by home.js → nav.js -->
+
+  <!-- ═══════════════════════════════════════
+       PAGE HEADER
+  ═══════════════════════════════════════ -->
+  <div class="pg-header pg-header--purple">
+    <div class="pg-header-sweep"></div>
+    <div class="pg-header-inner">
+      <div class="pg-header-left">
+        <div class="pg-header-icon pg-header-icon--purple">◆</div>
+        <div>
+          <div class="pg-header-title">NEW PAIRS</div>
+          <div class="pg-header-sub">Freshly launched Solana tokens · Updating every 10s</div>
+        </div>
+      </div>
+      <div class="pg-header-right">
+        <div class="tg-chain-badge">
+          <div class="tg-chain-dot tg-chain-dot--purple"></div>
+          <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+            class="tg-chain-logo" alt="SOL" />
+          <span class="tg-chain-name">SOLANA</span>
+          <span class="tg-chain-live">LIVE</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       NEW PAIRS PANEL
+  ═══════════════════════════════════════ -->
+  <div class="panel tg-panel">
+
+    <!-- Titlebar with filters button -->
+    <div class="tg-titlebar np-titlebar">
+      <div class="np-active-summary" id="npActiveSummary"></div>
+      <button class="np-filters-btn" id="npFiltersBtn" onclick="window.openNpFilters()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/>
+        </svg>
+        Filters
+        <span class="np-filter-count" id="npFilterCount" style="display:none">0</span>
+      </button>
+    </div>
+
+    <!-- New Pairs table -->
+    <div class="panel-body tg-body">
+      <div class="tg-table-wrap">
+        <table class="tg-table" id="npTable">
+          <thead>
+            <tr>
+              <th class="tg-th tg-th-rank">#</th>
+              <th class="tg-th tg-th-token tg-th-sortable" data-sort="name">TOKEN<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-price tg-th-sortable" data-sort="price">PRICE<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th np-th-age tg-th-sortable" data-sort="age" title="Real on-chain creation time via Birdeye">AGE<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-liq tg-th-sortable" data-sort="liq">LIQ<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-vol tg-th-sortable" data-sort="vol">VOL 24H<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-mc tg-th-sortable" data-sort="mc" title="Market cap">MC<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-risk tg-th-sortable" data-sort="risk">RISK<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-actions">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="npBody"><!-- injected by home.js --></tbody>
+        </table>
+      </div>
+      <div id="npPaginationWrap"></div>
+      <div class="tg-loading" id="npLoading" style="display:none; padding: 32px 0;">
+        <div class="tg-spinner"></div>
+        <div class="tg-loading-text">Fetching new pairs…</div>
+      </div>
+      <div class="tg-error" id="npError" style="display:none;">
+        <div class="tg-error-icon">▲</div>
+        <div class="tg-error-msg" id="npErrorMsg">Failed to load data.</div>
+        <button class="tg-retry-btn" id="npRetryBtn">Retry</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- COMMUNITY PANEL -->
+  <div id="communityPanel"></div>
+
+  <footer class="footer">
+    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-right">
+      <span class="version">Version V2.0</span>
+      <span class="separator">•</span>
+      <span class="powered">Scan2Moon · Solana Analytics</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- Chart modal -->
+<div id="hmChartModal" class="hm-chart-overlay" style="display:none;" onclick="window._hmChartBgClick(event)">
+  <div class="hm-chart-inner">
+    <div class="hm-chart-header">
+      <div class="hm-chart-token-info">
+        <img id="hmChartLogo" class="hm-chart-logo" src="" alt=""
+          onerror="this.src='https://placehold.co/36x36/0a2a1e/2cffc9?text=?'" referrerpolicy="no-referrer" />
+        <div>
+          <div class="hm-chart-name" id="hmChartName">—</div>
+          <div class="hm-chart-price-row">
+            <span class="hm-chart-price" id="hmChartPrice">—</span>
+            <span class="hm-chart-change" id="hmChartChange"></span>
+          </div>
+        </div>
+      </div>
+      <div class="hm-chart-header-actions">
+        <button class="hm-chart-scan-btn" id="hmChartScanBtn" title="Full Risk Scan">Scan</button>
+        <button class="hm-chart-close" onclick="window.closeHomeChart()" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="hm-chart-body">
+      <div class="hm-chart-frame-wrap">
+        <div class="hm-tf-bar" id="hmChartTfBar">
+          <button class="hm-chart-tf-btn" data-tf="1m">1M</button>
+          <button class="hm-chart-tf-btn" data-tf="5m">5M</button>
+          <button class="hm-chart-tf-btn hm-chart-tf-active" data-tf="15m">15M</button>
+          <button class="hm-chart-tf-btn" data-tf="1h">1H</button>
+          <button class="hm-chart-tf-btn" data-tf="4h">4H</button>
+          <button class="hm-chart-tf-btn" data-tf="1d">1D</button>
+        </div>
+        <div id="hmChartCanvas" class="hm-chart-canvas"></div>
+        <div id="hmChartLoading" class="hm-chart-loading" style="display:none;"><div class="hm-chart-spin"></div><span>Loading chart…</span></div>
+        <div id="hmChartError" class="hm-chart-err" style="display:none;">▲ Could not load chart data</div>
+      </div>
+      <div class="hm-trade-panel">
+        <div class="hm-trade-tabs">
+          <button class="hm-trade-tab active" id="hmTabBuy" onclick="window._hmSetTab('buy')">BUY</button>
+          <button class="hm-trade-tab" id="hmTabSell" onclick="window._hmSetTab('sell')">SELL</button>
+        </div>
+        <div id="hmBuyPanel" class="hm-tab-panel">
+          <div class="hm-trade-label">Amount (SOL)</div>
+          <div class="hm-trade-input-row">
+            <input type="number" id="hmBuyAmount" class="hm-trade-input" placeholder="0.1" min="0.01" step="0.01" value="0.1" />
+            <span class="hm-trade-unit">SOL</span>
+          </div>
+          <div class="hm-trade-est" id="hmBuyEst">≈ — tokens</div>
+          <button class="hm-exec-btn hm-exec-buy" onclick="window._hmExecuteBuy()">BUY POSITION</button>
+        </div>
+        <div id="hmSellPanel" class="hm-tab-panel" style="display:none;">
+          <div class="hm-trade-label">Close position</div>
+          <div class="hm-sell-pct-row">
+            <button class="hm-pct-btn" data-pct="25">25%</button>
+            <button class="hm-pct-btn" data-pct="50">50%</button>
+            <button class="hm-pct-btn" data-pct="75">75%</button>
+            <button class="hm-pct-btn active" data-pct="100">100%</button>
+          </div>
+          <div class="hm-trade-est" id="hmSellEst">No open position</div>
+          <button class="hm-exec-btn hm-exec-sell" onclick="window._hmExecuteSell()">EXIT POSITION</button>
+        </div>
+        <div class="hm-sim-balance-row">
+          <span class="hm-sim-balance-label">Sim Balance:</span>
+          <span class="hm-sim-balance-val" id="hmSimBalance">—</span>
+        </div>
+        <button class="hm-jup-btn" onclick="window._hmOpenJupiter()">Swap on Jupiter ↗</button>
+        <div class="hm-trade-note">Trades saved to Paper Trading Simulator · No real funds</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script type="module" src="home.js?v=1776969471"></script>
+</body>
+</html>

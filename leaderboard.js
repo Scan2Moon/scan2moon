@@ -1,3 +1,5 @@
+const _DEBUG = false;
+
 // netlify/functions/leaderboard.js
 // Safe Ape Leaderboard — reads from simulator store via wallet index
 // CommonJS format
@@ -15,7 +17,7 @@ async function getStore() {
       async set(key, val) { await store.set(key, val); }
     };
   } catch(e) {
-    console.warn("@netlify/blobs not available, using in-memory store (local dev)");
+    _DEBUG && console.warn("@netlify/blobs not available, using in-memory store (local dev)");
     return {
       async get(key) { return localStore[key] || null; },
       async set(key, val) { localStore[key] = val; }
@@ -46,7 +48,7 @@ async function getIndex(store) {
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch(e) {
-    console.warn("getIndex error:", e.message);
+    _DEBUG && console.warn("getIndex error:", e.message);
     return [];
   }
 }
@@ -59,7 +61,7 @@ async function addToIndex(store, wallet) {
       await store.set("__lb_index__", JSON.stringify(index));
     }
   } catch(e) {
-    console.warn("addToIndex error:", e.message);
+    _DEBUG && console.warn("addToIndex error:", e.message);
   }
 }
 
@@ -220,7 +222,7 @@ exports.handler = async function(event, context) {
             loginStreak:  profile.loginStreak || 0,
           });
         } catch(e) {
-          console.warn(`Failed to process wallet ${w}:`, e.message);
+          _DEBUG && console.warn(`Failed to process wallet ${w}:`, e.message);
         }
       }
 
@@ -239,7 +241,7 @@ exports.handler = async function(event, context) {
         daily:   byPeriodPnl[0] || null,
         weekly:  byPeriodPnl[0] || null,
         monthly: byPeriodPnl[0] || null,
-        alltime: entries[0]     || null,
+        alltime: entries.find(e => e.adjReturn > 0) || null,
       };
 
       return {
@@ -255,7 +257,7 @@ exports.handler = async function(event, context) {
         })
       };
     } catch(e) {
-      console.error("Leaderboard GET error:", e);
+      _DEBUG && console.error("Leaderboard GET error:", e);
       return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
     }
   }
@@ -299,7 +301,7 @@ exports.handler = async function(event, context) {
         body: JSON.stringify({ success: true, adjReturn, badges, message: "Score submitted!" })
       };
     } catch(e) {
-      console.error("Leaderboard POST error:", e);
+      _DEBUG && console.error("Leaderboard POST error:", e);
       return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
     }
   }

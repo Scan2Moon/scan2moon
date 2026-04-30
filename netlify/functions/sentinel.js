@@ -4,27 +4,12 @@
    Body: { scanData: { ... } }
    ============================================================ */
 
+const { isRateLimitedRedis } = require("./db");
+
 const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const GROQ_URL     = "https://api.groq.com/openai/v1/chat/completions";
 
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "*";
-
-/* ── Rate limit: 5 requests per minute per IP ── */
-const rateMap = new Map();
-function isRateLimited(ip) {
-  const now = Date.now();
-  const entry = rateMap.get(ip);
-  if (!entry || now - entry.start > 60000) {
-    rateMap.set(ip, { count: 1, start: now });
-    return false;
-  }
-  entry.count++;
-  return entry.count > 5;
-}
-setInterval(() => {
-  const cutoff = Date.now() - 120000;
-  for (const [ip, e] of rateMap) if (e.start < cutoff) rateMap.delete(ip);
-}, 120000);
+const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || "https://scan2moon.com";
 
 /* ── Build the prompt ── */
 function buildPrompt(d, lang) {
@@ -112,7 +97,10 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST")    return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 
   const ip = event.headers["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
-  if (isRateLimited(ip)) return { statusCode: 429, headers, body: JSON.stringify({ error: "Too many requests. Please wait a moment." }) };
+  // 5 requests per 60 seconds per IP — stateful across all Lambda instances via Redis
+  if (await isRateLimitedRedis(ip, 5, 60)) {
+    return { statusCode: 429, headers: { ...headers, "Retry-After": "60" }, body: JSON.stringify({ error: "Too many requests. Please wait a moment." }) };
+  }
 
   if (!GROQ_API_KEY) return { statusCode: 500, headers, body: JSON.stringify({ error: "Sentinel not configured." }) };
 

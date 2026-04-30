@@ -1,0 +1,124 @@
+Introducing Scan2Moon V2.0 🚀
+The On-Chain Solana Risk Scanner Built for Every Trader
+— Scan smarter. Trade safer. —
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Solana ecosystem moves fast. New tokens launch every minute. Rugs happen every hour. And most traders — especially beginners — have no reliable way to know which projects are worth their time and which ones will drain their wallet in seconds.
+
+We built Scan2Moon to change that.
+
+Scan2Moon V2.0 is a free, on-chain Solana intelligence tool that gives every trader — from total beginner to seasoned degen — the data they need to make smarter, safer decisions before they risk a single SOL.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🔍 What is Scan2Moon?
+
+Scan2Moon is a web-based risk intelligence dashboard built specifically for the Solana blockchain. You paste a token address, and within seconds you get a full picture of what's really going on behind the scenes — liquidity health, whale activity, holder distribution, market signals, and a clear overall Risk Score from 0 to 100.
+
+Think of it as your on-chain due diligence assistant — always available, always objective, and completely free to use.
+
+No sign-up. No wallet connection needed to scan. Just go to scan2moon.com, paste a token address, and let the scanner do the work.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ Feature #1 — Risk Scanner
+
+The heart of Scan2Moon. Paste any Solana token address and instantly get:
+
+🟢 Risk Score (0–100) — one clear number that tells you how risky a token is
+💧 Liquidity Analysis — is there enough liquidity to actually exit your position?
+🐋 Whale Concentration — how much is held by a small group of wallets?
+👥 Holder Distribution — healthy spread or dangerous top-heavy structure?
+📊 Market Signals — volume trends, price momentum, and early warning flags
+🔐 Contract Signals — mint authority, freeze authority, and ownership checks
+
+[ 📸 SCREENSHOT: Risk Scanner panel ]
+
+Whether you're a complete beginner or an experienced trader, the Risk Scanner gives you the truth about a token — in seconds, for free.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📡 Feature #2 — Entry Radar
+
+Timing is everything in crypto. The Entry Radar helps you spot tokens that are showing early buying signals — before the crowd arrives.
+
+The Entry Radar scans the market and surfaces tokens with:
+
+🚀 Strong early momentum signals
+📈 Rising volume with healthy holder growth
+⚠️ Built-in risk flag overlay so you never chase a signal blindly
+
+[ 📸 SCREENSHOT: Entry Radar panel ]
+
+This isn't just a trending list. Every token in the Entry Radar is already cross-checked against the Risk Scanner — so you always know what you're looking at.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🐋 Feature #3 — Whale DNA
+
+Want to know what the biggest wallets on Solana are actually doing? Whale DNA lets you track large wallet movements — entries, exits, accumulation patterns — so you can follow smart money instead of chasing hype.
+
+With Whale DNA you can:
+
+👁️ Monitor top holder wallet behaviour in real time
+📉 Spot when whales are quietly exiting before a dump
+📥 Identify accumulation phases before a move
+🔗 Cross-reference whale activity with Risk Scanner results
+
+[ 📸 SCREENSHOT: Whale DNA panel ]
+
+Stop getting exit liquidity. Start reading the same signals the big players use.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🎮 Feature Preview — Safe Ape Simulator
+
+We're building something new — and we want your help shaping it.
+
+The Safe Ape Simulator is an early demo of an upcoming feature on Scan2Moon. It lets you practice trading Solana tokens in a risk-free environment using simulated SOL, with real on-chain market data powering every trade.
+
+No real money. Real market conditions.
+
+🏆 Compete on the leaderboard
+🎯 Practice reading risk signals before going live
+💡 Learn how liquidity, whale activity, and timing actually affect your P&L
+
+[ 📸 SCREENSHOT: Safe Ape Simulator panel ]
+
+⚠️ This is a demo — not a final product. We're sharing it early because we want real feedback from real traders. Try it, break it, and tell us what you think.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💬 We Want to Hear From You
+
+Scan2Moon is built by traders, for traders. And we're still building.
+
+Here's what we'd love to know:
+
+👉 Which feature do you use most — Risk Scanner, Entry Radar, or Whale DNA?
+👉 What signal or data point is missing that would help you most?
+👉 Would a mobile app version change how you trade?
+👉 What would make the Safe Ape Simulator feel more realistic and useful?
+
+Drop your thoughts in the comments, DM us, or tag us on X. Every piece of feedback directly shapes what we build next.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚀 How to Get Started — 30 Seconds, No Sign-Up
+
+1️⃣ Go to scan2moon.com
+2️⃣ Paste any Solana token address into the scanner
+3️⃣ Read your Risk Score and full breakdown instantly
+4️⃣ Explore Entry Radar and Whale DNA from the dashboard
+5️⃣ Try the Safe Ape Simulator and share your feedback!
+
+Free. No wallet needed. No registration. Just pure on-chain intelligence.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+The Solana ecosystem doesn't slow down. Neither should your research.
+
+🌕 scan2moon.com
+
+#Solana #DeFi #CryptoSafety #Scan2Moon #SolanaTrading #Web3 #DYOR #NFT #Crypto

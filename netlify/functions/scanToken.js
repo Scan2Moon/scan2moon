@@ -5,12 +5,21 @@
 // Returns a DexScreener-compatible pair object so frontend code changes are minimal.
 // Cache: Redis 30s → serve instantly on all subsequent module calls.
 
-const { getDb, redisGet, redisSet, CORS } = require("./db");
+const { getDb, redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis } = require("./db");
 
 const REDIS_TTL = 90; // seconds — 90s keeps Birdeye rate limits comfortable
 
-// Process-level flag — skip ALTER TABLE after first successful run (saves ~200ms)
-let _schemaReady = false;
+// Run schema migration exactly once per cold start (module-level, outside handler).
+// This avoids running ALTER TABLE on every request — saves ~200ms per hot-path call
+// and eliminates DDL lock contention under concurrent Lambda instances.
+(async () => {
+  try {
+    const sql = getDb();
+    await sql`ALTER TABLE token_cache ADD COLUMN IF NOT EXISTS pair_created_at BIGINT`;
+  } catch (e) {
+    console.warn("[scanToken] schema init:", e.message);
+  }
+})();
 
 // ── Birdeye fetch with 429 retry ──────────────────────────────────────────
 // Note: 429 = rate limited (retryable after backoff)
@@ -40,7 +49,7 @@ async function birdeyeFetch(url, headers, retries = 2) {
 }
 
 // ── Birdeye fetch: 2-phase to avoid rate-limit burst ─────────────────────
-// Phase 1 (parallel): overview (required) + Jupiter SOL price (different server)
+// Phase 1 (parallel): overview (required) + Birdeye SOL price (same API key, no external deps)
 // Phase 2 (parallel): creation_info + markets — ONLY if knownCreatedAt is null.
 //   knownCreatedAt is passed in from Neon cache so repeat calls skip phase 2
 //   entirely (saves 2 Birdeye calls per refresh after the first scan).
@@ -55,10 +64,12 @@ async function fetchBirdeyeData(mint, knownCreatedAt = null, skipPhase2 = false)
   const SOL_MINT_SC = "So11111111111111111111111111111111111111112";
   const [overviewRes, solPriceRes] = await Promise.all([
     birdeyeFetch(`https://public-api.birdeye.so/defi/token_overview?address=${enc}`, headers),
-    // Jupiter Price API — globally available (no geo-restrictions unlike Binance)
-    fetch(`https://api.jup.ag/price/v2?ids=${SOL_MINT_SC}`, {
-      signal: AbortSignal.timeout(5000),
-    }),
+    // Birdeye /defi/price for SOL — 100% Birdeye, same API key, no external dependencies
+    birdeyeFetch(
+      `https://public-api.birdeye.so/defi/price?address=${SOL_MINT_SC}&check_liquidity=10`,
+      headers,
+      1  // 1 retry max — SOL price is bonus, not critical path
+    ).catch(() => null),
   ]);
 
   // ── overview is mandatory — fail fast before optional calls ─────────────
@@ -68,23 +79,23 @@ async function fetchBirdeyeData(mint, knownCreatedAt = null, skipPhase2 = false)
   }
 
   const overview = await overviewRes.json();
-  /* Jupiter returns { data: { "<mint>": { price: 148.5 } } } */
+  // Birdeye /defi/price returns { data: { value: 148.5 } }
   let solPrice = 0;
   try {
-    if (solPriceRes.ok) {
+    if (solPriceRes?.ok) {
       const solJson = await solPriceRes.json();
-      solPrice = parseFloat(solJson?.data?.[SOL_MINT_SC]?.price ?? 0);
+      solPrice = parseFloat(solJson?.data?.value ?? 0);
     }
   } catch {}
-  /* Fallback to CoinGecko if Jupiter failed */
+  // Stale Redis fallback — solPrice.js keeps "sol_price_usd_v4" warm every 10s
+  // so this is almost always a cache hit at zero extra Birdeye cost
   if (!solPrice) {
     try {
-      const cgRes = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
-        { signal: AbortSignal.timeout(4000) });
-      if (cgRes.ok) solPrice = parseFloat((await cgRes.json())?.solana?.usd ?? 0);
+      const stale = await redisGet("sol_price_usd_v4");
+      if (stale) solPrice = parseFloat(stale);
     } catch {}
   }
+  if (!solPrice) solPrice = 150; // absolute last resort only
 
   const d = overview?.data;
   if (!d) throw new Error("Birdeye returned no data for this mint");
@@ -219,14 +230,25 @@ async function fetchBirdeyeData(mint, knownCreatedAt = null, skipPhase2 = false)
 }
 
 // ── Main handler ──────────────────────────────────────────────────────────
+const MINT_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: CORS, body: "" };
   }
 
+  // C5: Rate limiting — 20 requests per 10 seconds per IP
+  const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  if (await isRateLimitedRedis(ip, 20, 10)) {
+    return { statusCode: 429, headers: { ...CORS_429, "Retry-After": "10" },
+             body: JSON.stringify({ error: "Too many requests — slow down." }) };
+  }
+
   const { mint, lite } = event.queryStringParameters || {};
-  if (!mint) {
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "mint required" }) };
+
+  // C6: Validate mint address format before hitting Birdeye
+  if (!mint || !MINT_RE.test(mint)) {
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Invalid or missing mint address" }) };
   }
 
   // lite=1  →  watchlist/live-refresh mode:
@@ -259,10 +281,6 @@ exports.handler = async (event) => {
   let sql;
   try {
     sql = getDb();
-    if (!_schemaReady) {
-      await sql`ALTER TABLE token_cache ADD COLUMN IF NOT EXISTS pair_created_at BIGINT`;
-      _schemaReady = true;
-    }
     const rows = await sql`
       SELECT mint, symbol, name, logo_uri, price_usd, volume_24h, market_cap, pair_created_at
       FROM   token_cache
@@ -360,17 +378,21 @@ exports.handler = async (event) => {
       const { meta, pair } = result;
       const createdAtVal = pair.pairCreatedAt ?? null;
       await sql`
-        INSERT INTO token_cache (mint, symbol, name, logo_uri, price_usd, volume_24h, market_cap, pair_created_at, fetched_at)
-        VALUES (${mint}, ${meta.symbol}, ${meta.name}, ${meta.logo},
-                ${parseFloat(pair.priceUsd)}, ${pair.volume.h24}, ${pair.marketCap},
-                ${createdAtVal}, NOW())
+        INSERT INTO token_cache (mint, symbol, name, logo_uri, price_usd, volume_24h, market_cap, pair_created_at)
+        VALUES (${mint}, ${meta.symbol}, ${meta.name}, ${meta.logo}, ${parseFloat(pair.priceUsd) || 0}, ${pair.volume.h24 || 0}, ${meta.marketCap || 0}, ${createdAtVal})
         ON CONFLICT (mint) DO UPDATE
-          SET symbol=EXCLUDED.symbol, name=EXCLUDED.name, logo_uri=EXCLUDED.logo_uri,
-              price_usd=EXCLUDED.price_usd, volume_24h=EXCLUDED.volume_24h,
-              market_cap=EXCLUDED.market_cap, fetched_at=NOW(),
-              pair_created_at = COALESCE(token_cache.pair_created_at, EXCLUDED.pair_created_at)
+          SET symbol          = EXCLUDED.symbol,
+              name            = EXCLUDED.name,
+              logo_uri        = EXCLUDED.logo_uri,
+              price_usd       = EXCLUDED.price_usd,
+              volume_24h      = EXCLUDED.volume_24h,
+              market_cap      = EXCLUDED.market_cap,
+              pair_created_at = COALESCE(EXCLUDED.pair_created_at, token_cache.pair_created_at),
+              fetched_at      = NOW()
       `;
-    } catch (e) { console.warn("[scanToken] Neon upsert:", e.message); }
+    } catch (e) {
+      console.warn("[scanToken] Neon upsert:", e.message);
+    }
   }
 
   return {

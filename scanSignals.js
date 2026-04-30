@@ -1,3 +1,5 @@
+const _DEBUG = false;
+
 /* ================================================================
    scanSignals.js — Scan2Moon V2.2 Smart Risk Engine
 
@@ -12,20 +14,17 @@
    ================================================================ */
 
 import { t, applyTranslations } from "./i18n.js";
+import { getScanData } from "./scanData.js";
 
-/* ── Pair selection (internal) ── */
+/* ── Pair selection — now from Birdeye backend (no DexScreener) ── */
 async function fetchDexData(mint) {
   try {
-    const res  = await fetch(`https://api.dexscreener.com/latest/dex/tokens/${mint}`);
-    const data = await res.json();
-    if (!data.pairs || data.pairs.length === 0) return null;
-
-    /* Delegate to the exported smart picker — single source of truth */
-    const { pair, isPumpFun, hasGraduated } = pickSmartPair(mint, data.pairs);
-    window.scanIsPumpFun    = isPumpFun;
-    window.scanHasGraduated = hasGraduated;
-    return pair;
-  } catch { return null; }
+    const data = await getScanData(mint);
+    if (!data?.pair) return null;
+    window.scanIsPumpFun    = data.isPumpFun    ?? false;
+    window.scanHasGraduated = data.hasGraduated ?? false;
+    return data.pair;
+  } catch (e) { _DEBUG && console.warn("scanData fetch failed:", e); return null; }
 }
 
 /* ── Helpers ── */
@@ -270,7 +269,7 @@ function scorePumpFunRisk(pair) {
    Returns a single 5-95 risk score from a DexScreener pair object.
    Pass top10Pct and bundleScore for full accuracy.
    ================================================================ */
-export function computeRiskScore(pair, top10Pct = 0, bundleScore = 75) {
+export function computeRiskScore(pair, top10Pct = 0, bundleScore = 50) {
   if (!pair) return 10;
 
   const ageTrust      = scoreTokenAge(pair);
@@ -404,7 +403,7 @@ export async function renderSignals(mint) {
   if (!pair) {
     document.getElementById("scanSignals").innerHTML =
       `<div class="signals-error">⚠️ Could not fetch market data</div>`;
-    window.scanResult = { totalScore: 10, riskLevel: "HIGH RUG RISK", liquidity: "N/A", marketCap: "N/A", top10: "N/A" };
+    window.scanResult = { totalScore: 10, riskLevel: "🔴 HIGH RISK", liquidity: "N/A", marketCap: "N/A", top10: "N/A" };
     return;
   }
 
@@ -457,9 +456,9 @@ export async function renderSignals(mint) {
 
   const riskLevel =
     totalScore >= 80 ? "🌕 MOON COIN" :
-    totalScore >= 65 ? "LOW RUG RISK" :
-    totalScore >= 45 ? "MODERATE RISK" :
-    totalScore >= 25 ? "HIGH RUG RISK" : "EXTREME RISK 🚨";
+    totalScore >= 65 ? "✅ LOW RISK" :
+    totalScore >= 45 ? "⚠️ MID RISK" :
+    totalScore >= 25 ? "🔴 HIGH RISK" : "🚨 EXTREME RISK";
 
   function fmtUsd(v) {
     if (!v) return "N/A";

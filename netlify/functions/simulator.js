@@ -6,40 +6,42 @@ const STARTING_BALANCE_SOL = 10; // every new wallet starts with 10 SOL
 const https = require("https");
 
 /* ── Server-side price validation ──────────────────────────────────
-   Fetches the real current price from DexScreener for a given mint.
-   Returns the best Solana pair price, or null if unavailable.
-   This prevents clients from submitting manipulated priceUsd values. */
+   Fetches the real current price from Birdeye /defi/price for a given mint.
+   Returns the token price in USD, or null if unavailable.
+   This prevents clients from submitting manipulated priceUsd values.
+   Birdeye is used as primary because the Birdeye API key is available
+   server-side, and all other data in Scan2Moon now comes from Birdeye. */
 async function fetchRealPrice(mint) {
-  return new Promise((resolve) => {
-    const url = `https://api.dexscreener.com/latest/dex/tokens/${mint}`;
-    const req = https.get(url, { timeout: 4000 }, (res) => {
-      let data = "";
-      res.on("data", chunk => { data += chunk; });
-      res.on("end", () => {
-        try {
-          const json = JSON.parse(data);
-          const pairs = (json.pairs || []).filter(p => p.chainId === "solana");
-          if (!pairs.length) return resolve(null);
-          const pair = pairs.sort((a, b) => (b.liquidity?.usd || 0) - (a.liquidity?.usd || 0))[0];
-          const price = parseFloat(pair.priceUsd || "0");
-          resolve(price > 0 ? price : null);
-        } catch { resolve(null); }
-      });
-    });
-    req.on("error", () => resolve(null));
-    req.on("timeout", () => { req.destroy(); resolve(null); });
-  });
+  try {
+    const KEY = process.env.BIRDEYE_API_KEY;
+    if (!KEY) return null;
+
+    const { status, body } = await httpsGetSimple(
+      `https://public-api.birdeye.so/defi/price?address=${encodeURIComponent(mint)}&check_liquidity=100`,
+      5000
+    );
+    if (status === 200) {
+      const price = parseFloat(JSON.parse(body)?.data?.value);
+      if (price > 0) return price;
+    }
+  } catch {}
+  return null;
 }
 
 /* ── Server-side SOL/USD price ─────────────────────────────────────────
    Always fetched server-side for every buy/sell — runs in parallel with
-   the DexScreener token-price call so it adds zero extra latency.
+   the Birdeye token-price call so it adds zero extra latency.
    Using only the server price prevents clients from submitting a
    manipulated solPrice to inflate their SOL balance.
-   Source priority: Jupiter (global) → CoinGecko → Binance → OKX
-   Defaults to 150 on total failure so trades never hard-break. */
+   Source: Birdeye /defi/price exclusively — no fallbacks to CoinGecko / Binance / OKX.
+   Uses in-process last-known price cache (warm lambda) + Redis stale key before giving up. */
 
 const SOL_MINT_ADDR = "So11111111111111111111111111111111111111112";
+
+// In-process cache — survives across warm lambda invocations, cleared on cold start
+let _simSolPrice   = 0;
+let _simSolPriceTs = 0;
+const SIM_SOL_MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 function httpsGetSimple(url, timeoutMs = 4000) {
   return new Promise((resolve) => {
@@ -54,52 +56,73 @@ function httpsGetSimple(url, timeoutMs = 4000) {
 }
 
 async function fetchSolPriceServer() {
-  /* 1. Jupiter Price API v2 — globally available, no geo-restrictions */
+  /* L1: Birdeye /defi/price — sole source per competition rules. */
   try {
-    const { status, body } = await httpsGetSimple(
-      `https://api.jup.ag/price/v2?ids=${SOL_MINT_ADDR}`, 4000);
-    if (status === 200) {
-      const p = parseFloat(JSON.parse(body)?.data?.[SOL_MINT_ADDR]?.price);
-      if (p > 0) return p;
+    const KEY = process.env.BIRDEYE_API_KEY;
+    if (KEY) {
+      const { status, body } = await httpsGetSimple(
+        `https://public-api.birdeye.so/defi/price?address=${SOL_MINT_ADDR}&check_liquidity=10`, 5000);
+      if (status === 200) {
+        const p = parseFloat(JSON.parse(body)?.data?.value);
+        if (p > 0) {
+          _simSolPrice   = p;
+          _simSolPriceTs = Date.now();
+          return p;
+        }
+      }
     }
   } catch {}
 
-  /* 2. CoinGecko */
+  /* L2: In-process last known price (warm lambda, < 5 min old) */
+  if (_simSolPrice > 0 && Date.now() - _simSolPriceTs < SIM_SOL_MAX_AGE_MS) {
+    console.warn("[simulator] Birdeye SOL price unavailable — using in-memory stale price:", _simSolPrice);
+    return _simSolPrice;
+  }
+
+  /* L3: Redis stale key written by solPrice.js */
   try {
-    const { status, body } = await httpsGetSimple(
-      "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd", 5000);
-    if (status === 200) {
-      const p = parseFloat(JSON.parse(body)?.solana?.usd);
-      if (p > 0) return p;
+    const { redisGet } = require("./db");
+    const stale = await redisGet("sol_price_usd_v4:stale");
+    if (stale && parseFloat(stale) > 0) {
+      const p = parseFloat(stale);
+      console.warn("[simulator] Birdeye SOL price unavailable — using Redis stale price:", p);
+      return p;
     }
   } catch {}
 
-  /* 3. Binance (may be geo-blocked in some regions) */
-  try {
-    const { status, body } = await httpsGetSimple(
-      "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT", 3000);
-    if (status === 200) {
-      const p = parseFloat(JSON.parse(body)?.price);
-      if (p > 0) return p;
-    }
-  } catch {}
-
-  /* 4. OKX */
-  try {
-    const { status, body } = await httpsGetSimple(
-      "https://www.okx.com/api/v5/market/ticker?instId=SOL-USDT", 4000);
-    if (status === 200) {
-      const p = parseFloat(JSON.parse(body)?.data?.[0]?.last);
-      if (p > 0) return p;
-    }
-  } catch {}
-
-  return 150; /* conservative fallback — trades never hard-break */
+  /* L4: No price available — return 0 so caller can reject the trade gracefully */
+  console.error("[simulator] SOL price completely unavailable — rejecting trade");
+  return 0;
 }
 
 /* Price tolerance: submitted price must be within ±25% of real price.
    25% allows for slippage and any slight lag between client and server. */
 const PRICE_TOLERANCE = 0.25;
+
+/* ── Profile sanitizer ───────────────────────────────────────────────────────
+   Called before EVERY profile save.  Prevents Infinity/NaN (from division-by-zero
+   when SOL price is momentarily 0) from being serialised as null by JSON.stringify,
+   which would wipe the user's balance permanently.
+   Also enforces a hard ceiling so no single bug can create an astronomical balance. */
+const MAX_BALANCE_SOL = 50_000;   // hard ceiling — generous for legitimate play
+function _sanitizeProfile(p) {
+  // Numeric fields: replace Infinity/NaN with 0
+  if (!isFinite(p.balance)  || p.balance  < 0) p.balance  = 0;
+  if (!isFinite(p.totalPnL))                   p.totalPnL = 0;
+  // Hard ceiling
+  if (p.balance > MAX_BALANCE_SOL) {
+    console.warn("[simulator] balance clamped from", p.balance, "→", MAX_BALANCE_SOL);
+    p.balance = MAX_BALANCE_SOL;
+  }
+  // Counts must be non-negative integers
+  p.winCount  = Math.max(0, Math.floor(p.winCount  || 0));
+  p.lossCount = Math.max(0, Math.floor(p.lossCount || 0));
+  // XP fields
+  if (!isFinite(p.badgeXp))   p.badgeXp   = 0;
+  if (!isFinite(p.socialXp))  p.socialXp  = 0;
+  if (!isFinite(p.academyXp)) p.academyXp = 0;
+  if (!isFinite(p.tradeXp))   p.tradeXp   = 0;
+}
 
 // Day-based login rewards — values in SOL.
 // Index 1–7 = streak day rewards. Day 1 starts at 0.1, caps at Day 7 = 0.7 SOL.
@@ -136,6 +159,24 @@ async function getStore() {
   // NETLIFY_DEV=true is ONLY set by `netlify dev`, never in production.
   // So: treat as production only when we have the blob context AND are NOT in local dev mode.
   const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY_DEV;
+
+  // ── LOCAL DEV ISOLATION ──────────────────────────────────────────────────
+  // When running `netlify dev` locally, skip real Blobs AND real Redis entirely.
+  // Without this, the function finds the wallet in the production Redis leaderboard
+  // set (SISMEMBER returns true) but can't load the Blobs profile → 503 safety guard.
+  // Local dev uses an isolated /tmp file store so it never conflicts with prod data.
+  if (process.env.NETLIFY_DEV) {
+    console.log("[simulator] Local dev mode — using isolated /tmp file store");
+    return {
+      async get(key) { return _readDb()[key] || null; },
+      async set(key, val) { const db = _readDb(); db[key] = val; _writeDb(db); },
+      async listKeys(prefix) {
+        const db = _readDb();
+        return Object.keys(db).filter(k => !prefix || k.startsWith(prefix));
+      },
+    };
+  }
+
   try {
     const { getStore } = require("@netlify/blobs");
     const store = getStore("simulator");
@@ -206,12 +247,57 @@ async function getStore() {
 // ── Badge computation & rewards — values in SOL ──
 const BADGE_REWARD_AMOUNT = 0.1;   // default per-badge reward (SOL)
 const BADGE_REWARD_OVERRIDES = {
+  // Trading milestone overrides
   wins_50:              0.5,
   wins_100:             1.0,
   wins_500:             2.0,
   wins_1000:            5.0,
   sol2moon_millionaire: 500.0,
+  // Account level badges — must match dashboard.js BADGE_DEFS reward values
+  lvl_1:                0.05,
+  lvl_5:                0.1,
+  lvl_10:               0.25,
+  lvl_20:               0.5,
+  lvl_30:               1.0,
+  lvl_50:               2.0,
+  lvl_100:              10.0,
 };
+
+// ── XP awarded when a badge is newly earned ──────────────────────────────────
+// These values accumulate in profile.badgeXp (never counted in computeBadges()
+// level check — prevents circular dependency).
+const BADGE_XP_REWARDS = {
+  // Safe Ape Trading badges
+  first_profit:           100,
+  win_streak_5:           200,
+  safe_trader:            350,
+  diamond_hands:          250,
+  degen_survivor:         500,
+  portfolio_100:          600,
+  wins_25:                300,
+  wins_50:                600,
+  wins_100:             1_200,
+  wins_500:             4_000,
+  wins_1000:           10_000,
+  sol2moon_millionaire:  5_000,
+  // Account Level milestone badges
+  lvl_1:      25,
+  lvl_5:     150,
+  lvl_10:    500,
+  lvl_20:  1_500,
+  lvl_30:  3_500,
+  lvl_50: 10_000,
+  lvl_100: 50_000,
+  // Social / Other
+  streak_7:  200,
+};
+
+// ── Level formula (must match client-side calcLevel in dashboard.js) ──────────
+// xp(n) = round(100 * (n-1)^2.3)  →  n = floor((xp/100)^(1/2.3)) + 1
+function _calcLevel(xp) {
+  if (!xp || xp <= 0) return 1;
+  return Math.max(1, Math.min(100, Math.floor(Math.pow(xp / 100, 1 / 2.3)) + 1));
+}
 
 function _bStreak(sells, n) {
   let s = 0;
@@ -267,14 +353,33 @@ function computeBadges(profile) {
   if (_bSafeTrader(trades))                       badges.push("safe_trader");
   if (_bDiamond(trades))                          badges.push("diamond_hands");
   if (_bDegenSurvivor(trades))                    badges.push("degen_survivor");
-  /* portfolio_100: 2× starting (20 SOL = 100% growth) | sol2moon_millionaire: 10,000 SOL */
-  if ((profile.balance || 0) >= 20)              badges.push("portfolio_100");
-  if (winCount >= 25)   badges.push("wins_25");
-  if (winCount >= 50)   badges.push("wins_50");
-  if (winCount >= 100)  badges.push("wins_100");
-  if (winCount >= 500)  badges.push("wins_500");
-  if (winCount >= 1000)                          badges.push("wins_1000");
-  if ((profile.balance || 0) >= 10000)           badges.push("sol2moon_millionaire");
+  /* portfolio_100: 2× starting (20 SOL = 100% growth) | sol2moon_millionaire: 10,000 SOL
+     Use isFinite guard — Infinity/NaN would incorrectly satisfy these thresholds. */
+  const _safeBalance = isFinite(profile.balance) ? Math.max(0, profile.balance) : 0;
+  if (_safeBalance >= 20)     badges.push("portfolio_100");
+  if (winCount >= 25)         badges.push("wins_25");
+  if (winCount >= 50)         badges.push("wins_50");
+  if (winCount >= 100)        badges.push("wins_100");
+  if (winCount >= 500)        badges.push("wins_500");
+  if (winCount >= 1000)       badges.push("wins_1000");
+  if (_safeBalance >= 10000)  badges.push("sol2moon_millionaire");
+
+  /* ── Account Level badges — use _calcLevel() (matches dashboard.js) ──
+     Note: profile.badgeXp is intentionally excluded here to avoid
+     circular dependency (level badge → badgeXp → higher level → more level badges).
+     On the *next* action, the newly stored badgeXp will be included in _xpBase.  */
+  // XP only for PROFITABLE sells (pnl > 0) — losses do not award XP
+  const _xpBase = (sells.filter(t => (t.pnl || 0) > 0).length * 25) + ((profile.loginStreak || 0) * 10)
+                + (profile.socialXp  || 0) + (profile.academyXp || 0);
+  const _lvl    = _calcLevel(_xpBase);
+  if (_lvl >= 1)   badges.push("lvl_1");
+  if (_lvl >= 5)   badges.push("lvl_5");
+  if (_lvl >= 10)  badges.push("lvl_10");
+  if (_lvl >= 20)  badges.push("lvl_20");
+  if (_lvl >= 30)  badges.push("lvl_30");
+  if (_lvl >= 50)  badges.push("lvl_50");
+  if (_lvl >= 100) badges.push("lvl_100");
+
   return badges;
 }
 function awardNewBadges(profile) {
@@ -282,27 +387,99 @@ function awardNewBadges(profile) {
   const current = computeBadges(profile);
   const newly   = current.filter(b => !prev.includes(b));
   if (newly.length > 0) {
+    // SOL reward
     const rewardTotal = newly.reduce((s, b) => s + (BADGE_REWARD_OVERRIDES[b] || BADGE_REWARD_AMOUNT), 0);
     profile.balance += rewardTotal;
+    // XP reward — stored in profile.badgeXp (not used inside computeBadges to avoid circularity)
+    const xpGained = newly.reduce((s, b) => s + (BADGE_XP_REWARDS[b] || 0), 0);
+    if (xpGained > 0) profile.badgeXp = (profile.badgeXp || 0) + xpGained;
   }
   profile.badges = current;
   return newly;
 }
 
 // ── Badge definitions (for leaderboard endpoint served from this function) ──
+// Must stay in sync with dashboard.js BADGE_DEFS so avatar lookups work.
 const BADGE_DEFS = [
-  { id: "first_profit",         img: "/badges/First_Profit.png",   icon: "🏆", name: "First Profit",          desc: "Made your first profitable trade" },
-  { id: "win_streak_5",         img: "/badges/win_streak_5.png",   icon: "🔥", name: "Win Streak x5",         desc: "Won 5 trades in a row" },
-  { id: "safe_trader",          img: "/badges/Safe_Trader.png",    icon: "🛡️", name: "Safe Trader",            desc: "Buy 10 tokens with entry risk score ≥ 65" },
-  { id: "diamond_hands",        img: "/badges/Diamond_Hands.png",  icon: "💎", name: "Diamond Hands",          desc: "Held a token for 7+ days" },
-  { id: "degen_survivor",       img: "/badges/Degen_Survivor.png", icon: "🦍", name: "Degen Survivor",         desc: "Profit 10× on tokens with risk score < 45 (1 sell per buy)" },
-  { id: "portfolio_100",        img: "/badges/portfolio_100.png",  icon: "📈", name: "100% Growth",            desc: "Doubled your 10 SOL starting balance" },
-  { id: "wins_25",              img: "/badges/Wins_25.png",        icon: "⭐", name: "25 Safe Wins",           desc: "25 profitable trades" },
-  { id: "wins_50",              img: "/badges/Wins_50.png",        icon: "🌟", name: "50 Safe Wins",           desc: "50 profitable trades" },
-  { id: "wins_100",             img: "/badges/Wins_100.png",       icon: "💫", name: "100 Safe Wins",          desc: "100 profitable trades" },
-  { id: "wins_500",             img: "/badges/Wins_500.png",       icon: "🚀", name: "500 Safe Wins",          desc: "500 profitable trades" },
-  { id: "wins_1000",            img: "/badges/Wins_1000.png",      icon: "🐐", name: "1000 Safe Wins — GOAT",  desc: "The absolute GOAT." },
-  { id: "sol2moon_millionaire", img: "/badges/Sol2Moon.png",       icon: "🌙", name: "Sol2Moon Millionaire",    desc: "Reach 10,000 SOL" },
+  /* ── Safe Ape Trading ── */
+  { id: "first_profit",         cat: "trading", img: "/badges/First_Profit.png",    icon: "🏆", name: "First Profit",          desc: "Close your very first profitable trade in the Safe Ape Simulator.",          reward: 0.1   },
+  { id: "win_streak_5",         cat: "trading", img: "/badges/win_streak_5.png",    icon: "🔥", name: "Win Streak ×5",         desc: "Win 5 consecutive trades in a row without a loss in between.",               reward: 0.1   },
+  { id: "safe_trader",          cat: "trading", img: "/badges/Safe_Trader.png",     icon: "🛡️", name: "Safe Trader",           desc: "Buy 10 different tokens that each had an entry risk score of 65 or higher.", reward: 0.1   },
+  { id: "diamond_hands",        cat: "trading", img: "/badges/Diamond_Hands.png",   icon: "💎", name: "Diamond Hands",         desc: "Hold a token position open for 7 days or more before selling.",              reward: 0.1   },
+  { id: "degen_survivor",       cat: "trading", img: "/badges/Degen_Survivor.png",  icon: "🦍", name: "Degen Survivor",        desc: "Make a 10× profit on a token that had a risk score below 45 at entry.",      reward: 0.1   },
+  { id: "portfolio_100",        cat: "trading", img: "/badges/portfolio_100.png",   icon: "📈", name: "100% Growth",           desc: "Double your starting balance of 10 SOL — reach 20 SOL or more.",            reward: 0.1   },
+  { id: "wins_25",              cat: "trading", img: "/badges/Wins_25.png",         icon: "⭐", name: "25 Safe Wins",          desc: "Close a total of 25 profitable trades in the simulator.",                    reward: 0.1   },
+  { id: "wins_50",              cat: "trading", img: "/badges/Wins_50.png",         icon: "🌟", name: "50 Safe Wins",          desc: "Close a total of 50 profitable trades. You're on a roll!",                  reward: 0.5   },
+  { id: "wins_100",             cat: "trading", img: "/badges/Wins_100.png",        icon: "💫", name: "100 Safe Wins",         desc: "Close 100 profitable trades. The market has nothing on you.",               reward: 1.0   },
+  { id: "wins_500",             cat: "trading", img: "/badges/Wins_500.png",        icon: "🚀", name: "500 Safe Wins",         desc: "500 wins — you are an elite Scan2Moon trader.",                             reward: 2.0   },
+  { id: "wins_1000",            cat: "trading", img: "/badges/Wins_1000.png",       icon: "🐐", name: "1000 Safe Wins — GOAT", desc: "1000 profitable trades. You are the absolute Greatest Of All Time.",        reward: 5.0   },
+  { id: "sol2moon_millionaire", cat: "trading", img: "/badges/Sol2Moon.png",        icon: "🌙", name: "Sol2Moon Millionaire",  desc: "Grow your simulator balance to 10,000 SOL. Legendary status.",              reward: 500.0 },
+
+  /* ── Academy Rank ── */
+  { id: "lesson_1",      cat: "academy", subcat: "rank", img: null, icon: "🎯", name: "First Lesson",      desc: "Complete your very first lesson in the Scan2Moon Academy.",                        reward: 0.1  },
+  { id: "risk_master",   cat: "academy", subcat: "rank", img: null, icon: "📊", name: "Risk Master",       desc: "Score 100% on the Risk Scanner knowledge quiz. Perfect understanding!",           reward: 0.25 },
+  { id: "scanner_pro",   cat: "academy", subcat: "rank", img: null, icon: "🛡️", name: "Scanner Pro",       desc: "Complete the full Risk Scanner deep-dive course from start to finish.",           reward: 0.5  },
+  { id: "chart_reader",  cat: "academy", subcat: "rank", img: null, icon: "📈", name: "Chart Reader",      desc: "Pass the Chart Reading & Candle Analysis challenge with 80%+ accuracy.",          reward: 0.25 },
+  { id: "whale_watcher", cat: "academy", subcat: "rank", img: null, icon: "🐋", name: "Whale Watcher",     desc: "Complete the Whale DNA module and learn how to track smart money.",                reward: 0.25 },
+  { id: "defi_graduate", cat: "academy", subcat: "rank", img: null, icon: "🏛️", name: "DeFi Graduate",     desc: "Complete every module in the Scan2Moon Academy. Full graduate status!",           reward: 1.0  },
+
+  /* ── Academy Guide Badges ── */
+  { id: "guide_risk_scanner", cat: "academy", subcat: "guide", img: null, icon: "📊", name: "From Zero to Moon",          desc: "Complete the 'S2M – From Zero to Moon' guide.",  reward: 0.15 },
+  { id: "guide_whale_dna",    cat: "academy", subcat: "guide", img: null, icon: "🐋", name: "Track the Smart Money",       desc: "Complete the Whale DNA guide.",                  reward: 0.15 },
+  { id: "guide_safe_ape",     cat: "academy", subcat: "guide", img: null, icon: "🦍", name: "Paper Trade Before You Risk", desc: "Complete the Safe Ape Simulator guide.",         reward: 0.15 },
+
+  /* ── Academy Level ── */
+  { id: "acad_lvl_1", cat: "academy", subcat: "level", img: null, icon: "📖", name: "Academy LVL 1 — Enrolled",   desc: "Earn your first Academy Rank badge. The journey begins!",                  reward: 0.05 },
+  { id: "acad_lvl_2", cat: "academy", subcat: "level", img: null, icon: "✏️", name: "Academy LVL 2 — Student",    desc: "Earn 2 Academy Rank badges. You are officially a student.",                reward: 0.1  },
+  { id: "acad_lvl_3", cat: "academy", subcat: "level", img: null, icon: "📚", name: "Academy LVL 3 — Scholar",    desc: "Earn 3 Academy Rank badges. Knowledge is compounding.",                    reward: 0.2  },
+  { id: "acad_lvl_4", cat: "academy", subcat: "level", img: null, icon: "🎓", name: "Academy LVL 4 — Advanced",   desc: "Earn 4 Academy Rank badges. You're ahead of 90% of traders.",             reward: 0.4  },
+  { id: "acad_lvl_5", cat: "academy", subcat: "level", img: null, icon: "🏆", name: "Academy LVL 5 — Professor",  desc: "Earn all 5 core Academy Rank badges. You are the one who teaches now.",   reward: 1.0  },
+
+  /* ── Other ── */
+  { id: "early_adopter",  cat: "other", img: null, icon: "⚡", name: "Early Adopter",   desc: "Joined Scan2Moon before the V2 public launch. OG status forever.",              reward: 0.5  },
+  { id: "community_og",   cat: "other", img: null, icon: "🐦", name: "Community OG",    desc: "Followed @Scan2Moon on X and joined the community from the start.",             reward: 0.1  },
+  { id: "streak_7",       cat: "other", img: null, icon: "🔥", name: "7-Day Streak",    desc: "Log in 7 days in a row. Consistency is the edge most traders don't have.",      reward: 0.15 },
+  { id: "watchlist_pro",  cat: "other", img: null, icon: "⭐", name: "Watchlist Pro",   desc: "Add 10 or more tokens to your personal Scan2Moon Watchlist.",                   reward: 0.1  },
+  { id: "sharer",         cat: "other", img: null, icon: "📢", name: "Alpha Sharer",    desc: "Share a risk scan result on X. Spreading real data, not hype.",                 reward: 0.1  },
+
+  /* ── PRO ── */
+  { id: "pro_scanner",   cat: "pro", img: null, icon: "🛡️", name: "Pro Scanner",     desc: "Run 100 total risk scans. You have seen enough charts to know the difference.", reward: 0.5  },
+  { id: "alpha_caller",  cat: "pro", img: null, icon: "🎯", name: "Alpha Caller",    desc: "Correctly predict 3 tokens that go 10× before they pump. Real alpha.",          reward: 2.0  },
+  { id: "whale_analyst", cat: "pro", img: null, icon: "🐋", name: "Whale Analyst",   desc: "Successfully identify 5 whale wallet patterns using Whale DNA scanner.",         reward: 1.0  },
+  { id: "top_10",        cat: "pro", img: null, icon: "🏆", name: "Top 10",          desc: "Reach the top 10 on the Scan2Moon Leaderboard. Elite trader confirmed.",         reward: 5.0  },
+
+  /* ── Cosmetics — Free ── */
+  { id: "cosm_classic_ape",   cat: "cosmetics", subcat: "free", freebie: true,
+    img: null, icon: "🦍", name: "Classic Ape",
+    desc: "The original Ape Trader look. Free for every Scan2Moon user — always unlocked.", reward: 0 },
+
+  /* ── Cosmetics — Community Badges ── */
+  { id: "cosm_love_solana",   cat: "cosmetics", subcat: "community", market: true, priceUsd: 0.99,
+    img: "/badges/Love_Solana.png", icon: "❤️", name: "I Love Solana",
+    desc: "Show your love for the fastest chain in the game.", reward: 0 },
+  { id: "cosm_love_s2m",      cat: "cosmetics", subcat: "community", market: true, priceUsd: 0.99,
+    img: "/badges/Love_S2M.png",    icon: "🌙", name: "I Love S2M",
+    desc: "A true Scan2Moon believer — the OG community badge.", reward: 0 },
+
+  /* ── Cosmetics — Moon Krakens (animated MP4) ── */
+  { id: "kraken_skeleton",    cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
+    type: "video", video: "/badges/Moon_Krakens_Bages/%23006.mp4", icon: "💀", name: "Skeleton",
+    desc: "Moon Krakens #006 — Skeleton. Fully animated avatar badge.", reward: 0 },
+  { id: "kraken_badboy",      cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
+    type: "video", video: "/badges/Moon_Krakens_Bages/%23005.mp4", icon: "😈", name: "Bad Boy",
+    desc: "Moon Krakens #005 — Bad Boy. Fully animated avatar badge.", reward: 0 },
+  { id: "kraken_pirate",      cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
+    type: "video", video: "/badges/Moon_Krakens_Bages/%23004.mp4", icon: "🏴‍☠️", name: "Pirate",
+    desc: "Moon Krakens #004 — Pirate. Fully animated avatar badge.", reward: 0 },
+
+  /* ── Account Levels ── */
+  { id: "lvl_1",   cat: "levels", img: null, icon: "🌱", name: "Level 1 — First Step",    desc: "Reach Account Level 1. Every legend starts with a single step.", reward: 0.05 },
+  { id: "lvl_5",   cat: "levels", img: null, icon: "🔥", name: "Level 5 — Getting Warm",  desc: "Reach Account Level 5. You're building momentum — keep going!",   reward: 0.1  },
+  { id: "lvl_10",  cat: "levels", img: null, icon: "💪", name: "Level 10 — Veteran",      desc: "Reach Account Level 10. A true Scan2Moon veteran. Respect.",       reward: 0.25 },
+  { id: "lvl_20",  cat: "levels", img: null, icon: "🧠", name: "Level 20 — Smart Money",  desc: "Reach Account Level 20. You clearly understand how this works.",    reward: 0.5  },
+  { id: "lvl_30",  cat: "levels", img: null, icon: "💎", name: "Level 30 — Diamond Mind", desc: "Reach Account Level 30. Elite mentality. Diamond hands, diamond brain.", reward: 1.0  },
+  { id: "lvl_50",  cat: "levels", img: null, icon: "🚀", name: "Level 50 — Half Moon",    desc: "Reach Account Level 50. Halfway to the moon and already a legend.",  reward: 2.0  },
+  { id: "lvl_100", cat: "levels", img: null, icon: "🌙", name: "Level 100 — Sol2Moon",    desc: "Reach Account Level 100. Maximum level. You ARE the moon. Absolute GOAT.", reward: 10.0 },
 ];
 
 // ── Leaderboard scoring helpers ──
@@ -371,6 +548,9 @@ const REG_SENTINEL_KEY = "__reg_sentinel__";   // Blobs: sentinel
 
 // ── Upstash Redis helpers ─────────────────────────────────────────────────
 function _redisAvailable() {
+  // In local dev, never use the production Redis instance — it would find the wallet
+  // in the production leaderboard set and trigger the 503 safety guard.
+  if (process.env.NETLIFY_DEV) return false;
   return !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 }
 async function _redisCmd(...args) {
@@ -567,7 +747,7 @@ async function checkRateLimit(ip) {
 exports.handler = async function(event, context) {
   const headers = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://scan2moon.com",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
@@ -655,8 +835,9 @@ exports.handler = async function(event, context) {
                 const sells      = trades.filter(t => t.type === "sell");
                 const avgRisk    = parseFloat(_lbAvgRiskScore(trades).toFixed(1));
                 const lastTrade  = trades.length > 0 ? trades[0].timestamp : (profile.updatedAt || profile.createdAt);
-                const _xp1  = (sells.length * 25) + (badges.length * 50) + ((profile.loginStreak || 0) * 5);
-                const _lvl1 = Math.floor(Math.sqrt(_xp1 / 100)) + 1;
+                const _xp1  = (sells.length * 25) + ((profile.loginStreak || 0) * 10)
+                            + (profile.badgeXp || 0) + (profile.socialXp || 0) + (profile.academyXp || 0);
+                const _lvl1 = _calcLevel(_xp1);
                 entries.push({
                   wallet: profile.wallet || w, accountName: profile.accountName || "Ape",
                   adjReturn, periodPnL, dailyPnL, weeklyPnL, monthlyPnL,
@@ -687,8 +868,9 @@ exports.handler = async function(event, context) {
             const avgRisk    = parseFloat(_lbAvgRiskScore(trades).toFixed(1));
             const lastTrade  = trades.length > 0 ? trades[0].timestamp : (profile.updatedAt || profile.createdAt);
 
-            const _xp  = (sells.length * 25) + (badges.length * 50) + ((profile.loginStreak || 0) * 5);
-            const _lvl = Math.floor(Math.sqrt(_xp / 100)) + 1;
+            const _xp  = (sells.length * 25) + ((profile.loginStreak || 0) * 10)
+                       + (profile.badgeXp || 0) + (profile.socialXp || 0) + (profile.academyXp || 0);
+            const _lvl = _calcLevel(_xp);
             entries.push({
               wallet:       profile.wallet || w,
               accountName:  profile.accountName || "Ape",
@@ -776,7 +958,7 @@ exports.handler = async function(event, context) {
         // Only cache genuinely real profiles (not recovery placeholders)
         if (!profile._recovering) redisCacheProfile(wallet, profile);
         await registerInLeaderboard(store, wallet);
-        return { statusCode: 200, headers, body: JSON.stringify({ profile, isNew: false }) };
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile, isNew: false }) };
       }
 
       // ── Step 2: Blobs returned null — check Redis as fallback ──
@@ -784,7 +966,7 @@ exports.handler = async function(event, context) {
       if (redisCached && !redisCached._recovering) {
         // Redis has a real (non-recovery) profile — Blobs token is probably expired.
         console.log("GET: Blobs null, serving real profile from Redis fallback");
-        return { statusCode: 200, headers, body: JSON.stringify({ profile: redisCached, isNew: false }) };
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile: redisCached, isNew: false }) };
       }
 
       // ── Step 3: Both null — distinguish existing vs new wallet ──
@@ -813,7 +995,7 @@ exports.handler = async function(event, context) {
         lastLogin:   null,
         loginStreak: 0,
       };
-      return { statusCode: 200, headers, body: JSON.stringify({ profile: newProfile, isNew: true }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile: newProfile, isNew: true }) };
     } catch (e) {
       console.error("GET error:", e);
       return { statusCode: 500, headers, body: JSON.stringify({ error: e.message }) };
@@ -930,6 +1112,7 @@ exports.handler = async function(event, context) {
 
       const dayLabel = `Day ${streak}`;
       const newBadgesLogin = awardNewBadges(profile);
+      _sanitizeProfile(profile);
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
@@ -951,6 +1134,7 @@ exports.handler = async function(event, context) {
       profile.balance            += WELCOME_GIFT_SOL;
       profile.welcomeGiftClaimed  = true;
       const newBadgesWelcome = awardNewBadges(profile);
+      _sanitizeProfile(profile);
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
@@ -978,6 +1162,9 @@ exports.handler = async function(event, context) {
         fetchRealPrice(mint),
         fetchSolPriceServer(),
       ]);
+      if (solPriceForTrade <= 0) {
+        return { statusCode: 503, headers, body: JSON.stringify({ error: "SOL price temporarily unavailable — please retry in a moment." }) };
+      }
       if (realPrice !== null) {
         const deviation = Math.abs(parsedPrice - realPrice) / realPrice;
         if (deviation > PRICE_TOLERANCE) {
@@ -1043,12 +1230,13 @@ exports.handler = async function(event, context) {
         timestamp: new Date().toISOString(),
       };
       profile.trades.unshift(trade);
-      if (profile.trades.length > 30) profile.trades = profile.trades.slice(0, 30);
+      if (profile.trades.length > 50) profile.trades = profile.trades.slice(0, 50); // max 5 pages × 10 items
 
       const newBadgesBuy = awardNewBadges(profile);
+      _sanitizeProfile(profile);
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
-      return { statusCode: 200, headers, body: JSON.stringify({ profile, trade, newBadges: newBadgesBuy }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile, trade, newBadges: newBadgesBuy }) };
     }
 
     // ── SELL ──
@@ -1070,6 +1258,14 @@ exports.handler = async function(event, context) {
         fetchRealPrice(mint),
         fetchSolPriceServer(),
       ]);
+      // ── CRITICAL: guard against SOL price = 0 ──────────────────────────────
+      // Without this check, totalReceivedSol = value/0 = Infinity, which
+      // JSON.stringify serialises as null → wipes the user's balance.
+      // The BUY handler already had this guard; SELL was missing it.
+      if (solPriceForTrade <= 0) {
+        return { statusCode: 503, headers, body: JSON.stringify({ error: "SOL price temporarily unavailable — please retry in a moment." }) };
+      }
+
       if (realSellPrice !== null) {
         // For sells: only reject if the submitted price is HIGHER than the real price
         // (that would inflate the user's SOL received — actual cheating).
@@ -1088,10 +1284,28 @@ exports.handler = async function(event, context) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: "Insufficient token balance" }) };
       }
 
+      // ── Unindexed-token price cap ───────────────────────────────────────────
+      // If Birdeye couldn't fetch a real price (realSellPrice === null), the token
+      // may be delisted or very new.  Cap the sell value at 1000× the buy price to
+      // prevent submitting an arbitrarily high price for an untracked token.
+      if (realSellPrice === null && holding.avgPrice > 0) {
+        const MAX_UNVALIDATED_MULTIPLE = 1000;
+        if (parsedSellPrice > holding.avgPrice * MAX_UNVALIDATED_MULTIPLE) {
+          console.warn(`SELL price cap (unindexed token ${mint}): submitted=$${parsedSellPrice} avgBuy=$${holding.avgPrice}`);
+          return { statusCode: 400, headers, body: JSON.stringify({ error: "Sell price rejected — token is not indexed and submitted price is unrealistic. Refresh and try again." }) };
+        }
+      }
+
       const slip             = Math.min(Math.abs(slippage || 0.01), 0.05);
       const effectivePrice   = parsedSellPrice * (1 - slip);
       const totalReceivedUsd = effectivePrice * parsedSellAmount;
       const totalReceivedSol = totalReceivedUsd / solPriceForTrade;   // ← SOL received
+
+      // Extra safety: totalReceivedSol must be finite and positive
+      if (!isFinite(totalReceivedSol) || totalReceivedSol < 0) {
+        console.error(`SELL: totalReceivedSol=${totalReceivedSol} (solPrice=${solPriceForTrade}) — rejecting`);
+        return { statusCode: 400, headers, body: JSON.stringify({ error: "Price calculation error — please retry." }) };
+      }
 
       // Cost basis in SOL — prefer proportional totalCostSol (exact SOL spent).
       // Fall back to avgCostSol per token, then USD estimate for legacy holdings.
@@ -1138,12 +1352,13 @@ exports.handler = async function(event, context) {
         timestamp: new Date().toISOString(),
       };
       profile.trades.unshift(trade);
-      if (profile.trades.length > 30) profile.trades = profile.trades.slice(0, 30);
+      if (profile.trades.length > 50) profile.trades = profile.trades.slice(0, 50); // max 5 pages × 10 items
 
       const newBadgesSell = awardNewBadges(profile);
+      _sanitizeProfile(profile);   // ← guard against any Infinity that slipped through
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
-      return { statusCode: 200, headers, body: JSON.stringify({ profile, trade, newBadges: newBadgesSell }) };
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile, trade, newBadges: newBadgesSell }) };
     }
 
     // ── UPDATE NAME ──
@@ -1212,12 +1427,26 @@ exports.handler = async function(event, context) {
       }
 
       // Blobs has no data — save the client backup.
-      // Basic sanity: balance must be ≥ 0 and wallet must match.
-      const safeBalance = Math.max(0, parseFloat(bp.balance) || STARTING_BALANCE_SOL);
-      bp.balance  = safeBalance;
-      bp.wallet   = wallet;
+      // Security: cap balance + recompute winCount from actual trade data so a
+      // tampered localStorage backup can't give a user an unlimited balance or
+      // trigger high-win badges fraudulently.
+      const MAX_RESTORE_BALANCE = 1000; // 100× starting — covers any legitimate user
+      bp.balance = Math.min(MAX_RESTORE_BALANCE, Math.max(0, parseFloat(bp.balance) || STARTING_BALANCE_SOL));
+      // Recompute winCount/lossCount from the trade array (capped at 30 entries, so
+      // allow a small discrepancy for long-time traders whose oldest trades were trimmed).
+      const _bpSells  = (bp.trades || []).filter(t => t.type === "sell");
+      const _bpWins   = _bpSells.filter(t => (t.pnl || 0) > 0).length;
+      const _bpLosses = _bpSells.filter(t => (t.pnl || 0) <  0).length;
+      bp.winCount  = Math.min(bp.winCount  || 0, _bpWins  + 5);
+      bp.lossCount = Math.min(bp.lossCount || 0, _bpLosses + 5);
+      // Strip badge list — recomputed fresh on next action to prevent tampered
+      // backups from claiming badge SOL rewards that were never legitimately earned.
+      bp.badges  = [];
+      bp.badgeXp = Math.min(bp.badgeXp || 0, 5000);
+      bp.wallet     = wallet;
       bp.restoredAt = new Date().toISOString();
-      console.log("restore_backup: saving backup for", wallet, "balance=", safeBalance);
+      _sanitizeProfile(bp);
+      console.log("restore_backup: saving backup for", wallet, "balance=", bp.balance, "wins=", bp.winCount);
       try { await store.set(wallet, JSON.stringify(bp)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, bp);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({
@@ -1226,18 +1455,24 @@ exports.handler = async function(event, context) {
 
     // ── RESET ──
     if (action === "reset") {
-      profile.balance         = STARTING_BALANCE_SOL;
-      profile.balanceCurrency = "sol";
-      profile.holdings        = {};
-      profile.trades          = [];
-      profile.totalPnL        = 0;
-      profile.winCount        = 0;
-      profile.lossCount       = 0;
-      profile.badges              = [];   // ← clear badges so rewards can be earned again
-      profile.lastLogin           = null; // ← reset daily login so streak restarts from Day 1
-      profile.loginStreak         = 0;
-      profile.welcomeGiftClaimed  = false; // ← allow re-claiming welcome gift after reset
-      profile.updatedAt       = new Date().toISOString(); // ← leaderboard uses this for "Last Active"
+      profile.balance              = STARTING_BALANCE_SOL;
+      profile.balanceCurrency      = "sol";
+      profile.holdings             = {};
+      profile.trades               = [];
+      profile.totalPnL             = 0;
+      profile.winCount             = 0;
+      profile.lossCount            = 0;
+      profile.badges               = [];   // ← clear badges so rewards can be earned again
+      profile.badgeXp              = 0;    // ← clear badge XP
+      profile.socialXp             = 0;    // ← clear social task XP
+      profile.academyXp            = 0;    // ← clear academy XP
+      profile.academyProgress      = {};   // ← clear guide completions so XP/SOL rewards can be earned again
+      profile.socialTasksClaimed   = [];   // ← allow re-completing social tasks
+      profile.lastLogin            = null; // ← reset daily login so streak restarts from Day 1
+      profile.loginStreak          = 0;
+      profile.welcomeGiftClaimed   = false; // ← allow re-claiming welcome gift after reset
+      profile.updatedAt            = new Date().toISOString(); // ← leaderboard uses this for "Last Active"
+      _sanitizeProfile(profile);
       try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
       await registerInLeaderboard(store, wallet);
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };

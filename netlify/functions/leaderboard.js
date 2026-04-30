@@ -31,7 +31,7 @@ async function getStore() {
   // NETLIFY_BLOBS_CONTEXT is only injected in real Netlify Lambda invocations.
   // If it's missing AND we fall to the /tmp or local-file store, the leaderboard
   // silently shows "0 traders" because there is no data in that fallback.
-  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT;
+  const isProduction = !!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY_DEV;
   console.log("leaderboard getStore: isProduction=", isProduction);
 
   try {
@@ -96,19 +96,64 @@ async function getStore() {
 }
 
 /* ── Badge definitions ── */
+/* ── Badge definitions — full mirror of dashboard.js BADGE_DEFS ── */
 const BADGE_DEFS = [
-  { id: "first_profit",    img: "/badges/First_Profit.png",   icon: "🏆", name: "First Profit",          desc: "Made your first profitable trade" },
-  { id: "win_streak_5",   img: "/badges/win_streak_5.png",   icon: "🔥", name: "Win Streak x5",         desc: "Won 5 trades in a row" },
-  { id: "safe_trader",    img: "/badges/Safe_Trader.png",    icon: "🛡️", name: "Safe Trader",            desc: "Buy 10 tokens with entry risk score ≥ 65" },
-  { id: "diamond_hands",  img: "/badges/Diamond_Hands.png",  icon: "💎", name: "Diamond Hands",          desc: "Held a token for 7+ days" },
-  { id: "degen_survivor", img: "/badges/Degen_Survivor.png", icon: "🦍", name: "Degen Survivor",         desc: "Profit 10× on tokens with risk score < 45 (1 sell per buy)" },
-  { id: "portfolio_100",  img: "/badges/portfolio_100.png",  icon: "📈", name: "100% Growth",            desc: "Doubled your 10 SOL starting balance" },
-  { id: "wins_25",        img: "/badges/Wins_25.png",        icon: "⭐", name: "25 Safe Wins",           desc: "25 profitable trades" },
-  { id: "wins_50",        img: "/badges/Wins_50.png",        icon: "🌟", name: "50 Safe Wins",           desc: "50 profitable trades" },
-  { id: "wins_100",       img: "/badges/Wins_100.png",       icon: "💫", name: "100 Safe Wins",          desc: "100 profitable trades" },
-  { id: "wins_500",       img: "/badges/Wins_500.png",       icon: "🚀", name: "500 Safe Wins",          desc: "500 profitable trades" },
-  { id: "wins_1000",           img: "/badges/Wins_1000.png",  icon: "🐐", name: "1000 Safe Wins — GOAT",  desc: "The absolute GOAT." },
-  { id: "sol2moon_millionaire", img: "/badges/Sol2Moon.png",  icon: "🌙", name: "Sol2Moon Millionaire",    desc: "Reach 10,000 SOL" },
+  // Trading
+  { id: "first_profit",         img: "/badges/First_Profit.png",   icon: "🏆", name: "First Profit",          desc: "Close your very first profitable trade." },
+  { id: "win_streak_5",         img: "/badges/win_streak_5.png",   icon: "🔥", name: "Win Streak ×5",         desc: "Win 5 trades in a row." },
+  { id: "safe_trader",          img: "/badges/Safe_Trader.png",    icon: "🛡️", name: "Safe Trader",           desc: "Buy 10 tokens with entry risk score ≥ 65." },
+  { id: "diamond_hands",        img: "/badges/Diamond_Hands.png",  icon: "💎", name: "Diamond Hands",         desc: "Hold a position for 7+ days." },
+  { id: "degen_survivor",       img: "/badges/Degen_Survivor.png", icon: "🦍", name: "Degen Survivor",        desc: "Profit 10× on a token with risk score < 45." },
+  { id: "portfolio_100",        img: "/badges/portfolio_100.png",  icon: "📈", name: "100% Growth",           desc: "Double your starting balance." },
+  { id: "wins_25",              img: "/badges/Wins_25.png",        icon: "⭐", name: "25 Safe Wins",          desc: "25 profitable trades." },
+  { id: "wins_50",              img: "/badges/Wins_50.png",        icon: "🌟", name: "50 Safe Wins",          desc: "50 profitable trades." },
+  { id: "wins_100",             img: "/badges/Wins_100.png",       icon: "💫", name: "100 Safe Wins",         desc: "100 profitable trades." },
+  { id: "wins_500",             img: "/badges/Wins_500.png",       icon: "🚀", name: "500 Safe Wins",         desc: "500 profitable trades." },
+  { id: "wins_1000",            img: "/badges/Wins_1000.png",      icon: "🐐", name: "1000 Safe Wins — GOAT", desc: "The absolute GOAT." },
+  { id: "sol2moon_millionaire", img: "/badges/Sol2Moon.png",       icon: "🌙", name: "Sol2Moon Millionaire",  desc: "Reach 10,000 SOL balance." },
+  // Account Levels
+  { id: "lvl_1",   icon: "🌱", name: "Level 1",   desc: "Reach Account Level 1."   },
+  { id: "lvl_5",   icon: "🔥", name: "Level 5",   desc: "Reach Account Level 5."   },
+  { id: "lvl_10",  icon: "💪", name: "Level 10",  desc: "Reach Account Level 10."  },
+  { id: "lvl_20",  icon: "🧠", name: "Level 20",  desc: "Reach Account Level 20."  },
+  { id: "lvl_30",  icon: "💎", name: "Level 30",  desc: "Reach Account Level 30."  },
+  { id: "lvl_50",  icon: "🚀", name: "Level 50",  desc: "Reach Account Level 50."  },
+  { id: "lvl_100", icon: "🌙", name: "Level 100", desc: "Reach Account Level 100." },
+  // Academy rank
+  { id: "lesson_1",      icon: "🎯", name: "First Lesson",   desc: "Complete your first lesson."     },
+  { id: "risk_master",   icon: "📊", name: "Risk Master",    desc: "Score 100% on Risk Scanner quiz." },
+  { id: "scanner_pro",   icon: "🛡️", name: "Scanner Pro",    desc: "Complete the Risk Scanner course."},
+  { id: "chart_reader",  icon: "📈", name: "Chart Reader",   desc: "Pass Chart Reading challenge."    },
+  { id: "whale_watcher", icon: "🐋", name: "Whale Watcher",  desc: "Complete the Whale DNA module."   },
+  { id: "defi_graduate", icon: "🏛️", name: "DeFi Graduate",  desc: "Complete every Academy module."   },
+  // Academy guides
+  { id: "guide_risk_scanner", icon: "📊", name: "From Zero to Moon",          desc: "Complete the Risk Scanner guide." },
+  { id: "guide_whale_dna",    icon: "🐋", name: "Track the Smart Money",       desc: "Complete the Whale DNA guide."    },
+  { id: "guide_safe_ape",     icon: "🦍", name: "Paper Trade Before You Risk", desc: "Complete the Safe Ape guide."     },
+  // Academy levels
+  { id: "acad_lvl_1", icon: "📖", name: "Academy LVL 1", desc: "Earn first Academy badge."    },
+  { id: "acad_lvl_2", icon: "✏️", name: "Academy LVL 2", desc: "Earn 2 Academy badges."        },
+  { id: "acad_lvl_3", icon: "📚", name: "Academy LVL 3", desc: "Earn 3 Academy badges."        },
+  { id: "acad_lvl_4", icon: "🎓", name: "Academy LVL 4", desc: "Earn 4 Academy badges."        },
+  { id: "acad_lvl_5", icon: "🏆", name: "Academy LVL 5", desc: "Earn all 5 Academy badges."    },
+  // Other
+  { id: "early_adopter",  icon: "⚡", name: "Early Adopter",  desc: "Joined before V2 launch."           },
+  { id: "community_og",   icon: "🐦", name: "Community OG",   desc: "Followed @Scan2Moon on X."           },
+  { id: "streak_7",       icon: "🔥", name: "7-Day Streak",   desc: "Log in 7 days in a row."             },
+  { id: "watchlist_pro",  icon: "⭐", name: "Watchlist Pro",  desc: "Add 10+ tokens to watchlist."        },
+  { id: "sharer",         icon: "📢", name: "Alpha Sharer",   desc: "Share a risk scan on X."             },
+  // Pro
+  { id: "pro_scanner",   icon: "🛡️", name: "Pro Scanner",   desc: "Run 100 risk scans."                 },
+  { id: "alpha_caller",  icon: "🎯", name: "Alpha Caller",   desc: "Predict 3 tokens that go 10×."       },
+  { id: "whale_analyst", icon: "🐋", name: "Whale Analyst",  desc: "Identify 5 whale wallet patterns."   },
+  { id: "top_10",        icon: "🏆", name: "Top 10",         desc: "Reach the top 10 leaderboard."       },
+  // Cosmetics
+  { id: "cosm_classic_ape",   icon: "🦍",  name: "Classic Ape",   desc: "The original Ape Trader look."      },
+  { id: "cosm_love_solana",   img: "/badges/Love_Solana.png", icon: "❤️",  name: "I Love Solana", desc: "Show your love for Solana." },
+  { id: "cosm_love_s2m",      img: "/badges/Love_S2M.png",    icon: "🌙",  name: "I Love S2M",    desc: "A true Scan2Moon believer." },
+  { id: "kraken_skeleton",    icon: "💀",  name: "Skeleton",   desc: "Moon Krakens #006 — Skeleton."      },
+  { id: "kraken_badboy",      icon: "😈",  name: "Bad Boy",    desc: "Moon Krakens #005 — Bad Boy."        },
+  { id: "kraken_pirate",      icon: "🏴‍☠️", name: "Pirate",    desc: "Moon Krakens #004 — Pirate."         },
 ];
 
 /* ── Wallet index ── */
@@ -240,7 +285,7 @@ function calcSol2MoonReward(rank, adjReturn) {
 exports.handler = async function(event, context) {
   const headers = {
     "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": process.env.ALLOWED_ORIGIN || "https://scan2moon.com",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
   };
@@ -353,7 +398,7 @@ exports.handler = async function(event, context) {
       const periodWinners  = [...entries]
         .filter(e => e.periodPnL > 0)
         .sort((a, b) => b.periodPnL - a.periodPnL);
-      const alltimeWinners = entries.filter(e => (e.totalPnL || 0) > 0);
+      const alltimeWinners = entries.filter(e => (e.adjReturn || 0) > 0);
       const mvp = {
         daily:   periodWinners[0]  || null,
         weekly:  periodWinners[0]  || null,

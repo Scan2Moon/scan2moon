@@ -1,45 +1,47 @@
-const DEXSCREENER_API = "https://api.dexscreener.com/latest/dex/tokens/";
+const _DEBUG = false;
+
+// lpLock.js — Liquidity detection
+// Uses Birdeye data from the scanData singleton (already cached from the scan).
+// Falls back to the tokenData serverless function (also Birdeye) if scanData isn't populated yet.
+
+import { getScanData } from "./scanData.js";
 
 export async function detectLiquidity(mint) {
+  // ── Primary: Birdeye via scanData singleton (no extra API call) ──────────
   try {
-    const res = await fetch(`${DEXSCREENER_API}${mint}`);
-    const data = await res.json();
-
-    if (!data.pairs || data.pairs.length === 0) {
-      return "No Liquidity Found";
+    const data = await getScanData(mint);
+    const pair = data?.pair;
+    if (pair) {
+      const liq = pair.liquidity?.usd ?? 0;
+      if (!liq) return "No Liquidity Found";
+      const formatted = Number(liq).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      // Try to show a real DEX name if available
+      const dexLabel = pair._dexSource || "DEX";
+      return `$${formatted} (${dexLabel})`;
     }
+  } catch (e) { _DEBUG && console.warn("[lpLock] scanData lookup failed:", e.message); }
 
-    // For pump.fun tokens (mint ends in "pump"), exclude the bonding-curve pair
-    // but KEEP PumpSwap (pump.fun's graduated AMM — dexId "pumpswap").
-    // Only the bonding-curve has dexId "pump-fun"; PumpSwap is a real graduated pool.
-    const isPump = mint.toLowerCase().endsWith("pump");
-    const solanaPairs = data.pairs.filter(p => p.chainId === "solana");
-    const BONDING_CURVE_IDS = ["pump-fun", "pumpfun"];
-    const realDexPairs = isPump
-      ? solanaPairs.filter(p => {
-          const dex = String(p.dexId || "").toLowerCase().replace(/-/g, "");
-          return !BONDING_CURVE_IDS.includes(dex);
-        })
-      : solanaPairs;
-    const pool = realDexPairs.length > 0 ? realDexPairs : solanaPairs;
-    const pair = pool.sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0]
-              || data.pairs[0];
-
-    const dex = pair.dexId;
-    const liquidity = pair.liquidity?.usd;
-
-    if (!liquidity) {
-      return `Liquidity Found (${dex})`;
-    }
-
-    const formatted = Number(liquidity).toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+  // ── Fallback: tokenData serverless function (Birdeye) ───────────────────
+  try {
+    const res  = await fetch(`/.netlify/functions/tokenData?mint=${encodeURIComponent(mint)}`, {
+      signal: AbortSignal.timeout(7000),
     });
+    const data = await res.json();
+    if (!data.ok || !data.token) return "No Liquidity Found";
 
-    return `$${formatted} (${dex})`;
+    const liq = parseFloat(data.token.liquidity ?? 0);
+    if (!liq) return "No Liquidity Found";
+
+    const formatted = liq.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+    return `$${formatted} (Birdeye)`;
   } catch (e) {
-    console.warn("Liquidity detection failed", e);
+    _DEBUG && console.warn("[lpLock] Birdeye tokenData fallback failed:", e);
     return "Unknown";
   }
 }

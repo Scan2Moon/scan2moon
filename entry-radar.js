@@ -1,9 +1,10 @@
+const _DEBUG = false;
+
 // entry-radar.js – Scan2Moon V2.0 Entry Radar
 import { renderNav } from "./nav.js";
 import "./community.js";
 import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
 import { applyTranslations, t } from "./i18n.js";
-import { callRpc }          from "./rpc.js";
 
 /* ── Security helpers ── */
 function esc(s) {
@@ -16,9 +17,9 @@ function safeMint(mint) {
 }
 
 /* ===== CONFIG ===== */
-const GECKO_NEW_POOLS    = "https://api.geckoterminal.com/api/v2/networks/solana/new_pools?page=1";
-const DEXSCREENER_NEW    = "https://api.dexscreener.com/token-profiles/latest/v1"; // fallback
-const DEXSCREENER_TOKENS = "https://api.dexscreener.com/latest/dex/tokens/";
+const ENTRY_RADAR_API    = "/.netlify/functions/entryRadar";   // Birdeye new listings (server-side)
+const TOKEN_DATA_API     = "/.netlify/functions/tokenData";    // Birdeye token overview (server-side)
+const SCAN_TOKEN_API     = "/.netlify/functions/scanToken";    // full risk scan (server-side)
 
 const REFRESH_INTERVAL   = 60000; // 60 seconds
 const WHALE_MIN_USD      = 1000;  // minimum buy to qualify as whale
@@ -29,87 +30,114 @@ let liveChartInstance = null;
 let liveChartTimer    = null;
 
 /* ===================================================
-   FETCH NEWEST SOLANA TOKENS — PRIMARY: GeckoTerminal
-   GeckoTerminal new_pools pre-filters by real DEX liquidity,
-   so we never waste RPC calls on pump.fun pre-graduation tokens
-   with liq:$0. Falls back to DexScreener profiles if GT fails.
+   FETCH NEWEST SOLANA TOKENS — Birdeye /defi/token_new_listing
+   All data sourced from Birdeye via the entryRadar serverless function.
+   Server-side Redis cache (60s) prevents hammering the API.
    =================================================== */
+let _radarApiError = null; // Surfaced to empty-state renderer
+
 async function fetchNewTokens() {
-  /* ── Primary: GeckoTerminal new pools (liq pre-populated) ── */
+  _radarApiError = null;
   try {
-    const res = await fetch(GECKO_NEW_POOLS, {
-      headers: { Accept: "application/json;version=20230302" }
-    });
+    const res = await fetch(ENTRY_RADAR_API, { signal: AbortSignal.timeout(12000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data  = await res.json();
-    const pools = data?.data ?? [];
-
-    /* Stables / wrapped SOL — the other side is the "new" token */
-    const stables = new Set([
-      "So11111111111111111111111111111111111111112",   // wSOL
-      "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", // USDC
-      "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",  // USDT
-    ]);
-
-    const tokens = [];
-    for (const pool of pools) {
-      const liq = parseFloat(pool.attributes?.reserve_in_usd ?? 0);
-      if (liq < 10000) continue; // skip thin pools before any RPC call
-
-      /* Skip pump.fun bonding-curve pools — their reserve_in_usd reflects
-         the bonding curve SOL (can look like $10k+) but it's NOT real DEX
-         exit liquidity. These tokens score 28/100 due to the pump.fun cap
-         in computeRiskScore. We only want graduated (Raydium/Orca/Meteora) pools. */
-      const dexId = pool.relationships?.dex?.data?.id ?? "";
-      if (dexId.toLowerCase().includes("pump")) continue;
-
-      const baseId    = pool.relationships?.base_token?.data?.id  ?? "";
-      const quoteId   = pool.relationships?.quote_token?.data?.id ?? "";
-      const baseMint  = baseId.replace("solana_", "");
-      const quoteMint = quoteId.replace("solana_", "");
-
-      /* Pick the side that isn't SOL/stable */
-      const mint = stables.has(quoteMint) ? baseMint
-                 : stables.has(baseMint)  ? quoteMint
-                 : baseMint;
-      if (!mint || mint.length < 32) continue;
-      tokens.push({ tokenAddress: mint, chainId: "solana" });
-    }
-
-    console.log(`[Radar] fetchNewTokens (GT) → pools:${pools.length} qualifying:${tokens.length}`);
-    if (tokens.length > 0) return tokens.slice(0, 40);
-  } catch (e) {
-    console.warn("[Radar] GeckoTerminal failed, falling back to DexScreener:", e);
-  }
-
-  /* ── Fallback: DexScreener token profiles ── */
-  try {
-    const res  = await fetch(DEXSCREENER_NEW);
     const data = await res.json();
-    const all  = Array.isArray(data) ? data : [];
-    const solanaTokens = all.filter(t => t.chainId === "solana").slice(0, 40);
-    console.log(`[Radar] fetchNewTokens (DS fallback) → total:${all.length} solana:${solanaTokens.length}`);
-    return solanaTokens;
+    if (!data.ok && data.error) {
+      _radarApiError = data.error;
+      _DEBUG && console.warn("[Radar] entryRadar API error:", data.detail || data.error);
+      return [];
+    }
+    const tokens = data?.tokens ?? [];
+    _DEBUG && console.log(`[Radar] fetchNewTokens (Birdeye) → ${tokens.length} tokens, source: ${data.source}`);
+    return tokens.slice(0, 40);
   } catch (e) {
-    console.warn("[Radar] fetchNewTokens FAILED:", e);
+    _DEBUG && console.warn("[Radar] Birdeye entryRadar FAILED:", e);
     return [];
   }
 }
 
 /* ===================================================
-   FETCH PAIR DATA FOR A TOKEN
-   Returns { pair, isPumpFun, hasGraduated } using the
-   same smart pair selection as the Risk Scanner.
+   FETCH PAIR DATA FOR A TOKEN — Birdeye /defi/token_overview
+   Calls the tokenData serverless function (Birdeye-backed)
+   and adapts the response into a DexScreener-compatible
+   pair object so the existing risk-scoring engine works
+   without any changes.
    =================================================== */
 async function fetchTokenPairData(mint) {
   try {
-    const res  = await fetch(`${DEXSCREENER_TOKENS}${mint}`);
+    const res  = await fetch(
+      `${TOKEN_DATA_API}?mint=${encodeURIComponent(mint)}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return { pair: null, isPumpFun: false, hasGraduated: false };
     const data = await res.json();
-    if (!data.pairs || data.pairs.length === 0) {
-      return { pair: null, isPumpFun: false, hasGraduated: false };
+    if (!data.ok || !data.token) return { pair: null, isPumpFun: false, hasGraduated: false };
+
+    const t = data.token;
+
+    // Guard: skip tokens with no meaningful market data
+    const liq = parseFloat(t.liquidity  ?? 0);
+    const mc  = parseFloat(t.marketCap  ?? 0);
+    const vol = parseFloat(t.volume24h  ?? 0);
+    if (!liq && !mc && !vol) return { pair: null, isPumpFun: false, hasGraduated: false };
+
+    // Build a DexScreener-compatible pair shape so scanSignals.js
+    // (computeRiskScore, entry window, checklist, etc.) works unchanged.
+    // Birdeye createdAt may be an ISO string or a unix timestamp (seconds).
+    let pairCreatedAt = null;
+    if (t.createdAt) {
+      pairCreatedAt = typeof t.createdAt === "string"
+        ? new Date(t.createdAt).getTime()
+        : (t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt);
     }
-    return pickSmartPair(mint, data.pairs);
-  } catch {
+
+    const pair = {
+      // Identity
+      pairAddress:  mint,
+      chainId:      "solana",
+      dexId:        "birdeye",
+      baseToken:    { address: mint, name: t.name ?? "Unknown", symbol: t.symbol ?? "?" },
+      quoteToken:   { symbol: "USDC" },
+      // Price
+      priceUsd:     String(t.priceUsd ?? 0),
+      priceChange: {
+        m5:  0,                          // not available from overview
+        h1:  parseFloat(t.priceChange1h  ?? 0),
+        h6:  parseFloat(t.priceChange6h  ?? 0),
+        h24: parseFloat(t.priceChange24h ?? 0),
+      },
+      // Volume
+      volume: {
+        h1:  parseFloat(t.volume1h  ?? 0),
+        h6:  0,
+        h24: parseFloat(t.volume24h ?? 0),
+      },
+      // Liquidity + market cap
+      liquidity:  { usd: liq },
+      marketCap:  mc || null,
+      fdv:        mc || null,
+      // Transaction counts
+      txns: {
+        h1:  { buys: parseInt(t.buy1h  ?? 0), sells: parseInt(t.sell1h  ?? 0) },
+        h6:  { buys: 0, sells: 0 },
+        h24: { buys: parseInt(t.buy24h ?? 0), sells: parseInt(t.sell24h ?? 0) },
+      },
+      // Token info
+      pairCreatedAt,
+      info: { imageUrl: t.logoUri ?? null },
+    };
+
+    _DEBUG && console.debug(
+      `[Radar] tokenData (Birdeye) ${mint.slice(0,8)}… liq:$${Math.round(liq)} mc:$${Math.round(mc)}`
+    );
+
+    // Tokens returned by Birdeye with real liquidity are on a real DEX.
+    // Mark pump.fun mints that haven't graduated so scorePumpFunRisk penalises them.
+    const isPumpFun    = String(mint).toLowerCase().endsWith("pump");
+    const hasGraduated = isPumpFun ? liq > 1000 : false;
+    return { pair, isPumpFun, hasGraduated };
+  } catch (e) {
+    _DEBUG && console.warn("[Radar] tokenData fetch failed:", e);
     return { pair: null, isPumpFun: false, hasGraduated: false };
   }
 }
@@ -120,32 +148,18 @@ async function fetchTokenPairData(mint) {
    Returns the real top-10 concentration % (0–100), or 0 on failure.
    Called in parallel with DexScreener fetch so it adds zero latency.
    =================================================== */
+/* Fetch top-10 holder % via Birdeye holderData serverless fn.
+   Replaces Helius RPC — 100% Birdeye compliant. */
 async function fetchTop10Pct(mint) {
   try {
-    const supplyInfo = await callRpc("getTokenSupply", [
-      mint,
-      { commitment: "confirmed" }
-    ]);
-    const decimals    = supplyInfo.value.decimals;
-    const totalSupply = supplyInfo.value.uiAmountString
-      ? Number(supplyInfo.value.uiAmountString)
-      : Number(supplyInfo.value.amount) / 10 ** decimals;
-
-    const accountsRes = await callRpc("getTokenLargestAccounts", [
-      mint,
-      { commitment: "confirmed" }
-    ]);
-
-    let top10Pct = 0;
-    accountsRes.value.slice(0, 10).forEach(acc => {
-      const amount  = Number(acc.amount) / 10 ** decimals;
-      const percent = totalSupply > 0 ? (amount / totalSupply) * 100 : 0;
-      top10Pct += percent;
+    const res  = await fetch(`/.netlify/functions/holderData?mint=${encodeURIComponent(mint)}`, {
+      signal: AbortSignal.timeout(10000),
     });
-
-    return parseFloat(top10Pct.toFixed(1));
+    const data = await res.json();
+    if (!data.ok || data.planRestricted) return 0;
+    return parseFloat((data.top10Percent ?? 0).toFixed(1));
   } catch {
-    return 0; // silently fall back — score still renders without holder penalty
+    return 0;
   }
 }
 
@@ -154,19 +168,18 @@ async function fetchTop10Pct(mint) {
    If either is NOT renounced, token is excluded from
    Entry Radar entirely — no exceptions.
    =================================================== */
+/* Fetch mint/freeze authority via Birdeye tokenSecurity serverless fn.
+   Replaces Helius RPC (getAccountInfo) — 100% Birdeye compliant. */
 async function fetchMintAuthorities(mint) {
   try {
-    const info = await callRpc("getAccountInfo", [
-      mint,
-      { encoding: "jsonParsed", commitment: "confirmed" }
-    ]);
-    if (!info?.value?.data?.parsed?.info) {
-      return { mintAuth: "Unknown", freezeAuth: "Unknown" };
-    }
-    const parsed = info.value.data.parsed.info;
+    const res  = await fetch(`/.netlify/functions/tokenSecurity?mint=${encodeURIComponent(mint)}`, {
+      signal: AbortSignal.timeout(10000),
+    });
+    const data = await res.json();
+    if (!data.ok) return { mintAuth: "Unknown", freezeAuth: "Unknown" };
     return {
-      mintAuth:   parsed.mintAuthority   || "Renounced",
-      freezeAuth: parsed.freezeAuthority || "Renounced",
+      mintAuth:   data.mintAuthority   ?? "Unknown",
+      freezeAuth: data.freezeAuthority ?? "Unknown",
     };
   } catch {
     return { mintAuth: "Unknown", freezeAuth: "Unknown" };
@@ -382,7 +395,7 @@ async function processOneBatch(batch) {
       const top10Pct = 0; // skipped in Entry Radar to reduce RPC load
       const { pair, isPumpFun, hasGraduated } = pairResult;
       if (!pair) {
-        console.debug(`[Radar] ❌ No pair data: ${mint.slice(0,8)}…`);
+        _DEBUG && console.debug(`[Radar] ❌ No pair data: ${mint.slice(0,8)}…`);
         return null;
       }
 
@@ -392,21 +405,21 @@ async function processOneBatch(batch) {
       const mintActive   = authorities.mintAuth   !== "Renounced" && authorities.mintAuth   !== "Unknown";
       const freezeActive = authorities.freezeAuth !== "Renounced" && authorities.freezeAuth !== "Unknown";
       if (mintActive || freezeActive) {
-        console.debug(`[Radar] ❌ Authority active — mint:${authorities.mintAuth} freeze:${authorities.freezeAuth} → ${mint.slice(0,8)}…`);
+        _DEBUG && console.debug(`[Radar] ❌ Authority active — mint:${authorities.mintAuth} freeze:${authorities.freezeAuth} → ${mint.slice(0,8)}…`);
         return null;
       }
 
       /* Reject pump.fun tokens that haven't graduated to a real DEX —
          they score 28/100 due to the bonding-curve cap in computeRiskScore */
       if (isPumpFun && !hasGraduated) {
-        console.debug(`[Radar] ❌ Pump.fun not graduated → ${mint.slice(0,8)}…`);
+        _DEBUG && console.debug(`[Radar] ❌ Pump.fun not graduated → ${mint.slice(0,8)}…`);
         return null;
       }
 
       const liq    = pair.liquidity?.usd ?? 0;
       const vol24h = pair.volume?.h24 ?? 0;
       if (liq < 10000 || vol24h < 500) {
-        console.debug(`[Radar] ❌ Low liq/vol — liq:$${Math.round(liq)} vol:$${Math.round(vol24h)} → ${mint.slice(0,8)}…`);
+        _DEBUG && console.debug(`[Radar] ❌ Low liq/vol — liq:$${Math.round(liq)} vol:$${Math.round(vol24h)} → ${mint.slice(0,8)}…`);
         return null;
       }
 
@@ -419,10 +432,10 @@ async function processOneBatch(batch) {
       const score = calcRiskScore(pair, top10Pct);
       const entry = getEntryWindow(score, pair);
       if (!entry) {
-        console.debug(`[Radar] ❌ Score too low: ${score}/100 → ${mint.slice(0,8)}… (${pair.baseToken?.symbol})`);
+        _DEBUG && console.debug(`[Radar] ❌ Score too low: ${score}/100 → ${mint.slice(0,8)}… (${pair.baseToken?.symbol})`);
         return null;
       }
-      console.debug(`[Radar] ✅ PASS: ${pair.baseToken?.symbol} score:${score} liq:$${Math.round(liq)} entry:${entry.status}`);
+      _DEBUG && console.debug(`[Radar] ✅ PASS: ${pair.baseToken?.symbol} score:${score} liq:$${Math.round(liq)} entry:${entry.status}`);
 
       const mc = getMcEstimate(pair);
 
@@ -488,12 +501,10 @@ function renderRadarPage() {
   const tokens = radarAllTokens;
 
   if (!tokens.length) {
-    container.innerHTML = `
-      <div class="radar-empty">
-        <div class="radar-empty-icon">📡</div>
-        <div class="radar-empty-title">No safe tokens detected right now</div>
-        <div>The radar is filtering for safety — check back in a minute.</div>
-      </div>`;
+    const errMsg = _radarApiError
+      ? `<div class="radar-empty-title">Entry Radar Unavailable</div><div>${_radarApiError}</div>`
+      : `<div class="radar-empty-title">No safe tokens detected right now</div><div>The radar is filtering for safety — check back in a minute.</div>`;
+    container.innerHTML = `<div class="radar-empty"><div class="radar-empty-icon">📡</div>${errMsg}</div>`;
     return;
   }
 
@@ -838,7 +849,7 @@ window.scanWhaleFromRadar = function(wallet, isEstimated, tokenMint) {
   } else {
     // Estimated entry — open DexScreener so user can find real wallets
     // from the Transactions tab, then paste into Whale DNA
-    window.open(`https://dexscreener.com/solana/${tokenMint}`, "_blank");
+    window.open(`https://birdeye.so/token/${tokenMint}?chain=solana`, "_blank");
   }
 };
 
@@ -1011,7 +1022,7 @@ function buildLiveChart(tok) {
   function clr(v) { return v >= 0 ? "#2cffc9" : "#ff4d6d"; }
   function sgn(v) { return v >= 0 ? "+" : ""; }
 
-  const dexUrl = `https://dexscreener.com/solana/${tok.mint}`;
+  const dexUrl = `https://birdeye.so/token/${tok.mint}?chain=solana`;
 
   snap.innerHTML = `
     <div class="er-snap-price-row">
@@ -1264,7 +1275,7 @@ function renderDevHistory(tok) {
 
   const trustBarColor = trustScore >= 65 ? "#2cffc9" : trustScore >= 40 ? "#ffd166" : "#ff4d6d";
   const solscanUrl    = `https://solscan.io/token/${tok.mint}`;
-  const dexUrl        = `https://dexscreener.com/solana/${tok.mint}`;
+  const dexUrl        = `https://birdeye.so/token/${tok.mint}?chain=solana`;
 
   // Real signals derived from live data
   const signals = [
@@ -1338,7 +1349,7 @@ function renderWalletCluster(tok) {
     pressureNote = "Normal buy/sell ratio — no obvious coordinated selling";
   }
 
-  const dexUrl = `https://dexscreener.com/solana/${tok.mint}`;
+  const dexUrl = `https://birdeye.so/token/${tok.mint}?chain=solana`;
 
   el.innerHTML = `
     <div class="cluster-risk-row">
@@ -1469,7 +1480,7 @@ function renderWhaleActivity(tok) {
 
   const whaleVol  = whaleThreshold * whaleCount;
   const smartVol  = avgTxSize * 1.8 * smartCount;
-  const dexUrl    = `https://dexscreener.com/solana/${tok.mint}`;
+  const dexUrl    = `https://birdeye.so/token/${tok.mint}?chain=solana`;
   const whaleClass = whaleCount > 3 ? "sig-green" : whaleCount > 0 ? "sig-yellow" : "sig-white";
 
   el.innerHTML = `
@@ -1566,7 +1577,7 @@ async function loadRadar() {
       lastUpdateEl.textContent = `Updated ${new Date().toLocaleTimeString()}`;
     }
   } catch (e) {
-    console.error("Radar load failed:", e);
+    _DEBUG && console.error("Radar load failed:", e);
     if (container) container.innerHTML = `
       <div class="radar-empty">
         <div class="radar-empty-icon">⚠️</div>

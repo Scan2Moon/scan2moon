@@ -7,29 +7,29 @@
 //
 // Returns: { ok, price, updatedAt }
 
-const { redisGet, redisSet, CORS } = require("./db");
+const { redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis } = require("./db");
 
 async function fetchBirdeyePrice(mint) {
   const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY;
   if (!BIRDEYE_KEY) throw new Error("BIRDEYE_API_KEY not set");
 
-  const url = `https://public-api.birdeye.so/defi/price?address=${encodeURIComponent(mint)}&check_liquidity=100`;
+  const url = `https://public-api.birdeye.so/defi/price?address=${encodeURIComponent(mint)}`;
   const res = await fetch(url, {
     headers: { "X-API-KEY": BIRDEYE_KEY, "x-chain": "solana" },
     signal: AbortSignal.timeout(5000),
   });
 
-  if (res.status === 400) {
+  if (!res.ok) {
     const txt = await res.text();
     if (txt.includes("Compute units")) {
       const err = new Error(`QUOTA_EXCEEDED: ${txt.slice(0, 200)}`);
       err.quotaExceeded = true;
       throw err;
     }
-  }
-  if (!res.ok) {
-    const txt = await res.text();
-    throw new Error(`Birdeye ${res.status}: ${txt.slice(0, 120)}`);
+    // Any other non-OK (404, 400, etc.) = token not found / no data — not a server error.
+    // Return 0 so callers get { ok:false, price:null } instead of a red 502.
+    console.warn(`Birdeye ${res.status} for ${mint.slice(0, 12)}…: ${txt.slice(0, 80)}`);
+    return 0;
   }
 
   const json = await res.json();
@@ -39,6 +39,12 @@ async function fetchBirdeyePrice(mint) {
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 204, headers: CORS, body: "" };
+  }
+
+  // Rate limit: 30 requests per 10 s per IP
+  const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  if (await isRateLimitedRedis(ip, 30, 10)) {
+    return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "Too many requests — slow down." }) };
   }
 
   const { mint } = event.queryStringParameters || {};
@@ -71,10 +77,12 @@ exports.handler = async (event) => {
   try {
     const price = await fetchBirdeyePrice(mint);
     if (price <= 0) {
+      // Token not yet indexed by Birdeye (common for brand-new pump.fun tokens).
+      // Return 200 so the browser doesn't log a red console error — callers check ok:false.
       return {
-        statusCode: 404,
+        statusCode: 200,
         headers: CORS,
-        body: JSON.stringify({ ok: false, error: "No price data" }),
+        body: JSON.stringify({ ok: false, price: null, error: "No price data available yet" }),
       };
     }
     try { await redisSet(cacheKey, price, PRICE_TTL); } catch {}

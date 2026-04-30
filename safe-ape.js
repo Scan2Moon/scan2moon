@@ -1,29 +1,34 @@
-/* ============================================================
-   Scan2Moon – safe-ape.js  (V2.0 REAL-TIME + CANDLE CHART)
+const _DEBUG = false;
 
-   • CandleChart engine – OHLC candles drawn on Canvas2D
-   • Active token polled every 1.5s from DexScreener
+/* ============================================================
+   Scan2Moon – safe-ape.js  (V2.1 REAL-TIME + WEBSOCKET CANDLES)
+
+   • CandleChart engine – OHLC candles on TradingView Lightweight Charts
+   • Birdeye WebSocket — live PRICE_DATA feeds the candle chart directly
+     (replaces 3 s REST polling; zero polling lag, true real-time)
+   • Metadata (mc, liq, priceChange) polled every 30s from Birdeye REST
    • Portfolio polled every 5s
-   • P/L + candle tick every 200ms
    • All trades use freshly-fetched price
    ============================================================ */
 
 import { renderNav }                    from "./nav.js";
 import { CandleChart }                  from "./candleChart.js";
+import { birdeyeWs }                    from "./birdeye-ws.js";
 import "./community.js";
 import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
 import { applyTranslations, t } from "./i18n.js";
-import { callRpc }                      from "./rpc.js";
 import { addToWatchlist, isOnWatchlist } from "./watchlist.js";
 
-const DEX_API       = "https://api.dexscreener.com/latest/dex/tokens/";
-const SIM_API       = "/.netlify/functions/simulator";
-const LB_API        = "/.netlify/functions/leaderboard";
-const GECKO_API     = "https://api.geckoterminal.com/api/v2/networks/solana/pools/";
+const SCAN_TOKEN_API  = "/.netlify/functions/scanToken";       // Full Birdeye scan — same as Risk Scanner
+const TOKEN_DATA_API  = "/.netlify/functions/tokenData";       // Birdeye single-token overview (price polls)
+const TOKEN_BATCH_API = "/.netlify/functions/batchTokenData";  // Birdeye batch token overview
+const SIM_API         = "/.netlify/functions/simulator";
+const LB_API         = "/.netlify/functions/leaderboard";
+const GECKO_PROXY    = "/.netlify/functions/geckoProxy";  // Birdeye OHLCV (was GeckoTerminal)
 const PRICE_ONLY_API = "/.netlify/functions/priceOnly";
 const JUP_REF       = "49h527zlp56g";
-const SA_FAST_MS    = 5000;   /* priceOnly ticker interval — 12 calls/min with 5s Redis TTL */
-const SA_SLOW_MS    = 30000;  /* full DexScreener refresh interval */
+// SA_FAST_MS removed — replaced by Birdeye WebSocket (true real-time, no polling interval needed)
+const SA_SLOW_MS    = 30000;  /* full Birdeye metadata refresh interval (mc, liq, priceChange) */
 
 /* ── Security helpers ───────────────────────────────────────────────────
    esc()      – HTML-escapes any string before injecting into innerHTML.
@@ -42,7 +47,7 @@ function esc(s) {
 function safeMint(mint) {
   return String(mint ?? "").replace(/[^1-9A-HJ-NP-Za-km-z]/g, "");
 }
-const CHART_PROXY = "/.netlify/functions/chartProxy";
+// chartProxy removed — all chart data uses Birdeye via ohlcvData / geckoProxy
 
 /* ── Leaderboard auto-registration ─────────────────────────────────────
    Called after every buy/sell so the wallet always appears in rankings.
@@ -53,7 +58,7 @@ function registerInLeaderboard(walletAddr) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ wallet: walletAddr })
-  }).catch(err => console.warn("LB register failed (non-critical):", err.message));
+  }).catch(err => _DEBUG && console.warn("LB register failed (non-critical):", err.message));
 }
 
 /* ── Pick the best Solana pair for a token ─────────────────────────────
@@ -69,6 +74,47 @@ function pickBestPair(mint, pairs) {
   window.scanIsPumpFun    = isPumpFun;
   window.scanHasGraduated = hasGraduated;
   return pair;
+}
+
+/* ── Convert a Birdeye tokenData response to a DexScreener-compatible pair ──
+   Lets the existing risk-scoring engine (computeRiskScore) and all panel-
+   render functions work unchanged when data comes from Birdeye instead of
+   DexScreener.  The shape only needs the fields actually read by Safe Ape. */
+function birdeyeTokenToPair(t, mint) {
+  if (!t) return null;
+  let pairCreatedAt = null;
+  if (t.createdAt) {
+    pairCreatedAt = typeof t.createdAt === "string"
+      ? new Date(t.createdAt).getTime()
+      : (t.createdAt < 1e12 ? t.createdAt * 1000 : t.createdAt);
+  }
+  return {
+    pairAddress:  mint,
+    chainId:      "solana",
+    dexId:        "birdeye",
+    baseToken:    { address: mint, name: t.name ?? "Unknown", symbol: t.symbol ?? "?" },
+    quoteToken:   { symbol: "USDC" },
+    priceUsd:     String(parseFloat(t.priceUsd ?? 0)),
+    priceChange: {
+      m5:  0,
+      h1:  parseFloat(t.priceChange1h  ?? 0),
+      h6:  parseFloat(t.priceChange6h  ?? 0),
+      h24: parseFloat(t.priceChange24h ?? 0),
+    },
+    volume: {
+      h1:  parseFloat(t.volume1h  ?? 0),
+      h24: parseFloat(t.volume24h ?? 0),
+    },
+    liquidity:  { usd: parseFloat(t.liquidity  ?? 0) },
+    marketCap:  parseFloat(t.marketCap ?? 0) || null,
+    fdv:        parseFloat(t.marketCap ?? 0) || null,
+    txns: {
+      h1:  { buys: parseInt(t.buy1h  ?? 0), sells: parseInt(t.sell1h  ?? 0) },
+      h24: { buys: parseInt(t.buy24h ?? 0), sells: parseInt(t.sell24h ?? 0) },
+    },
+    pairCreatedAt,
+    info: { imageUrl: t.logoUri ?? null },
+  };
 }
 
 /* GeckoTerminal timeframe map: tf → { path, agg, limit }
@@ -130,17 +176,18 @@ function _buildOhlcvFromTicks(mint, tf) {
 let tokenPollTimer       = null;
 let portfolioPollTimer   = null;
 let pnlTickTimer         = null;
-let _saChartFastInterval = null;  /* 3s priceOnly ticker for live candle */
-let _saChartSlowInterval = null;  /* 30s DexScreener poll for full data  */
+let _saWsUnsub           = null;  /* cleanup fn returned by birdeyeWs.subscribe() */
+let _saChartSlowInterval = null;  /* 30s Birdeye metadata poll for mc/liq/priceChange */
+let _saChartFastInterval = null;  /* 4s REST poll — belt-and-suspenders alongside WS */
 
-const TOKEN_POLL_MS = 30000; /* full DexScreener poll every 30s (was 1.5s) */
+const TOKEN_POLL_MS = 30000; /* full Birdeye scan poll every 30s */
 
 /* ── State ── */
 let wallet       = null;
 let profile      = null;
 let currentToken = null;
 let livePrices   = {};   // mint → last VALIDATED price (used for P/L and trades)
-let _priceEmas   = {};   // mint → EMA used to filter bad DexScreener REST ticks
+let _priceEmas   = {};   // mint → EMA used to filter bad price ticks
 let _peakPrices  = {};   // mint → highest validated price seen this session (rug detection)
 let _rugTriggered = {};  // mint → true once rug overlay has been shown (no repeat spam)
 let candleChart  = null;
@@ -148,7 +195,7 @@ let riskScore    = 0;
 let currentTab   = "buy";
 let currentTf    = "5m";
 let solPrice     = 0;       // live SOL/USD price (fetched via /solPrice function)
-const SOL_LOGO   = "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png";
+const SOL_LOGO   = "S2M-Logo.png";
 /* chartReqId: incremented every time we start a new chart load.
    Each fetch captures its own ID; if it no longer matches when the
    fetch completes it means the user switched TF/token — we discard. */
@@ -169,17 +216,17 @@ async function fetchSolPrice() {
     const d = await r.json();
     const p = parseFloat(d.price);
     if (p > 0) { solPrice = p; updateStaticUI(); return; }
-  } catch (e) { console.warn("SOL price fetch failed:", e); }
+  } catch (e) { _DEBUG && console.warn("SOL price fetch failed:", e); }
 }
 
 function formatSol(n) {
-  if (n === null || n === undefined || isNaN(n)) return "0 SOL";
+  if (n === null || n === undefined || isNaN(n)) return "0 S2M";
   const abs = Math.abs(n);
-  if (abs === 0)    return "0 SOL";
-  if (abs < 0.001)  return n.toFixed(6) + " SOL";
-  if (abs < 0.1)    return n.toFixed(4) + " SOL";
-  if (abs < 10)     return n.toFixed(3) + " SOL";
-  return n.toFixed(2) + " SOL";
+  if (abs === 0)    return "0 S2M";
+  if (abs < 0.001)  return n.toFixed(6) + " S2M";
+  if (abs < 0.1)    return n.toFixed(4) + " S2M";
+  if (abs < 10)     return n.toFixed(3) + " S2M";
+  return n.toFixed(2) + " S2M";
 }
 
 /* ============================================================
@@ -261,11 +308,13 @@ document.addEventListener("DOMContentLoaded", () => {
         candleChart.setTimeframe(currentTf);
         candleChart.startLoading();
 
-        const pairAddress = currentToken.pair?.pairAddress;
+        /* Re-subscribe WS to the new chartType so live candles match the TF */
+        _saStopChartTicker();
+        _saStartChartTicker(currentToken.mint);
+
         let loaded = false;
-        if (pairAddress) {
-          const liveP = livePrices[currentToken.mint] || parseFloat(currentToken.pair?.priceUsd || "0");
-          const ohlcv = await fetchOhlcv(pairAddress, currentTf, liveP);
+        {
+          const ohlcv = await fetchOhlcv(currentToken.mint, currentTf);
           if (myReqId !== chartReqId) return;   /* user clicked again — discard */
           if (ohlcv && ohlcv.length > 0) {
             candleChart.loadCandles(ohlcv);
@@ -341,7 +390,7 @@ async function connectWallet() {
     localStorage.setItem("sa_wallet", wallet);
     await initSimulator();
   } catch { showToast("⚠️ Wallet connection cancelled or failed."); }
-  finally { document.getElementById("connectBtnText").textContent = "🔗 Connect Phantom Wallet"; btn.disabled = false; }
+  finally { document.getElementById("connectBtnText").textContent = "Connect Phantom Wallet"; btn.disabled = false; }
 }
 
 function disconnectWallet() {
@@ -365,12 +414,12 @@ function disconnectWallet() {
 async function saStartFresh() {
   if (!wallet) { disconnectWallet(); return; }
   const confirmed = window.confirm(
-    "⚠️ Start fresh?\n\nThis will create a brand-new profile with 10 SOL.\n" +
+    "⚠️ Start fresh?\n\nThis will create a brand-new profile with 10 S2M.\n" +
     "Any previous balance or trade history will be gone.\n\nContinue?"
   );
   if (!confirmed) return;
 
-  showToast("🆕 Creating fresh profile…");
+  showToast("Creating fresh profile…");
   try {
     const resp = await fetch(SIM_API, {
       method:  "POST",
@@ -386,7 +435,7 @@ async function saStartFresh() {
     // Hide reconnect banner and reload the simulator normally
     const reconnectBanner = document.getElementById("saReconnectBanner");
     if (reconnectBanner) reconnectBanner.style.display = "none";
-    showToast("✅ Fresh profile created! Starting with 10 SOL.");
+    showToast("✅ Fresh profile created! Starting with 10 S2M.");
     await initSimulator();
   } catch(e) {
     showToast("❌ Network error — please refresh and try again.");
@@ -406,7 +455,7 @@ function saveProfileBackup(p) {
       profile: p,
       savedAt: Date.now(),
     }));
-  } catch(e) { console.warn("Backup save failed:", e); }
+  } catch(e) { _DEBUG && console.warn("Backup save failed:", e); }
 }
 
 async function tryRestoreFromBackup() {
@@ -427,10 +476,10 @@ async function tryRestoreFromBackup() {
       body: JSON.stringify({ wallet, action: "restore_backup", backupProfile: bp }),
     });
     const data = await resp.json();
-    if (data.error) { console.warn("Restore failed:", data.error); return null; }
+    if (data.error) { _DEBUG && console.warn("Restore failed:", data.error); return null; }
     return data.profile || null;
   } catch(e) {
-    console.warn("tryRestoreFromBackup error:", e);
+    _DEBUG && console.warn("tryRestoreFromBackup error:", e);
     return null;
   }
 }
@@ -511,7 +560,7 @@ async function initSimulator() {
       break; // success or final retry exhausted
     } catch(e) {
       if (retryCount >= MAX_RETRIES) {
-        console.error(e);
+        _DEBUG && console.error(e);
         showToast("⚠️ Could not load profile. Please refresh the page.");
         return;
       }
@@ -532,14 +581,14 @@ async function initSimulator() {
         showToast(`✅ Profile restored! Welcome back, ${profile.accountName}!`);
       } else {
         profile = data.profile;
-        showToast("🦍 Welcome! Your account starts with 10 SOL!");
+        showToast("Welcome! Your account starts with 10 S2M.");
       }
     } else {
       profile = data.profile;
       saveProfileBackup(profile); // always keep backup fresh
       showToast(`Welcome back, ${profile.accountName}!`);
     }
-  } catch (e) { console.error(e); showToast("⚠️ Could not load profile."); return; }
+  } catch (e) { _DEBUG && console.error(e); showToast("⚠️ Could not load profile."); return; }
 
   /* Sync display name to server if set in Dashboard — keeps Leaderboard in sync */
   const savedDisplayName = localStorage.getItem("sa_display_name");
@@ -565,7 +614,7 @@ async function initSimulator() {
         saveProfileBackup(profile);
         showToast("✅ Account converted to SOL denomination");
       }
-    } catch (e) { console.warn("Migration failed:", e); }
+    } catch (e) { _DEBUG && console.warn("Migration failed:", e); }
   }
 
   updateStaticUI();
@@ -578,15 +627,15 @@ async function initSimulator() {
    TIMERS
    ============================================================ */
 function stopAllTimers() {
-  clearInterval(tokenPollTimer);       tokenPollTimer       = null;
-  clearInterval(portfolioPollTimer);   portfolioPollTimer   = null;
-  clearInterval(pnlTickTimer);         pnlTickTimer         = null;
-  _saStopChartTicker();
+  clearInterval(tokenPollTimer);       tokenPollTimer     = null;
+  clearInterval(portfolioPollTimer);   portfolioPollTimer = null;
+  clearInterval(pnlTickTimer);         pnlTickTimer       = null;
+  _saStopChartTicker(); // also unsubscribes from Birdeye WS
 }
 
 function stopTokenTimers() {
   clearInterval(tokenPollTimer); tokenPollTimer = null;
-  _saStopChartTicker();
+  _saStopChartTicker(); // also unsubscribes from Birdeye WS
 }
 
 /* ============================================================
@@ -594,14 +643,17 @@ function stopTokenTimers() {
    ============================================================ */
 function updateStaticUI() {
   if (!profile) return;
-  const balSol = profile.balance;
+  // Guard: if server sent a corrupted profile (null/Infinity from a past bug),
+  // treat the balance as 0 rather than showing "NaN" or "Infinity".
+  if (!isFinite(profile.balance) || profile.balance == null) profile.balance = 0;
+  const balSol = Math.max(0, profile.balance);
   const balUsd = solPrice > 0 ? balSol * solPrice : null;
   const balDisplay = balUsd !== null
     ? `${formatSol(balSol)} ≈ ${formatUsd(balUsd)}`
     : formatSol(balSol);
   document.getElementById("heroBalance").textContent  = balDisplay;
   document.getElementById("tradeBalance").textContent = balDisplay;
-  document.getElementById("heroStreak").textContent   = `🔥 Streak: ${profile.loginStreak || 0}`;
+  document.getElementById("heroStreak").textContent   = `▲ ${profile.loginStreak || 0}-day streak`;
   const xpEl = document.getElementById("heroXp");
   if (xpEl) xpEl.textContent = (profile.tradeXp || 0).toLocaleString();
   const xpBadge = document.getElementById("saPortfolioXpBadge");
@@ -615,18 +667,30 @@ function updateStaticUI() {
    ============================================================ */
 function checkDailyReward() {
   if (!profile) return;
-  if (profile.lastLogin !== new Date().toISOString().slice(0, 10)) {
-    document.getElementById("dailyBanner").style.display = "flex";
-    const DAILY_REWARDS_SOL = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
-    const streak = Math.max(1, Math.min(7, (profile.loginStreak || 0) + 1));
-    const nextReward = DAILY_REWARDS_SOL[streak];
-    const btn = document.getElementById("dailyClaimBtn");
-    if (btn) btn.textContent = `Claim +${nextReward.toFixed(2)} SOL`;
+  const today = new Date().toISOString().slice(0, 10);
+  const lastLogin = (profile.lastLogin || '').slice(0, 10);
+
+  /* If server shows no login or an older date (e.g. after account reset),
+     clear any stale localStorage guard so the banner appears correctly. */
+  if (lastLogin < today) {
+    try { localStorage.removeItem('s2m_daily_claimed'); } catch {}
   }
+
+  let localClaimed = false;
+  try { localClaimed = localStorage.getItem('s2m_daily_claimed') === today; } catch {}
+  if (lastLogin === today || localClaimed) return; /* already claimed today */
+  document.getElementById("dailyBanner").style.display = "flex";
+  const DAILY_REWARDS_SOL = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7];
+  const streak = Math.max(1, Math.min(7, (profile.loginStreak || 0) + 1));
+  const nextReward = DAILY_REWARDS_SOL[streak];
+  const btn = document.getElementById("dailyClaimBtn");
+  if (btn) btn.textContent = `Claim +${nextReward.toFixed(2)} S2M`;
 }
 
 async function claimDaily() {
   const btn = document.getElementById("dailyClaimBtn");
+  if (btn && btn.disabled) return; /* prevent double-click while in-progress */
+  const origText = btn ? btn.textContent : "Claim";
   btn.disabled = true; btn.textContent = "Claiming…";
   try {
     const resp = await fetch(SIM_API, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ wallet, action: "daily_login" }) });
@@ -635,85 +699,119 @@ async function claimDaily() {
       return;
     }
     const data = await resp.json();
-    if (data.error) { showToast("⚠️ " + data.error); return; }
+    if (data.error) {
+      showToast("⚠️ " + data.error);
+      try { localStorage.setItem('s2m_daily_claimed', new Date().toISOString().slice(0,10)); } catch {}
+      document.getElementById("dailyBanner").style.display = "none"; /* hide even if already claimed */
+      return;
+    }
     profile = data.profile;
     saveProfileBackup(profile);
     updateStaticUI();
+    try { localStorage.setItem('s2m_daily_claimed', new Date().toISOString().slice(0,10)); } catch {}
     document.getElementById("dailyBanner").style.display = "none";
     if (data.reward > 0) {
       showDailyRewardCard(data);
     } else {
-      showToast(`🎁 ${data.message}`);
+      showToast(data.message);
     }
     if (data.newBadges && data.newBadges.length) {
       setTimeout(() => showBadgeShareCards(data.newBadges), 1200);
     }
   } catch { showToast("⚠️ Could not claim reward."); }
-  finally { btn.disabled = false; }
+  finally { if (btn) { btn.disabled = false; btn.textContent = origText; } }
 }
 
 /* ============================================================
-   REAL-TIME POLLING — 8s for active token, 20s for portfolio
+   REAL-TIME LIVE FEED — Birdeye WebSocket (replaces REST polling)
    ============================================================ */
-/* ── Fast chart ticker: priceOnly (Birdeye) every 3s → chart tick ────── */
-async function _saChartFastTick(mint) {
-  if (!mint || !candleChart) return;
-  try {
-    const res = await fetch(`${PRICE_ONLY_API}?mint=${encodeURIComponent(mint)}`,
-                            { signal: AbortSignal.timeout(4000) });
-    if (!res.ok) return;
-    const pxData = await res.json();
-    if (!pxData.ok || !(pxData.price > 0)) return;
-    const price = pxData.price;
 
-    /* EMA spike filter */
-    if (!_priceEmas[mint] || _priceEmas[mint] <= 0) _priceEmas[mint] = price;
-    const dev = Math.abs(price - _priceEmas[mint]) / _priceEmas[mint];
-    if (dev > 0.35) {
-      _priceEmas[mint] = _priceEmas[mint] * 0.90 + price * 0.10;
-      livePrices[mint] = _priceEmas[mint];
-      return;
+/**
+ * Called on every PRICE_DATA message from Birdeye WS.
+ * data = { address, o, h, l, c, v, unixTime, type }
+ * "c" is the live close price (current price).
+ */
+function _saOnWsTick(data) {
+  // data is already normalised by birdeye-ws.js: { address, price, o,h,l,c,v, unixTime }
+  const mint  = data?.address;
+  const price = data?.price;   // always set; normalised from c/close/value
+  if (!mint || !(price > 0)) return;
+
+  // ── EMA spike filter (same logic as old REST poller) ──
+  if (!_priceEmas[mint] || _priceEmas[mint] <= 0) _priceEmas[mint] = price;
+  const dev = Math.abs(price - _priceEmas[mint]) / _priceEmas[mint];
+  if (dev > 0.35) {
+    _priceEmas[mint] = _priceEmas[mint] * 0.90 + price * 0.10;
+    livePrices[mint] = _priceEmas[mint];
+    return;
+  }
+  _priceEmas[mint] = _priceEmas[mint] * 0.75 + price * 0.25;
+  livePrices[mint] = price;
+
+  // ── Rug detection ──
+  if (!_peakPrices[mint] || price > _peakPrices[mint]) _peakPrices[mint] = price;
+  if (!_rugTriggered[mint] && _peakPrices[mint] > 0) {
+    const drawdown = (_peakPrices[mint] - price) / _peakPrices[mint];
+    if (drawdown >= 0.60 && currentToken?.mint === mint) {
+      _rugTriggered[mint] = true;
+      showRugOverlay(drawdown);
     }
-    _priceEmas[mint] = _priceEmas[mint] * 0.75 + price * 0.25;
-    livePrices[mint] = price;
+  }
 
-    /* Rug detection */
-    if (!_peakPrices[mint] || price > _peakPrices[mint]) _peakPrices[mint] = price;
-    if (!_rugTriggered[mint] && _peakPrices[mint] > 0) {
-      const drawdown = (_peakPrices[mint] - price) / _peakPrices[mint];
-      if (drawdown >= 0.60 && currentToken?.mint === mint) {
-        _rugTriggered[mint] = true;
-        showRugOverlay(drawdown);
-      }
-    }
+  // ── Tick the chart — data.v is already normalised by birdeye-ws.js ──
+  if (candleChart && currentToken?.mint === mint) {
+    const vol = (data.v > 0) ? data.v
+             : (currentToken?.pair?.volume?.h1 || 0) / 3600;
+    candleChart.tick(price, vol);
 
-    /* Tick the chart — vol spread across 5s ticks (1h vol / ticks-per-hour) */
-    const vol1h = currentToken?.pair?.volume?.h1 || 0;
-    candleChart.tick(price, vol1h / 720); /* 720 ticks/hr at 5s each */
-
-    /* Update price display + trade info */
+    // ── Update price display + trade info ──
     if (currentToken?.pair) updatePriceHeader(currentToken.pair, price);
     updateLivePnl(price);
     updateBuyInfo();
     updateSellInfo();
     flashLiveIndicator();
-  } catch { /* non-critical */ }
+  }
 }
 
+/**
+ * Subscribe to Birdeye WS for the active token + current timeframe.
+ * Also subscribes to a price-only (no chartType) feed as a fallback
+ * so we always get price updates even if the chartType sub is slow.
+ */
 function _saStartChartTicker(mint) {
   _saStopChartTicker();
   if (!mint) return;
-  /* Immediate first tick then every 5s */
-  _saChartFastTick(mint);
-  _saChartFastInterval = setInterval(() => _saChartFastTick(mint), SA_FAST_MS);
-  /* Slow full-pair refresh every 30s */
+
+  // ── WebSocket subscriptions (primary — true real-time) ──
+  const normTf = { "1m":"1m","5m":"5m","15m":"15m","1h":"1H","4h":"4H","12h":"12H","1d":"1D","max":"1D" }[currentTf] || "5m";
+  const unsub1 = birdeyeWs.subscribe(mint, normTf,  _saOnWsTick);
+  // Price-only fallback — gets a tick on every trade regardless of TF
+  const unsub2 = birdeyeWs.subscribe(mint, null,    _saOnWsTick);
+  _saWsUnsub = () => { unsub1(); unsub2(); };
+
+  // ── REST poll — belt-and-suspenders (4 s) ──────────────────────────────
+  // Runs alongside WS — guarantees candle ticks even if WS messages
+  // are delayed or Birdeye isn't sending PRICE_DATA for this token.
+  const _restPoll = async () => {
+    try {
+      const res = await fetch(`${PRICE_ONLY_API}?mint=${encodeURIComponent(mint)}`);
+      if (!res.ok) return;
+      const d = await res.json();
+      if (d?.ok && d.price > 0) _saOnWsTick({ address: mint, price: d.price, v: 0 });
+    } catch { /* non-critical */ }
+  };
+  _saChartFastInterval = setInterval(_restPoll, 4000);
+  _restPoll(); // immediate first tick — don't wait 4 s
+
+  // Slow metadata refresh (mc, liq, priceChange) — REST is fine here
   pollActivePair(mint);
   _saChartSlowInterval = setInterval(() => pollActivePair(mint), SA_SLOW_MS);
 }
 
 function _saStopChartTicker() {
-  clearInterval(_saChartFastInterval); _saChartFastInterval = null;
+  if (_saWsUnsub) { _saWsUnsub(); _saWsUnsub = null; }
   clearInterval(_saChartSlowInterval); _saChartSlowInterval = null;
+  clearInterval(_saChartFastInterval); _saChartFastInterval = null;
 }
 
 function startTokenPoll(mint) {
@@ -723,9 +821,20 @@ function startTokenPoll(mint) {
 async function pollActivePair(mint) {
   if (!mint) return;
   try {
-    const res  = await fetch(`${DEX_API}${mint}`);
+    // Use scanToken for polls so liquidity/priceChange/txns data is always correct.
+    // scanToken has a 90s Redis cache so most polls hit the cache and are instant.
+    const res  = await fetch(`${SCAN_TOKEN_API}?mint=${encodeURIComponent(mint)}`, {
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return;
     const data = await res.json();
-    const pair = pickBestPair(mint, data.pairs);
+    if (!data.ok || !data.pair) return;
+
+    // Update pump.fun globals in case they changed
+    window.scanIsPumpFun    = data.isPumpFun    ?? false;
+    window.scanHasGraduated = data.hasGraduated ?? false;
+
+    const pair = data.pair;  // proper pair directly from scanToken
     if (!pair) return;
 
     const rawPrice = parseFloat(pair.priceUsd || "0");
@@ -733,7 +842,7 @@ async function pollActivePair(mint) {
     if (!rawPrice || rawPrice <= 0) return;
 
     /* ── Price spike filter ─────────────────────────────────────────────
-       DexScreener REST occasionally returns a stale/wrong price for one
+       Birdeye occasionally returns a stale/wrong price for one
        poll cycle. We keep a per-mint EMA and reject any price that deviates
        >35% from it.  This stops truly bad prices from corrupting livePrices
        (which drives P/L display and trade execution).
@@ -743,7 +852,7 @@ async function pollActivePair(mint) {
     if (_dev > 0.35) {
       /* Slowly adapt EMA so genuine sustained moves eventually pass */
       _priceEmas[mint] = _priceEmas[mint] * 0.90 + rawPrice * 0.10;
-      console.warn(`Rejected bad price for ${mint}: ${rawPrice} (EMA ${_priceEmas[mint].toFixed(8)}, dev ${(_dev*100).toFixed(1)}%)`);
+      _DEBUG && console.warn(`Rejected bad price for ${mint}: ${rawPrice} (EMA ${_priceEmas[mint].toFixed(8)}, dev ${(_dev*100).toFixed(1)}%)`);
       /* Still update livePrices to the EMA value so trades always have a
          price available — the server validates independently anyway. */
       livePrices[mint] = _priceEmas[mint];
@@ -768,11 +877,10 @@ async function pollActivePair(mint) {
     }
 
     if (currentToken && currentToken.mint === mint) {
-      currentToken.pair      = pair;
-      // Re-use cached on-chain top10Pct so the live-poll score stays consistent
-      const cachedTop10 = currentToken.holderData?.pct ?? 0;
-      currentToken.riskScore = calcRiskScore(pair, cachedTop10);
-      riskScore              = currentToken.riskScore;
+      currentToken.pair = pair;
+      // Keep the risk score from the initial full scan (includes Helius bundle + top10).
+      // Do not recalculate from live poll data — the score only changes on Re-scan.
+      riskScore = currentToken.riskScore;
     }
 
     /* Chart tick is handled by the 5s fast ticker (_saChartFastTick).
@@ -784,7 +892,7 @@ async function pollActivePair(mint) {
     updateBuyInfo();
     updateSellInfo();
 
-  } catch (e) { console.warn("Token poll failed:", e); }
+  } catch (e) { _DEBUG && console.warn("Token poll failed:", e); }
 }
 
 function startPortfolioPoll() {
@@ -800,26 +908,21 @@ async function pollPortfolioPrices() {
   for (let i = 0; i < mints.length; i += 25) {
     const slice = mints.slice(i, i + 25);
     try {
-      const res  = await fetch(`${DEX_API}${slice.join(",")}`);
+      const res  = await fetch(
+        `${TOKEN_BATCH_API}?mints=${encodeURIComponent(slice.join(","))}`,
+        { signal: AbortSignal.timeout(12000) }
+      );
       const data = await res.json();
-      /* ── Group by mint, keep only the highest-volume pair ────────────
-         DexScreener returns ALL pools for a mint. Different pools (e.g.
-         Raydium vs Meteora) have different prices, so iterating over all
-         of them caused livePrices to flip between pools each poll cycle,
-         making the P/L jump up and down. We now pick one pair per mint
-         (highest 24h volume, same logic as pickBestPair) before storing. */
-      const bestByMint = {};
-      for (const p of data.pairs || []) {
-        const m = p.baseToken?.address;
-        if (!m || p.chainId !== "solana") continue;
-        if (!bestByMint[m] || (p.volume?.h24 || 0) > (bestByMint[m].volume?.h24 || 0)) {
-          bestByMint[m] = p;
-        }
-      }
-      for (const [m, p] of Object.entries(bestByMint)) {
-        const price = parseFloat(p.priceUsd || "0");
+      /* ── One Birdeye token object per mint — no multi-pool ambiguity ──
+         tokenData/batchTokenData returns one canonical price per mint
+         (Birdeye best-price), eliminating the pool-switching P/L flicker
+         that could happen with DexScreener's multi-pool response. */
+      for (const t of data.tokens || []) {
+        const m = t?.mint;
+        if (!m) continue;
+        const price = parseFloat(t.priceUsd ?? 0);
         if (price <= 0) continue;
-        /* Spike filter */
+        /* Spike filter — same EMA logic as before */
         if (!_priceEmas[m] || _priceEmas[m] <= 0) { _priceEmas[m] = price; livePrices[m] = price; continue; }
         const dev = Math.abs(price - _priceEmas[m]) / _priceEmas[m];
         if (dev > 0.35) { _priceEmas[m] = _priceEmas[m] * 0.90 + price * 0.10; continue; }
@@ -931,99 +1034,30 @@ function showRugOverlay(drawdown) {
 }
 
 /* ============================================================
-   OHLCV FETCH — DexScreener proxy + GeckoTerminal fired IN PARALLEL
+   OHLCV FETCH — Birdeye via ohlcvData (3-layer cache: Redis → Neon → Birdeye)
 
-   Both sources are requested at the same time.  We use whichever
-   returns valid data first.  This eliminates the sequential "wait 7s
-   for chartProxy to fail, then try GeckoTerminal" delay that caused
-   chart lag when switching timeframes.
-
-   currentPrice: live DexScreener price — used only to sanity-check
-   GeckoTerminal data (wrong pool = >90% divergence). DexScreener proxy
-   data is always accepted unconditionally since pairAddress is locked.
-   "max" TF: always uses GeckoTerminal 1d/1000 for all-time history.
+   Uses the mint address directly (not a pool/pair address) so the
+   data always matches what Birdeye shows — no wrong-pool mismatches.
+   "max" TF maps to "1d" (daily candles, full history).
    ============================================================ */
-async function fetchOhlcv(pairAddress, tf, currentPrice = 0) {
-  if (!pairAddress) return null;
-
-  /* Helper: sanity-check last candle close vs live price.
-     Only used for GeckoTerminal (secondary source) to catch truly wrong pool
-     data — e.g. a different AMM whose price diverges by more than 5×.
-     DexScreener proxy data is always trusted unconditionally because we pass
-     the exact pairAddress from DexScreener's own API, so its candles are
-     guaranteed to be the right pool, even during fast +2000% pumps. */
-  function geckoOk(ohlcvList) {
-    if (!currentPrice || currentPrice <= 0 || !ohlcvList?.length) return true;
-    const sorted = [...ohlcvList].sort((a, b) => Number(b[0]) - Number(a[0]));
-    const lastClose = parseFloat(sorted[0][4]) || 0;
-    if (!lastClose) return true;
-    /* 90% tolerance — only rejects data from a completely different pool
-       (price differs by more than 10×). Pumping tokens are accepted at any
-       intra-day move since the pairAddress is already locked to the right pool. */
-    const diff = Math.abs(lastClose - currentPrice) / currentPrice;
-    if (diff > 0.90) {
-      console.warn(`⚠️ GeckoTerminal pool mismatch: close=${lastClose.toFixed(8)} live=${currentPrice.toFixed(8)} diff=${(diff*100).toFixed(1)}% — rejecting`);
-      return false;
-    }
-    return true;
+async function fetchOhlcv(mint, tf) {
+  if (!mint) return null;
+  /* "max" → daily candles (ohlcvData doesn't have a "max" key) */
+  const tf_eff = (tf === "max") ? "1d" : tf;
+  try {
+    const res = await fetch(
+      `/.netlify/functions/ohlcvData?mint=${encodeURIComponent(mint)}&tf=${encodeURIComponent(tf_eff)}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.ok || !json.bars?.length) return null;
+    /* Return [[ts_sec, o, h, l, c, v], …] — same format CandleChart.loadCandles() expects */
+    return json.bars.map(b => [b.time, b.open, b.high, b.low, b.close, b.volume || 0]);
+  } catch (e) {
+    _DEBUG && console.warn("fetchOhlcv failed:", e);
+    return null;
   }
-
-  const cfg = TF_GECKO[tf] || TF_GECKO["5m"];
-
-  /* ── First-valid-wins: fire both sources in parallel, resolve as soon
-     as either returns good data, then cancel the other via AbortController.
-     This eliminates the "wait for the slower source" lag — switching TF
-     now resolves in ~400-800ms (whichever API responds first) instead of
-     always waiting for both to complete (up to 8s). ── */
-  return new Promise((resolve) => {
-    let settled = false;
-    const proxyAbort = new AbortController();
-    const geckoAbort = new AbortController();
-
-    function finish(result) {
-      if (settled) return;
-      settled = true;
-      proxyAbort.abort();
-      geckoAbort.abort();
-      resolve(result);
-    }
-
-    // Overall deadline — never hang the chart more than 9s
-    const deadline = setTimeout(() => finish(null), 9000);
-
-    // Track completion so we resolve(null) once both are done
-    let done = 0;
-    function onDone() { if (++done === 2) { clearTimeout(deadline); finish(null); } }
-
-    /* DexScreener proxy — preferred, exact pairAddress, always trusted */
-    if (tf !== "max") {
-      fetch(
-        `${CHART_PROXY}?pairAddress=${encodeURIComponent(pairAddress)}&tf=${encodeURIComponent(tf)}`,
-        { signal: proxyAbort.signal }
-      )
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          if (data?.ohlcv?.length > 3) { clearTimeout(deadline); finish(data.ohlcv); }
-          else onDone();
-        })
-        .catch(() => onDone());
-    } else {
-      onDone(); // MAX TF skips DexScreener
-    }
-
-    /* GeckoTerminal — fallback, sanity-checked for wrong-pool */
-    fetch(
-      `${GECKO_API}${pairAddress}/ohlcv/${cfg.path}?aggregate=${cfg.agg}&limit=${cfg.limit}&token=base`,
-      { headers: { "Accept": "application/json;version=20230302" }, signal: geckoAbort.signal }
-    )
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        const list = data?.data?.attributes?.ohlcv_list || null;
-        if (list?.length > 0 && geckoOk(list)) { clearTimeout(deadline); finish(list); }
-        else onDone();
-      })
-      .catch(() => onDone());
-  });
 }
 
 /* ============================================================
@@ -1043,12 +1077,10 @@ async function initChart(t) {
   candleChart.setTimeframe(currentTf);
   candleChart.startLoading(); /* show "Loading chart data…" while fetching */
 
-  /* Fetch real OHLCV — DexScreener proxy first, GeckoTerminal fallback */
-  const pairAddress = t.pair?.pairAddress;
+  /* Fetch real OHLCV from Birdeye (via ohlcvData 3-layer cache) */
   let loaded = false;
-  if (pairAddress) {
-    const liveP = livePrices[t.mint] || parseFloat(t.pair?.priceUsd || "0");
-    const ohlcv = await fetchOhlcv(pairAddress, currentTf, liveP);
+  {
+    const ohlcv = await fetchOhlcv(t.mint, currentTf);
     /* Abort if the user already searched a different token */
     if (myReqId !== chartReqId) return;
     if (ohlcv && ohlcv.length > 0) {
@@ -1154,9 +1186,9 @@ function updateMarketSignals(pair) {
 
   let oIcon, oLabel, oCl, oBg;
   if      (mScore >= 68 && buyPct >= 58 && liq >= 15000) { oIcon="🚀"; oLabel=t("sa_sig_strong_buy"); oCl="#2cffc9"; oBg="rgba(44,255,201,0.09)"; }
-  else if (mScore >= 55 && buyPct >= 50)                  { oIcon="📈"; oLabel=t("sa_sig_bullish");    oCl="#7fffe1"; oBg="rgba(44,255,201,0.05)"; }
+  else if (mScore >= 55 && buyPct >= 50)                  { oIcon="▲"; oLabel=t("sa_sig_bullish");    oCl="#7fffe1"; oBg="rgba(44,255,201,0.05)"; }
   else if (mScore >= 45)                                  { oIcon="➡️"; oLabel=t("sa_sig_neutral");    oCl="#ffd166"; oBg="rgba(255,209,102,0.06)"; }
-  else if (mScore >= 30)                                  { oIcon="📉"; oLabel=t("sa_sig_bearish");    oCl="#ff9a60"; oBg="rgba(255,100,50,0.06)"; }
+  else if (mScore >= 30)                                  { oIcon="▼"; oLabel=t("sa_sig_bearish");    oCl="#ff9a60"; oBg="rgba(255,100,50,0.06)"; }
   else                                                    { oIcon="🚨"; oLabel=t("sa_sig_strong_sell");oCl="#ff4d6d"; oBg="rgba(255,77,109,0.09)"; }
 
   const bpCl  = buyPct >= 60 ? "#2cffc9" : buyPct >= 45 ? "#ffd166" : "#ff4d6d";
@@ -1179,7 +1211,7 @@ function updateMarketSignals(pair) {
       <span style="font-size:20px;">${oIcon}</span>
       <div style="flex:1;">
         <div style="font-size:13px;font-weight:800;color:${oCl};">${oLabel}</div>
-        <div style="font-size:10px;opacity:0.5;margin-top:2px;">Live · DexScreener · 1.5s refresh</div>
+        <div style="font-size:10px;opacity:0.5;margin-top:2px;">Live · Birdeye · 30s refresh</div>
       </div>
       <div style="text-align:right;font-size:9px;color:#2cffc9;opacity:0.7;">⬤ LIVE<br/><span style="opacity:0.5;" id="saLastUpdate">just now</span></div>
     </div>
@@ -1195,7 +1227,7 @@ function updateMarketSignals(pair) {
     <div style="margin-bottom:10px;">
       <div style="display:flex;justify-content:space-between;font-size:10px;opacity:0.6;margin-bottom:4px;">
         <span>${t("sa_buys_lbl")} ${buys1h} (${buyPct.toFixed(1)}%)</span>
-        <span>${t("sa_sells_lbl")} ${sells1h} (${sellPct.toFixed(1)}%) 🔴</span>
+        <span>${t("sa_sells_lbl")} ${sells1h} (${sellPct.toFixed(1)}%)</span>
       </div>
       <div style="height:10px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,0.06);display:flex;">
         <div style="width:${buyPct}%;background:linear-gradient(90deg,#2cffc9,#7fffe1);transition:width 0.8s;"></div>
@@ -1211,7 +1243,7 @@ function updateMarketSignals(pair) {
     <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_liq")}</span><span class="sa-signal-val" style="color:${lCl}">${lLbl} (${formatUsd(liq)})</span></div>
     <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_liq_mc")}</span><span class="sa-signal-val" style="color:${lmCl}">${lmLbl} (${liqMcRatio.toFixed(1)}%)</span></div>
     <div class="sa-signal-row"><span class="sa-signal-label">${t("sa_lbl_avg_tx")}</span><span class="sa-signal-val" style="color:${atCl}">${atLbl} · ${formatUsd(avgTxSize)}</span></div>
-    <div style="font-size:9px;opacity:0.3;text-align:center;padding-top:8px;border-top:1px solid rgba(44,255,201,0.06);">DexScreener · updates every 8s</div>
+    <div style="font-size:9px;opacity:0.3;text-align:center;padding-top:8px;border-top:1px solid rgba(44,255,201,0.06);">Birdeye · updates every 30s</div>
   `;
 }
 
@@ -1219,42 +1251,20 @@ function updateMarketSignals(pair) {
    RISK SCORE (matches scanSignals.js)
    ============================================================ */
 
-/* Fetch real top-10 holder concentration — same RPC logic as holders.js.
-   Returns { pct: number, accounts: array, decimals: number, totalSupply: number }
-   on success; returns { pct: 0, accounts: [] } silently on failure so the
-   score still renders (just without the on-chain holder penalty). */
+/* Fetch real top-10 holder concentration via Birdeye holderData serverless fn.
+   Replaces Helius RPC (getTokenLargestAccounts + getTokenSupply) — Birdeye only.
+   Returns { pct: number } on success; { pct: 0 } silently on failure. */
 async function fetchTop10Pct(mint) {
   try {
-    const supplyInfo = await callRpc("getTokenSupply", [
-      mint,
-      { commitment: "confirmed" }
-    ]);
-    const decimals    = supplyInfo.value.decimals;
-    const totalSupply = supplyInfo.value.uiAmountString
-      ? Number(supplyInfo.value.uiAmountString)
-      : Number(supplyInfo.value.amount) / 10 ** decimals;
-
-    const accountsRes = await callRpc("getTokenLargestAccounts", [
-      mint,
-      { commitment: "confirmed" }
-    ]);
-
-    let top10Pct = 0;
-    accountsRes.value.slice(0, 10).forEach(acc => {
-      const amount  = Number(acc.amount) / 10 ** decimals;
-      const percent = totalSupply > 0 ? (amount / totalSupply) * 100 : 0;
-      top10Pct += percent;
+    const res  = await fetch(`/.netlify/functions/holderData?mint=${encodeURIComponent(mint)}`, {
+      signal: AbortSignal.timeout(10000),
     });
-
-    return {
-      pct:         parseFloat(top10Pct.toFixed(1)),
-      accounts:    accountsRes.value,
-      decimals,
-      totalSupply
-    };
+    const data = await res.json();
+    if (!data.ok || data.planRestricted) return { pct: 0 };
+    return { pct: parseFloat((data.top10Percent ?? 0).toFixed(1)) };
   } catch (e) {
-    console.warn("Safe Ape: holder fetch failed", e);
-    return { pct: 0, accounts: [], decimals: 0, totalSupply: 0 };
+    _DEBUG && console.warn("Safe Ape: holderData fetch failed:", e.message);
+    return { pct: 0 };
   }
 }
 
@@ -1281,52 +1291,101 @@ window.searchToken = async function() {
   btn.disabled = true; btn.textContent = "⏳ Scanning…";
   clearTerminal();
   try {
-    /* Fetch DEX market data and on-chain holder data in parallel.
-       Use a 9-second AbortSignal so a hung connection doesn't block forever. */
-    const [res, holderData] = await Promise.all([
-      fetch(`${DEX_API}${mint}`, { signal: AbortSignal.timeout(9000) }),
-      fetchTop10Pct(mint)
-    ]);
+    const isPumpFunCheck = String(mint).toLowerCase().endsWith("pump");
 
-    /* Specific status codes before we try to parse JSON */
+    /* ── Fire all 3 fetches immediately in parallel ──────────────────────
+       We do NOT await them together — scanToken is fast (Redis-cached) and
+       should show the UI as soon as it resolves. holderData + bundle are
+       slow (on-chain / Helius) and finish in the background. */
+    const scanPromise   = fetch(`${SCAN_TOKEN_API}?mint=${encodeURIComponent(mint)}`, { signal: AbortSignal.timeout(12000) });
+    const holderPromise = fetchTop10Pct(mint);   // 10 s timeout inside fetchTop10Pct
+    const bundlePromise = fetch("/.netlify/functions/bundle", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ mint, hasGraduated: isPumpFunCheck }),
+      signal:  AbortSignal.timeout(12000),
+    }).catch(() => null);  // bundle failure is non-fatal — defaults to 50
+
+    /* ── STEP 1: Render immediately when scanToken resolves ─────────────
+       scanToken has a 90 s Redis cache so it typically returns in < 1 s.
+       We show the full token UI right away without waiting for the slow calls. */
+    const res = await scanPromise;
     if (!res.ok) {
-      if (res.status === 429) {
-        showToast("⚠️ Rate limited by DexScreener — wait a moment and try again.");
-      } else {
-        showToast(`⚠️ Token lookup failed (HTTP ${res.status}). Try again shortly.`);
-      }
+      if (res.status === 429) showToast("⚠️ Rate limited — wait a moment and try again.");
+      else showToast(`⚠️ Token lookup failed (HTTP ${res.status}). Try again shortly.`);
       return;
     }
 
     let data;
-    try {
-      data = await res.json();
-    } catch {
-      showToast("⚠️ Unexpected response from DexScreener. Try again.");
-      return;
-    }
+    try { data = await res.json(); }
+    catch { showToast("⚠️ Unexpected response from market data API. Try again."); return; }
 
-    const pair = pickBestPair(mint, data.pairs);
-    if (!pair) { showToast("⚠️ No market data found for this token."); return; }
-    const price = parseFloat(pair.priceUsd || "0");
+    // scanToken returns { ok, pair, meta, isPumpFun, hasGraduated, solPrice, mint }
+    if (!data.ok || !data.pair) { showToast("⚠️ No market data found for this token."); return; }
+
+    window.scanIsPumpFun    = data.isPumpFun    ?? false;
+    window.scanHasGraduated = data.hasGraduated ?? false;
+
+    const pair        = data.pair;
+    const price       = parseFloat(pair.priceUsd || "0");
     if (price > 0) livePrices[mint] = price;
-    riskScore    = calcRiskScore(pair, holderData.pct);
-    currentToken = { mint, name: pair.baseToken?.name||"Unknown", symbol: pair.baseToken?.symbol||"?", logo: pair.info?.imageUrl||null, pair, riskScore, holderData };
+
+    const tokenName   = data.meta?.name   || pair.baseToken?.name   || "Unknown";
+    const tokenSymbol = data.meta?.symbol || pair.baseToken?.symbol || "?";
+    const tokenLogo   = data.meta?.logo   || pair.info?.imageUrl    || null;
+
+    /* Initial score uses neutral placeholders (pct:0, bundleScore:50) —
+       will be refined once holderData + bundle arrive below. */
+    riskScore    = computeRiskScore(pair, 0, 50);
+    currentToken = { mint, name: tokenName, symbol: tokenSymbol, logo: tokenLogo,
+                     pair, riskScore, holderData: { pct: 0 }, bundleScore: 50 };
+
     document.getElementById("saTerminal").style.display = "block";
     renderTokenHeader(currentToken);
-    if (riskScore < 45) showRiskGate(currentToken);
-    else                showTradingContent(currentToken);
+    const initiallyGated = riskScore < 45;
+    if (initiallyGated) showRiskGate(currentToken);
+    else                showTradingContent(currentToken);  // inits chart here
     startTokenPoll(mint);
-    /* Push a history entry so browser Back returns to Your Holdings, not another page */
     history.pushState({ saView: "token", mint }, "", "#token");
+
+    /* ── STEP 2: Refine with real holder + bundle data (background) ─────
+       These may take several more seconds. We update only the panels that
+       depend on them — the chart is already running and is NOT re-inited. */
+    const [holderData, bundleRes] = await Promise.all([holderPromise, bundlePromise]);
+
+    // Guard: user may have searched a different token while we were waiting
+    if (currentToken?.mint !== mint) return;
+
+    const bundleData  = (bundleRes?.ok) ? await bundleRes.json().catch(() => null) : null;
+    const bundleScore = bundleData?.bundleScore ?? 50;  // 50 = unknown/neutral
+
+    const refinedScore = computeRiskScore(pair, holderData.pct, bundleScore);
+    riskScore                = refinedScore;
+    currentToken.riskScore   = refinedScore;
+    currentToken.holderData  = holderData;
+    currentToken.bundleScore = bundleScore;
+
+    // Refresh header (risk score badge) + panels that depend on holder/bundle data
+    renderTokenHeader(currentToken);
+    if (!initiallyGated) {
+      updateRiskPanel(currentToken.pair);
+      updateMarketSignals(currentToken.pair);
+      renderHoldersPanel(currentToken);
+    }
+    // If real data reveals a dangerous token — flip to risk gate now
+    if (!initiallyGated && refinedScore < 45) showRiskGate(currentToken);
+    // If gate was shown on neutral data but real data says it's actually safe — open it
+    if (initiallyGated && refinedScore >= 45) showTradingContent(currentToken);
+
   } catch (e) {
-    console.error("searchToken error:", e);
+    _DEBUG && console.error("searchToken error:", e);
     const msg = e?.name === "TimeoutError" || e?.name === "AbortError"
       ? "⚠️ Token lookup timed out. Check your internet connection."
       : "⚠️ Failed to load token. Check the mint address.";
     showToast(msg);
+  } finally {
+    btn.disabled = false; btn.textContent = "🔍 Analyse Token";
   }
-  finally { btn.disabled = false; btn.textContent = "🔍 Analyse Token"; }
 };
 
 function clearTerminal() {
@@ -1378,6 +1437,12 @@ window.openChartModal = async function() {
   /* Load OHLCV */
   await _fcmLoadCandles();
 
+  /* Mirror B/S trade markers from the main chart */
+  if (profile?.trades) _fcmChart.setTradeMarkers(profile.trades, currentToken.mint);
+
+  /* Mirror manual drawings (hlines, trendlines, manual B/S pins) from the main chart */
+  if (candleChart) _fcmChart.importSerializedDrawings(candleChart.getSerializedDrawings());
+
   /* Live price row */
   _fcmUpdatePriceRow();
   clearInterval(_fcmPriceTick);
@@ -1393,6 +1458,39 @@ window.closeChartModal = function() {
   document.body.style.overflow = "";
   document.removeEventListener("keydown", _fcmEscHandler);
   clearInterval(_fcmPriceTick);
+
+  /* Sync drawings made inside the modal back to the main chart */
+  if (_fcmChart && candleChart) {
+    const data = _fcmChart.getSerializedDrawings();
+    candleChart.clearDrawings();
+    candleChart.importSerializedDrawings(data);
+  }
+
+  /* If the user switched TF inside the modal, apply it to the main chart too */
+  if (_fcmTf && _fcmTf !== currentTf && candleChart) {
+    currentTf = _fcmTf;
+    /* Sync TF button highlights */
+    document.querySelectorAll(".sa-tf-btn[data-tf]").forEach(b => {
+      b.classList.toggle("active", b.dataset.tf === currentTf);
+    });
+    /* Reload the main chart with the new TF */
+    candleChart.setTimeframe(currentTf);
+    candleChart.startLoading();
+    _saStopChartTicker();
+    (async () => {
+      const ohlcv = await fetchOhlcv(currentToken?.mint, currentTf);
+      if (ohlcv?.length && candleChart) {
+        candleChart.loadCandles(ohlcv);
+        const p = livePrices[currentToken?.mint] || parseFloat(currentToken?.pair?.priceUsd || "0");
+        if (p > 0) candleChart.tick(p, (currentToken?.pair?.volume?.h1 || 0) / 2400);
+      }
+      if (currentToken?.mint) _saStartChartTicker(currentToken.mint);
+    })();
+  } else if (candleChart) {
+    /* Same TF — just refresh layout (re-measure container after modal layout shift) */
+    candleChart.refresh();
+  }
+
   if (_fcmChart) { _fcmChart.destroy(); _fcmChart = null; }
 };
 
@@ -1409,12 +1507,11 @@ async function _fcmLoadCandles() {
   if (!currentToken || !_fcmChart) return;
   const myId = ++_fcmReqId;
 
-  const pairAddress = currentToken.pair?.pairAddress;
   const liveP = livePrices[currentToken.mint] || parseFloat(currentToken.pair?.priceUsd || "0");
 
   let loaded = false;
-  if (pairAddress) {
-    const ohlcv = await fetchOhlcv(pairAddress, _fcmTf, liveP);
+  {
+    const ohlcv = await fetchOhlcv(currentToken.mint, _fcmTf);
     if (myId !== _fcmReqId || !_fcmChart) return; /* stale — user switched TF */
     if (ohlcv && ohlcv.length > 0) {
       _fcmChart.loadCandles(ohlcv);
@@ -1552,7 +1649,7 @@ function renderTokenHeader(tok) {
       <div class="sa-token-mint">${esc(sm)}</div>
     </div>
     <div class="sa-token-header-right">
-      <a href="https://dexscreener.com/solana/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">📊 DexScreener</a>
+      <a href="https://birdeye.so/token/${sm}?chain=solana" target="_blank" rel="noopener noreferrer" class="sa-token-link">Birdeye</a>
       <a href="https://solscan.io/token/${sm}" target="_blank" rel="noopener noreferrer" class="sa-token-link">🔎 Solscan</a>
       <a href="risk-scanner.html" onclick="localStorage.setItem('s2m_prefill_mint','${sm}')" class="sa-token-link">🛡️ Full Scan</a>
       <button id="saWlBtn" class="sa-token-link sa-wl-btn ${isOnWatchlist(tok.mint) ? 'sa-wl-active' : ''}" onclick="window._saToggleWl()">
@@ -1822,13 +1919,13 @@ window.executeBuy = async function() {
   const amountSol = parseFloat(document.getElementById("buyAmount").value);
   const slippage  = parseFloat(document.getElementById("slippageSelect").value);
   if (!amountSol||amountSol<=0)    { showToast("Enter an amount to buy!"); return; }
-  if (amountSol>profile.balance)   { showToast("⚠️ Insufficient SOL balance!"); return; }
+  if (amountSol>profile.balance)   { showToast("⚠️ Insufficient S2M balance!"); return; }
   if (!solPrice||solPrice<=0)      { showToast("⚠️ SOL price unavailable. Try again."); return; }
   const btn = document.getElementById("saBuyBtn");
   btn.disabled=true; btn.textContent="⏳ Fetching price…";
   await pollActivePair(currentToken.mint);
   const price = livePrices[currentToken.mint]||0;
-  if (!price) { showToast("⚠️ Could not get price. Try again."); btn.disabled=false; btn.textContent="🦍 APE IN (BUY)"; return; }
+  if (!price) { showToast("⚠️ Could not get price. Try again."); btn.disabled=false; btn.textContent="BUY POSITION"; return; }
   const amountUsd = amountSol*solPrice;
   const tokens    = amountUsd/(price*(1+slippage));
   btn.textContent="⏳ Processing…";
@@ -1854,7 +1951,7 @@ window.executeBuy = async function() {
     registerInLeaderboard(wallet);
     document.getElementById("buyAmount").value=""; updateBuyInfo();
   } catch(e) { showToast("⚠️ Buy failed: "+e.message); }
-  finally { btn.disabled=false; btn.textContent="🦍 APE IN (BUY)"; }
+  finally { btn.disabled=false; btn.textContent="BUY POSITION"; }
 };
 
 /* ============================================================
@@ -1875,7 +1972,7 @@ window.executeSell = async function() {
   // For sells, a lower price is conservative (user gets less SOL) and always server-accepted.
   const pairPrice = parseFloat(currentToken.pair?.priceUsd||"0");
   const price = livePrices[currentToken.mint] || pairPrice || 0;
-  if (!price) { showToast("⚠️ Could not get price. Try again."); btn.disabled=false; btn.textContent="🔴 EXIT POSITION (SELL)"; return; }
+  if (!price) { showToast("⚠️ Could not get price. Try again."); btn.disabled=false; btn.textContent="EXIT POSITION"; return; }
   btn.textContent="⏳ Processing…";
   try {
     const resp = await fetch(SIM_API,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({wallet,action:"sell",mint:currentToken.mint,priceUsd:price,amount:actualAmount,slippage,riskScore:currentToken.riskScore,solPrice})});
@@ -1904,7 +2001,7 @@ window.executeSell = async function() {
     registerInLeaderboard(wallet);
     document.getElementById("sellAmount").value=""; updateSellInfo(); renderSellHoldingInfo();
   } catch(e) { showToast("⚠️ Sell failed: "+e.message); }
-  finally { btn.disabled=false; btn.textContent="🔴 EXIT POSITION (SELL)"; }
+  finally { btn.disabled=false; btn.textContent="EXIT POSITION"; }
 };
 
 /* ============================================================
@@ -1915,30 +2012,22 @@ window.disconnectWallet = disconnectWallet;
 window.saStartFresh     = saStartFresh;
 
 /* ============================================================
-   JUPITER IFRAME MODAL
-   Opens jup.ag/swap/SOL-{mint} with referral code inside an iframe.
-   Clicking the backdrop closes it.
+   JUPITER SWAP — opens in new tab with affiliate ref= code.
+   Jupiter blocks iframe embedding (X-Frame-Options), so new tab is the correct approach.
    ============================================================ */
 window.openJupModal = function() {
   if (!currentToken) return;
-  const modal = document.getElementById("simJupModal");
-  const iframe = document.getElementById("simJupIframe");
-  if (!modal || !iframe) return;
-  const mint = safeMint(currentToken.mint);
-  const jupUrl = `https://jup.ag/swap/SOL-${mint}?referralCode=${JUP_REF}`;
-  iframe.src = jupUrl;
-  modal.style.display = "flex";
-  document.body.style.overflow = "hidden";
-  document.addEventListener("keydown", _simJupEscHandler);
+  // Jupiter blocks iframe embedding — open in new tab with affiliate ref code
+  // Pre-fill input amount from the current buy panel value (converted to lamports)
+  const mint    = safeMint(currentToken.mint);
+  const solAmt  = parseFloat(document.getElementById("buyAmount")?.value) || 0.1;
+  const lamports = Math.round(solAmt * 1_000_000_000);
+  const jupUrl  = `https://jup.ag/swap/SOL-${mint}?inAmount=${lamports}&ref=${JUP_REF}`;
+  window.open(jupUrl, "_blank", "noopener,noreferrer");
 };
 
 window.closeJupModal = function() {
-  const modal  = document.getElementById("simJupModal");
-  const iframe = document.getElementById("simJupIframe");
-  if (modal)  modal.style.display = "none";
-  if (iframe) iframe.src = "";
-  document.body.style.overflow = "";
-  document.removeEventListener("keydown", _simJupEscHandler);
+  // No-op — Jupiter now opens in a new tab, no modal to close
 };
 
 function _simJupEscHandler(e) {
@@ -1970,7 +2059,7 @@ function showDebrief(trade,type,score) {
     const pnl=trade.pnl; const isWin=pnl>=0; // pnl is in SOL
     const emoji=pnl>0.5?"🚀":pnl>0?"✅":pnl>-0.2?"😬":"💀";
     const verdict=pnl>0.5?t("sa_verdict_great"):pnl>0?t("sa_verdict_profit"):pnl>-0.2?t("sa_verdict_loss"):t("sa_verdict_rug");
-    const lesson=score<45?`⚠️ HIGH RISK token (${score}/100).`:pnl>=0?`✅ Good trade! Score ${score}/100.`:`📉 Loss on ${score>=65?"low":"moderate"}-risk token. Use stop-losses.`;
+    const lesson=score<45?`⚠️ HIGH RISK token (${score}/100).`:pnl>=0?`✅ Good trade! Score ${score}/100.`:`▼ Loss on ${score>=65?"low":"moderate"}-risk token. Consider stop-losses.`;
     const lCls=score<45?"sa-lesson-risk":pnl>=0?"sa-lesson-win":"sa-lesson-loss";
     const xpLine = trade.xpEarned > 0 ? `<div style="font-size:13px;color:#ab9ff2;margin-top:6px;font-weight:700">⚡ +${trade.xpEarned} XP earned</div>` : "";
     html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">${emoji}</div><div class="sa-debrief-verdict" style="color:${isWin?'#2cffc9':'#ff4d6d'}">${verdict}</div><div class="sa-debrief-pnl ${isWin?'win':'loss'}">${pnl>=0?'+':''}${formatSol(pnl)}</div><div style="opacity:0.6;font-size:13px">${pnl>=0?'+':''}${trade.pnlPct}% return</div>${xpLine}</div>
@@ -1980,7 +2069,7 @@ function showDebrief(trade,type,score) {
     const totalCostSol=trade.totalCostSol||(solPrice>0?trade.totalCost/solPrice:0);
     const lesson=score<45?`🚨 HIGH RISK (${score}/100).`:score>=65?`✅ Smart entry! Set a target and stop-loss.`:`⚠️ Moderate risk (${score}/100). Have an exit plan.`;
     const lCls=score<45?"sa-lesson-risk":score>=65?"sa-lesson-win":"sa-lesson-loss";
-    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">🦍</div><div class="sa-debrief-verdict" style="color:#ffb432">${t("sa_verdict_opened")}</div><div style="font-size:28px;font-weight:700;color:#ffb432;margin:8px 0">${formatSol(totalCostSol)}</div><div style="opacity:0.6;font-size:13px">invested in ${trade.symbol}</div></div>
+    html=`<div class="sa-debrief-result"><div class="sa-debrief-diamond"></div><div class="sa-debrief-verdict" style="color:#ffb432">${t("sa_verdict_opened")}</div><div style="font-size:28px;font-weight:700;color:#ffb432;margin:8px 0">${formatSol(totalCostSol)}</div><div style="opacity:0.6;font-size:13px">invested in ${trade.symbol}</div></div>
     <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_entry")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_tokens")}</div><div class="sa-debrief-stat-val">${formatAmount(trade.amount)}</div></div></div>
     <div class="sa-debrief-lesson ${lCls}">${t("sa_lesson")} ${lesson}</div>`;
   }
@@ -2052,7 +2141,7 @@ function renderPortfolio() {
   const keys=Object.keys(holdings).filter(k=>holdings[k].amount>0);
   if (!keys.length) {
     document.getElementById("saPortfolioSummary").innerHTML = "";
-    body.innerHTML=`<div class="sa-empty-portfolio"><div style="font-size:36px;margin-bottom:10px;">🦍</div><div style="color:#7fffe1;font-weight:600;margin-bottom:6px;">${t("sa_no_positions")}</div><div style="opacity:0.5;font-size:13px;">${t("sa_no_pos_sub")}</div></div>`;
+    body.innerHTML=`<div class="sa-empty-portfolio"><div class="sa-empty-icon">◆ ◆ ◆</div><div class="sa-empty-title">${t("sa_no_positions")}</div><div class="sa-empty-sub">${t("sa_no_pos_sub")}</div></div>`;
     return;
   }
   renderPortfolioSummary(keys, holdings);
@@ -2077,7 +2166,7 @@ function renderPortfolio() {
       <div class="sa-holding-card-stats">
         <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_lbl_cur_val")}</div><div class="sa-holding-card-stat-val" id="sa-cur-val-${mint}">${curValSol!==null?formatSol(curValSol):formatSol(costSol)}</div></div>
         <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_cost_basis")}</div><div class="sa-holding-card-stat-val">${formatSol(costSol)}</div></div>
-        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_atm_pnl")} ${price>0?"🔴 LIVE":""}</div><div class="sa-card-atm-pnl ${pnlCls}" id="sa-atm-pnl-${mint}">${pnlSol!==null?`${sign}${formatSol(pnlSol)} (${sign}${pnlPct.toFixed(4)}%)`:"Loading…"}</div></div>
+        <div class="sa-holding-card-stat"><div class="sa-holding-card-stat-label">${t("sa_atm_pnl")} ${price>0?"· LIVE":""}</div><div class="sa-card-atm-pnl ${pnlCls}" id="sa-atm-pnl-${mint}">${pnlSol!==null?`${sign}${formatSol(pnlSol)} (${sign}${pnlPct.toFixed(4)}%)`:"Loading…"}</div></div>
       </div>
       <div style="font-size:11px;opacity:0.45;margin-top:6px;">${formatAmount(h.amount)} tokens @ avg ${formatPrice(h.avgPrice)}</div>
     </div>`;
@@ -2163,7 +2252,7 @@ function showBadgeShareCards(newBadges) {
 function showDailyRewardCard(data) {
   const { reward, streak, dayLabel, isFirstEver } = data;
   const rewardFmt = formatSol(reward); // reward is in SOL
-  const streakDisplay = isFirstEver ? "Welcome!" : `Day ${streak} Streak 🔥`;
+  const streakDisplay = isFirstEver ? "Welcome!" : `▲ Day ${streak} streak`;
   const walletShort = wallet ? wallet.slice(0,4) + "…" + wallet.slice(-4) : "";
 
   // Build day progress dots (7 days)
@@ -2179,7 +2268,7 @@ function showDailyRewardCard(data) {
         font-size:12px;font-weight:800;color:${done ? '#1a0a00' : 'rgba(255,180,50,0.4)'};">
         ${done ? '✓' : day}
       </div>
-      <div style="font-size:9px;color:${done ? '#ffb432' : 'rgba(255,180,50,0.3)'};font-weight:700;">${DAILY_REWARDS_SOL[i]} SOL</div>
+      <div style="font-size:9px;color:${done ? '#ffb432' : 'rgba(255,180,50,0.3)'};font-weight:700;">${DAILY_REWARDS_SOL[i]} S2M</div>
     </div>`;
   }).join("");
 
@@ -2202,7 +2291,7 @@ function showDailyRewardCard(data) {
 
       <!-- Header -->
       <div style="font-size:11px;font-weight:700;letter-spacing:2px;color:rgba(255,180,50,0.6);text-transform:uppercase;margin-bottom:8px;">Daily Reward Claimed</div>
-      <div style="font-size:38px;margin-bottom:4px;">🎁</div>
+      <div class="sa-daily-dot" style="margin:0 auto 12px;width:16px;height:16px;"></div>
       <div style="font-size:15px;font-weight:700;color:#ffb432;margin-bottom:20px;">${streakDisplay}</div>
 
       <!-- Big reward number -->
@@ -2210,7 +2299,7 @@ function showDailyRewardCard(data) {
         <div style="font-size:13px;opacity:0.5;margin-bottom:6px;letter-spacing:1px;">REWARD EARNED</div>
         <div style="font-size:52px;font-weight:900;color:#ffb432;line-height:1;letter-spacing:-2px;">+${rewardFmt}</div>
         <div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-top:6px;font-size:13px;color:#ffd770;font-weight:600;">
-          SOL <img src="${SOL_LOGO}" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;">
+          S2M <img src="${SOL_LOGO}" style="width:18px;height:18px;border-radius:50%;vertical-align:middle;">
         </div>
       </div>
 
@@ -2232,7 +2321,7 @@ function showDailyRewardCard(data) {
   overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
 
   const card = document.getElementById("dailyRewardCard");
-  const shareText = `🎁 Day ${streak} Streak! Just claimed ${rewardFmt} on @Scan2Moon Safe Ape Simulator!\n\nTrade smarter. Earn daily. 🌙\nhttps://scan2moon.com`;
+  const shareText = `Day ${streak} streak! Just claimed ${rewardFmt} on @Scan2Moon Paper Trading Simulator!\n\nTrade smarter. Earn daily.\nhttps://scan2moon.com`;
 
   document.getElementById("dailyCardSaveBtn").onclick = async () => {
     try {
@@ -2287,7 +2376,7 @@ function showBadgeShareCard(id, name, imgSrc, reward) {
       </div>
 
       <!-- Title -->
-      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(255,180,50,0.5);text-transform:uppercase;margin-bottom:6px;">🎖️ Badge Unlocked!</div>
+      <div style="font-size:10px;font-weight:700;letter-spacing:2px;color:rgba(255,180,50,0.5);text-transform:uppercase;margin-bottom:6px;">◆ BADGE UNLOCKED!</div>
       <div style="font-size:22px;font-weight:900;color:#fff;margin-bottom:18px;line-height:1.2;">${name}</div>
 
       <!-- Reward -->
@@ -2313,7 +2402,7 @@ function showBadgeShareCard(id, name, imgSrc, reward) {
   overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
 
   const card = document.getElementById(`badgeShareCard_${id}`);
-  const shareText = `🎖️ Just earned the "${name}" badge on @Scan2Moon!\n\nTrade smart. Collect badges. Earn SOL. 🌙\nhttps://scan2moon.com`;
+  const shareText = `Just earned the "" badge on @Scan2Moon!\n\nTrade smart. Collect badges. Earn S2M.\nhttps://scan2moon.com`;
 
   overlay.querySelector(".badge-save-btn").onclick = async () => {
     try {
@@ -2348,7 +2437,7 @@ function showBadgeToast(imgSrc, name, reward = 1000) {
   t.innerHTML = `
     <img src="${imgSrc}" style="width:56px;height:56px;object-fit:contain;mix-blend-mode:multiply;filter:drop-shadow(0 0 8px rgba(255,200,50,0.5));" onerror="this.style.display='none'">
     <div>
-      <div style="font-size:10px;font-weight:700;color:#ffb432;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px;">🎖️ Badge Unlocked!</div>
+      <div style="font-size:10px;font-weight:700;color:#ffb432;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:3px;">◆ BADGE UNLOCKED!</div>
       <div style="font-size:15px;font-weight:800;color:#fff;line-height:1.2;">${name}</div>
       <div style="font-size:12px;color:#ffd770;font-weight:600;margin-top:3px;display:flex;align-items:center;gap:5px;">${rewardLabel} added <img src="${SOL_LOGO}" style="width:16px;height:16px;border-radius:50%;vertical-align:middle;"></div>
     </div>`;

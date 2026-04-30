@@ -1,7 +1,10 @@
+const _DEBUG = false;
+
 /* ============================
    Scan2Moon – Final Score Panel V2.0
    ============================ */
 import { t } from "./i18n.js";
+import { esc } from "./utils.js";
 
 /* ── Watchlist helpers (localStorage) ── */
 const WL_KEY = "s2m_watchlist";
@@ -63,6 +66,11 @@ export async function renderFinalScore() {
       r.totalScore >= 65 ? "score-good" :
       r.totalScore >= 45 ? "score-warn" : "score-bad";
 
+    const riskBadgeClass =
+      r.totalScore >= 80 ? "risk-badge-moon" :
+      r.totalScore >= 65 ? "risk-badge-low" :
+      r.totalScore >= 45 ? "risk-badge-warn" : "";
+
     const explainClass =
       r.totalScore >= 65 ? "explain-good" :
       r.totalScore >= 45 ? "explain-warn" : "explain-bad";
@@ -96,13 +104,13 @@ export async function renderFinalScore() {
           <div class="token-block">
             <img class="score-logo" id="finalScoreLogo" />
             <div>
-              <div class="token-name">${name}</div>
-              <div class="token-symbol">${symbol}</div>
+              <div class="token-name">${esc(name)}</div>
+              <div class="token-symbol">${esc(symbol)}</div>
             </div>
           </div>
           <div class="scan-time">
             ${t("scan_time_label")}<br/>
-            <strong>${timestamp}</strong>
+            <strong>${esc(timestamp)}</strong>
           </div>
         </div>
 
@@ -111,7 +119,7 @@ export async function renderFinalScore() {
           <span class="score-max-pro">/100</span>
         </div>
 
-        <div class="risk-badge-pro${r.totalScore >= 80 ? " risk-badge-moon" : ""}">${riskLevelText}</div>
+        <div class="risk-badge-pro ${riskBadgeClass}">${esc(riskLevelText)}</div>
 
         <div class="score-sub-pro">
           ${t("calculated_from")}
@@ -119,27 +127,27 @@ export async function renderFinalScore() {
 
         <div class="signal-explainer-pro ${explainClass}">
           <strong>${t("explain_risk")}</strong>
-          <div class="explain-text">${explanation}</div>
+          <div class="explain-text">${esc(explanation)}</div>
         </div>
 
         <div class="metrics-row">
           <div class="metric">
             <div class="metric-label">${t("liquidity_label")}</div>
-            <div class="metric-value">${liquidity}</div>
+            <div class="metric-value">${esc(liquidity)}</div>
           </div>
           <div class="metric">
             <div class="metric-label">${t("top10_label")}</div>
-            <div class="metric-value">${top10}</div>
+            <div class="metric-value">${esc(top10)}</div>
           </div>
           <div class="metric">
             <div class="metric-label">${t("market_cap_label")}</div>
-            <div class="metric-value">${marketCap}</div>
+            <div class="metric-value">${esc(marketCap)}</div>
           </div>
           <div class="metric">
             <div class="metric-label">${t("net_buy_label")}</div>
             <div class="metric-value ${pressureClass}">
-              ${netPressureDisplay}
-              <div class="pressure-badge ${badgeClass}">${pressureBadge}</div>
+              ${esc(netPressureDisplay)}
+              <div class="pressure-badge ${badgeClass}">${esc(pressureBadge)}</div>
             </div>
           </div>
         </div>
@@ -195,6 +203,19 @@ export async function renderFinalScore() {
             marketCap,
             top10,
             avgTxSize,
+            /* ── Static fields kept for live score refresh on watchlist ── */
+            top10PctNum:     parseFloat(top10)  || 0,
+            bundleScore:     window.bundleData?.bundleScore ?? 75,
+            // Timestamp only set when bundle actually ran — null = defaulted to 75.
+            // watchlist.js shows a staleness warning when this is null or very old.
+            bundleScoreUpdatedAt: window.bundleData?.bundleScore != null
+              ? new Date().toISOString()
+              : null,
+            isPumpFun:       window.scanIsPumpFun    ?? false,
+            hasGraduated:    window.scanHasGraduated ?? false,
+            mintAuthority:   window.scanCreator    || null,
+            freezeAuthority: window.scanFreezeAuth || null,
+            devPercent:      window.scanDevPercent || null,
             scannedAt:  new Date().toISOString()
           };
 
@@ -212,7 +233,7 @@ export async function renderFinalScore() {
     bindTopButtons();
 
   } catch (err) {
-    console.warn("FinalScore render error:", err);
+    _DEBUG && console.warn("FinalScore render error:", err);
   }
 }
 

@@ -1,15 +1,16 @@
+const _DEBUG = false;
+
 /* ============================================================
    Scan2Moon – portfolio.js  (V2.0)
    Portfolio Scanner: fetch all tokens in a wallet,
-   enrich with DexScreener, calculate PnL & risk scores.
+   enrich with Birdeye, calculate 24h value change & risk scores.
    ============================================================ */
 
 import { renderNav } from "./nav.js";
 import { applyTranslations } from "./i18n.js";
-import { callRpc }   from "./rpc.js";
 import "./community.js";
 
-const DEX_API = "https://api.dexscreener.com/latest/dex/tokens/";
+const TOKEN_BATCH_API = "/.netlify/functions/batchTokenData"; // Birdeye-backed batch token data
 
 /* ============================================================
    INIT
@@ -77,18 +78,18 @@ async function startScan() {
 
     updateProgress(20, `Found ${meaningful.length} token holdings. Enriching data…`);
 
-    // ── STEP 2: enrich each token with DexScreener data ──
+    // ── STEP 2: enrich each token with Birdeye data ──
     const enriched = await enrichTokens(meaningful);
 
     // Filter to tokens we could get market data for
     const withData = enriched.filter(t => t.priceUsd !== null);
     const noData   = enriched.filter(t => t.priceUsd === null);
 
-    updateProgress(90, "Calculating PnL and risk scores…");
+    updateProgress(90, "Calculating 24h value changes and risk scores…");
 
-    // ── STEP 3: calculate PnL (entry price estimation) ──
-    // We don't have actual buy prices from on-chain without full tx history.
-    // We show current value + 24h/7d price change as P/L proxy.
+    // ── STEP 3: calculate 24h value change ──
+    // Note: This shows 24h price change × current holdings — not real P/L.
+    // Real P/L requires transaction history (entry prices not available here).
     const processed = withData.map(t => calcTokenStats(t));
 
     updateProgress(100, "Done!");
@@ -98,7 +99,7 @@ async function startScan() {
     renderTokenTable(processed);
 
   } catch (err) {
-    console.error("Portfolio scan failed:", err);
+    _DEBUG && console.error("Portfolio scan failed:", err);
     showError("Scan failed: " + (err.message || "Unknown error. Check console."));
   } finally {
     btn.disabled = false;
@@ -107,51 +108,42 @@ async function startScan() {
 }
 
 /* ============================================================
-   FETCH TOKEN ACCOUNTS VIA HELIUS RPC
+   FETCH TOKEN ACCOUNTS VIA BIRDEYE (walletTokens serverless fn)
+   Replaces: callRpc("getTokenAccountsByOwner") via Helius RPC.
    ============================================================ */
 async function fetchTokenAccounts(wallet) {
-  /* Query both token programs in parallel:
-     - TokenkegQfe…  = standard SPL Token (most tokens)
-     - TokenzQdBNb…  = Token-2022 (newer tokens — missed by single-program query) */
-  const [respV1, respV2] = await Promise.all([
-    callRpc("getTokenAccountsByOwner", [
-      wallet,
-      { programId: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA" },
-      { encoding: "jsonParsed", commitment: "confirmed" }
-    ]).catch(() => null),
-    callRpc("getTokenAccountsByOwner", [
-      wallet,
-      { programId: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" },
-      { encoding: "jsonParsed", commitment: "confirmed" }
-    ]).catch(() => null),
-  ]);
+  const res  = await fetch(`/.netlify/functions/walletTokens?wallet=${encodeURIComponent(wallet)}`, {
+    signal: AbortSignal.timeout(15000),
+  });
+  const data = await res.json();
 
-  const allAccounts = [
-    ...(respV1?.value ?? []),
-    ...(respV2?.value ?? []),
-  ];
+  if (!data.ok) {
+    if (data.planRestricted) {
+      throw new Error("Wallet scan requires Birdeye Standard plan. Please upgrade your API key.");
+    }
+    throw new Error(data.error || "Wallet token fetch failed");
+  }
 
-  if (!allAccounts.length) return [];
-
-  return allAccounts
-    .map(acc => {
-      const info = acc.account?.data?.parsed?.info;
-      if (!info) return null;
-      return {
-        mint:     info.mint,
-        decimals: info.tokenAmount?.decimals ?? 0,
-        uiAmount: Number(info.tokenAmount?.uiAmount ?? 0),
-        rawAmount: info.tokenAmount?.amount ?? "0",
-      };
-    })
-    .filter(Boolean);
+  // Normalise to the same shape the rest of this file expects
+  return (data.tokens || []).map(t => ({
+    mint:      t.mint,
+    decimals:  t.decimals  ?? 0,
+    uiAmount:  t.uiAmount  ?? 0,
+    rawAmount: "0",          // not needed downstream — uiAmount is used
+    // Pre-populated by Birdeye so enrichTokens() may get cache hits instantly
+    _birdeyePrice:   t.priceUsd  ?? null,
+    _birdeyeValue:   t.valueUsd  ?? null,
+    _birdeyeName:    t.name      ?? null,
+    _birdeyeSymbol:  t.symbol    ?? null,
+    _birdeyeLogoUri: t.logoUri   ?? null,
+  }));
 }
 
 /* ============================================================
    ENRICH WITH DEXSCREENER — batched
    ============================================================ */
 async function enrichTokens(accounts) {
-  // DexScreener supports comma-separated mints (up to 30)
+  // Birdeye batch — up to 25 mints per call (same limit as before)
   const BATCH = 25;
   const results = [];
 
@@ -163,38 +155,42 @@ async function enrichTokens(accounts) {
     updateProgress(Math.min(progress, 85), `Enriching tokens ${i + 1}–${Math.min(i + BATCH, accounts.length)} of ${accounts.length}…`);
 
     try {
-      const res  = await fetch(`${DEX_API}${mints}`);
+      const res  = await fetch(`${TOKEN_BATCH_API}?mints=${encodeURIComponent(mints)}`, {
+        signal: AbortSignal.timeout(15000),
+      });
       const data = await res.json();
-      const pairs = data.pairs || [];
+
+      // Build mint → token map for O(1) lookups
+      const byMint = {};
+      for (const t of data.tokens || []) {
+        if (t.mint) byMint[t.mint] = t;
+      }
 
       for (const acc of slice) {
-        // Find best Solana pair for this mint
-        const pair = pairs
-          .filter(p => p.baseToken?.address === acc.mint && p.chainId === "solana")
-          .sort((a, b) => (b.liquidity?.usd ?? 0) - (a.liquidity?.usd ?? 0))[0] || null;
+        const t = byMint[acc.mint] || null;
 
         results.push({
           ...acc,
-          pair,
-          name:      pair?.baseToken?.name   ?? "Unknown Token",
-          symbol:    pair?.baseToken?.symbol ?? acc.mint.slice(0, 6) + "…",
-          logo:      pair?.info?.imageUrl    ?? null,
-          priceUsd:  pair ? parseFloat(pair.priceUsd || "0") : null,
-          mcap:      pair?.fdv ?? pair?.marketCap ?? 0,
-          liq:       pair?.liquidity?.usd ?? 0,
-          pc1h:      pair?.priceChange?.h1  ?? null,
-          pc24h:     pair?.priceChange?.h24 ?? null,
-          pc6h:      pair?.priceChange?.h6  ?? null, /* DexScreener max non-24h window */
-          vol24h:    pair?.volume?.h24 ?? 0,
-          buys24h:   pair?.txns?.h24?.buys  ?? 0,
-          sells24h:  pair?.txns?.h24?.sells ?? 0,
-          pairAddr:  pair?.pairAddress ?? null,
+          pair:     null,  // not used downstream after enrichment
+          name:     t?.name     ?? "Unknown Token",
+          symbol:   t?.symbol   ?? acc.mint.slice(0, 6) + "…",
+          logo:     t?.logoUri  ?? null,
+          priceUsd: t ? parseFloat(t.priceUsd ?? 0) : null,
+          mcap:     parseFloat(t?.marketCap ?? 0),
+          liq:      parseFloat(t?.liquidity ?? 0),
+          pc1h:     t?.priceChange1h  ?? null,
+          pc24h:    t?.priceChange24h ?? null,
+          pc6h:     t?.priceChange6h  ?? null,
+          vol24h:   parseFloat(t?.volume24h ?? 0),
+          buys24h:  parseInt(t?.buy24h  ?? 0),
+          sells24h: parseInt(t?.sell24h ?? 0),
+          pairAddr: null,
         });
       }
 
     } catch (err) {
-      console.warn("DexScreener batch failed:", err);
-      // Push accounts without enrichment
+      _DEBUG && console.warn("Birdeye batch token fetch failed:", err);
+      // Push accounts without enrichment so the portfolio still renders
       for (const acc of slice) {
         results.push({ ...acc, pair: null, name: "Unknown", symbol: "???", logo: null, priceUsd: null });
       }
@@ -407,13 +403,13 @@ function renderRows(tokens) {
     const valStr    = formatUsd(t.currentValueUsd);
     const tokenStr  = formatAmount(t.uiAmount) + " " + t.symbol;
 
-    // 24h PnL
+    // 24h value change (not actual P/L — entry price unknown without tx history)
     const pnl24pct  = t.pc24h ?? 0;
     const pnl24usd  = t.valueChange24hUsd ?? 0;
     const pnl24Cls  = pnl24pct > 0 ? "pnl-profit" : pnl24pct < 0 ? "pnl-loss" : "pnl-neutral";
     const pnl24Sign = pnl24pct >= 0 ? "+" : "";
 
-    // 6h P/L (DexScreener's largest window besides 24h — genuinely different from 24h column)
+    // 6h value change
     const pnl6pct   = t.pc6h ?? 0;
     const pnl6Cls   = pnl6pct > 0 ? "pnl-profit" : pnl6pct < 0 ? "pnl-loss" : "pnl-neutral";
     const pnl6Sign  = pnl6pct >= 0 ? "+" : "";
@@ -449,7 +445,7 @@ function renderRows(tokens) {
         <td>
           <div class="port-pnl-cell">
             <div class="port-pnl-pct ${pnl24Cls}">${pnl24Sign}${pnl24pct.toFixed(2)}%</div>
-            <div class="port-pnl-usd ${pnl24Cls}">${pnl24Sign}${formatUsd(Math.abs(pnl24usd))}</div>
+            <div class="port-pnl-usd ${pnl24Cls}" title="24h value change — not actual P/L">${pnl24Sign}${formatUsd(Math.abs(pnl24usd))}</div>
           </div>
         </td>
         <td>

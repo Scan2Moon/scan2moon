@@ -1,0 +1,876 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Scan2Moon API",
+    "version": "2.0.0",
+    "description": "Proprietary Solana on-chain intelligence APIs. Pay per call with crypto (no sign-up) or use a plan-based API key.\n\n## Authentication\n\nEvery proprietary endpoint checks credentials in this order:\n\n1. **`X-Api-Key`** — plan-based daily quota (Starter: 1,000 req/day free, Pro: 25,000/day $49/mo)\n2. **`X-Payment`** — x402 protocol on Base (USDC). No account needed. Designed for AI agents.\n3. **`X-Solana-Payment`** — Solana USDC-SPL transaction signature. Send USDC to our wallet, pass the tx signature.\n4. **None of the above** → endpoint returns **402 Payment Required** with full machine-readable payment instructions.\n\nAll access requires a valid API key or on-chain payment. There is no browser-origin bypass — every request must authenticate.\n\n## Payment Rails\n\n### Base x402 (EVM)\n- Recipient: `0x57fe97c1be493f100514aaa8ab1adda713ca5ffb`\n- Asset: USDC on Base (`0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`)\n- Protocol: [x402](https://x402.org) — sign an ERC-3009 authorisation, pass in `X-Payment`\n\n### Solana USDC-SPL\n- Recipient: `2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC`\n- Mint: `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v`\n- Send USDC-SPL on mainnet-beta, pass the signature in `X-Solana-Payment`\n- Payment must be ≤ 5 minutes old (per-call) or ≤ 48 hours (Pro subscription)\n",
+    "contact": {
+      "name": "Scan2Moon",
+      "url": "https://scan2moon.com/api-portal.html",
+      "email": "scan2moon@gmail.com",
+      "x-twitter": "@Scan2Moon"
+    },
+    "license": {
+      "name": "Commercial",
+      "url": "https://scan2moon.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://scan2moon.com/.netlify/functions",
+      "description": "Production"
+    }
+  ],
+  "tags": [
+    { "name": "wallet",      "description": "Wallet analysis and history" },
+    { "name": "token",       "description": "Token safety and risk analysis" },
+    { "name": "market",      "description": "Market data and new pairs" },
+    { "name": "leaderboard", "description": "Smart money wallet rankings" },
+    { "name": "keys",        "description": "API key management (public endpoints)" },
+    { "name": "discovery",   "description": "Pricing and API discovery" }
+  ],
+  "security": [
+    { "ApiKeyHeader": [] }
+  ],
+  "paths": {
+    "/devWallet": {
+      "get": {
+        "operationId": "getDevWallet",
+        "summary": "Dev Wallet History",
+        "description": "Full on-chain deployment history for any Solana wallet. Returns every token the address has launched, each classified as ACTIVE / DEAD / DUMPED / RUG with live liquidity and price data. Includes aggregate rug rate and a computed history penalty score.\n\n**This is Scan2Moon proprietary data — not available from Birdeye or any other provider.**\n\n**Price:** $0.005 / call",
+        "tags": ["wallet"],
+        "security": [
+          { "ApiKeyHeader": [] },
+          { "X402Payment": [] },
+          { "SolanaPayment": [] }
+        ],
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "description": "Solana wallet address (base58, 32–44 chars)",
+            "schema": { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+            "example": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet deployment history",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DevWalletResponse" },
+                "example": {
+                  "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+                  "totalDeployed": 7,
+                  "rugCount": 2,
+                  "rugRate": 28.6,
+                  "activeCount": 2,
+                  "historyPenalty": -15,
+                  "tokens": [
+                    {
+                      "mint": "So11111111111111111111111111111111111111112",
+                      "status": "ACTIVE",
+                      "name": "Example Token",
+                      "symbol": "EXT",
+                      "liquidity": 45200,
+                      "priceChange24h": 12.4,
+                      "mc": 890000
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/lpPredictor": {
+      "post": {
+        "operationId": "postLpPredictor",
+        "summary": "LP Pull Predictor",
+        "description": "Estimates the probability that a token's liquidity pool will be pulled (rug). Returns a safety score 0–100, risk tier, and a named signal breakdown.\n\nCombines: LP burn/lock %, pool age, mint authority, freeze authority, creator holdings, top-10 concentration, and deployer rug history.\n\n**Price:** $0.005 / call",
+        "tags": ["token"],
+        "security": [
+          { "ApiKeyHeader": [] },
+          { "X402Payment": [] },
+          { "SolanaPayment": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/LpPredictorRequest" },
+              "example": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "creator": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LP risk assessment",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/LpPredictorResponse" },
+                "example": {
+                  "score": 72,
+                  "risk": "MEDIUM",
+                  "label": "LP Pull Possible",
+                  "signals": [
+                    { "label": "LP Burn",           "value": "85%",       "impact": "positive", "delta": 20 },
+                    { "label": "Mint Renounced",     "value": "Renounced", "impact": "positive", "delta": 12 },
+                    { "label": "Pool Age",           "value": "14.3 days", "impact": "positive", "delta": 8  },
+                    { "label": "Creator Holdings",   "value": "1.2%",      "impact": "positive", "delta": 10 },
+                    { "label": "Top-10 Concentration","value": "62%",      "impact": "neutral",  "delta": 0  }
+                  ],
+                  "lpBurnPct": 85,
+                  "lpLockedPct": null,
+                  "lpLocked": false,
+                  "mintAuthority": "Renounced",
+                  "freezeAuthority": "Renounced",
+                  "poolAgeDays": 14.3,
+                  "liquidityUsd": 48200,
+                  "mcap": 890000,
+                  "creatorPct": 1.2,
+                  "top10Pct": 0.62,
+                  "devData": { "totalDeployed": 3, "rugCount": 0, "rugRate": 0, "available": true },
+                  "creator": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/bundle": {
+      "post": {
+        "operationId": "postBundle",
+        "summary": "Bundle Attack Detector",
+        "description": "Detects coordinated wallet bundling at token launch. Traces common SOL funders across early buyers (unique signal via Helius raw RPC — not available from Birdeye). Returns a bundle safety score, verdict, and top buyer list with estimated real controllers.\n\n**Price:** $0.010 / call",
+        "tags": ["token"],
+        "security": [
+          { "ApiKeyHeader": [] },
+          { "X402Payment": [] },
+          { "SolanaPayment": [] }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/BundleRequest" },
+              "example": {
+                "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+                "hasGraduated": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bundle detection result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/BundleResponse" },
+                "example": {
+                  "bundleScore": 82,
+                  "verdict": "CLEAN",
+                  "earlyPct": 4,
+                  "uniqueWallets": 12,
+                  "commonFunderDetected": false,
+                  "estimatedControllers": 11,
+                  "topBuyers": [
+                    { "wallet": "AbCd...XyZ", "fullWallet": "AbCdEfGhIjKlMnOpQrStUvWxYz1234567890XyZ", "slotOffset": 1 }
+                  ]
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/smartMoneyLeaderboard": {
+      "get": {
+        "operationId": "getSmartMoneyLeaderboard",
+        "summary": "Smart Money Leaderboard",
+        "description": "Returns a ranked list of classified Solana wallets built from every Whale DNA scan performed on Scan2Moon. Filter by archetype, sort by performance metric. Distribution counts per archetype included.\n\n**This is Scan2Moon's proprietary growing wallet intelligence database.**\n\n**Price:** $0.002 / call",
+        "tags": ["leaderboard"],
+        "security": [
+          { "ApiKeyHeader": [] },
+          { "X402Payment": [] },
+          { "SolanaPayment": [] }
+        ],
+        "parameters": [
+          {
+            "name": "archetype",
+            "in": "query",
+            "required": false,
+            "description": "Filter by wallet archetype. Default: `all`",
+            "schema": {
+              "type": "string",
+              "enum": ["all","smart_money","whale","bot","degen","sniper","diamond","smart","flipper","accumulator","rug_deployer","dev_wallet","unknown"],
+              "default": "all"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "Sort field. Default: `copy_score`",
+            "schema": {
+              "type": "string",
+              "enum": ["copy_score","win_rate","total_value","scan_count"],
+              "default": "copy_score"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Number of results. Min 1, max 100. Default: 50",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard entries",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SmartMoneyLeaderboardResponse" },
+                "example": {
+                  "entries": [
+                    {
+                      "rank": 1,
+                      "wallet": "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM",
+                      "walletShort": "9WzD...AWWM",
+                      "archetype": "smart_money",
+                      "archetypeEmoji": "🧠",
+                      "archetypeName": "Smart Money",
+                      "archetypeColor": "#2cffc9",
+                      "copyScore": 87,
+                      "winRate": 71.4,
+                      "totalValue": 284000,
+                      "totalDeployed": 0,
+                      "rugRate": 0,
+                      "scanCount": 14,
+                      "lastScanned": "2024-06-01T12:00:00Z",
+                      "tags": ["early_buyer"]
+                    }
+                  ],
+                  "distribution": { "all": 1482, "smart_money": 94, "whale": 137, "bot": 201 },
+                  "archetype": "all",
+                  "sort": "copy_score",
+                  "limit": 50
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/newPairs": {
+      "get": {
+        "operationId": "getNewPairs",
+        "summary": "New Pairs Feed",
+        "description": "Live feed of newly launched Solana tokens from Scan2Moon's own on-chain detection pipeline, updated every 2 minutes. Includes pre-scored risk level, liquidity, market cap, holder count, and on-chain launch time. 7-day rolling window.\n\n**Price:** $0.001 / call",
+        "tags": ["market"],
+        "security": [
+          { "ApiKeyHeader": [] },
+          { "X402Payment": [] },
+          { "SolanaPayment": [] }
+        ],
+        "responses": {
+          "200": {
+            "description": "New token pairs",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/NewPairsResponse" },
+                "example": {
+                  "ok": true,
+                  "source": "scan2moon-signal",
+                  "count": 48,
+                  "tokens": [
+                    {
+                      "mint": "So11111111111111111111111111111111111111112",
+                      "symbol": "XYZ",
+                      "name": "Example Token",
+                      "logo": "https://example.com/logo.png",
+                      "price": 0.00041,
+                      "mc": 41000,
+                      "liquidity": 8200,
+                      "vol24h": 12000,
+                      "holders": 142,
+                      "createdAt": "2024-06-01T11:46:00Z",
+                      "age": "14m",
+                      "riskLevel": "MED",
+                      "riskScore": 52,
+                      "source": "scan2moon-signal",
+                      "creationSrc": "onchain"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "402": { "$ref": "#/components/responses/PaymentRequired" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/prices": {
+      "get": {
+        "operationId": "getPrices",
+        "summary": "Pricing Discovery",
+        "description": "Machine-readable pricing for all pay-per-call endpoints. Returns full x402 payment requirements and Solana payment instructions for each endpoint. Designed for AI agents to auto-discover what to pay before calling. **No authentication required.**",
+        "tags": ["discovery"],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Pricing information for all endpoints",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/PricesResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/selfServeKey": {
+      "post": {
+        "operationId": "postSelfServeKey",
+        "summary": "Generate Starter API Key",
+        "description": "Instantly generates a free Starter plan API key. No approval required. Max 3 active keys per email, 5 requests per IP per hour.\n\n**No authentication required.**",
+        "tags": ["keys"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/SelfServeKeyRequest" },
+              "example": { "email": "dev@example.com" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "API key created",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SelfServeKeyResponse" },
+                "example": {
+                  "ok": true,
+                  "keyId": "s2m_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+                  "email": "dev@example.com",
+                  "plan": "starter",
+                  "dailyLimit": 1000,
+                  "message": "Your Scan2Moon API key is ready."
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    },
+    "/upgradeKey": {
+      "post": {
+        "operationId": "postUpgradeKey",
+        "summary": "Upgrade to Pro via USDC Payment",
+        "description": "Verifies a USDC-SPL on-chain payment and issues or upgrades an API key. Plan is determined automatically by amount paid: **$49 → Pro (25,000 req/day)**, **$99 → Power (100,000 req/day)**. Payment must be sent to `2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC` on Solana mainnet. Claim window is 48 hours from send time.\n\n**No authentication required** (the on-chain payment is the proof of payment).",
+        "tags": ["keys"],
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/UpgradeKeyRequest" },
+              "example": {
+                "txSignature": "5uFLPqNGDQEKiVTsMGGwcQUAnV4Lf8hRJkXYqGfNw3Tx...",
+                "email": "dev@example.com",
+                "existingKeyId": "s2m_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Pro key issued or upgraded",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/UpgradeKeyResponse" },
+                "example": {
+                  "ok": true,
+                  "action": "upgraded",
+                  "keyId": "s2m_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4",
+                  "email": "dev@example.com",
+                  "plan": "pro",
+                  "planLabel": "Pro",
+                  "dailyLimit": 25000,
+                  "amountPaid": 49
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "402": {
+            "description": "Payment invalid or not found",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "429": { "$ref": "#/components/responses/TooManyRequests" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Plan-based API key. Prefix: `s2m_`. Get one free at https://scan2moon.com/api-portal.html"
+      },
+      "ApiKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "apiKey",
+        "description": "Alternative to X-Api-Key header"
+      },
+      "X402Payment": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "x402",
+        "description": "Per-call USDC payment via x402 protocol on Base (EVM). Pass a signed ERC-3009 USDC authorisation JSON in the `X-Payment` header. See https://x402.org for client libraries."
+      },
+      "SolanaPayment": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Solana-Payment",
+        "description": "Solana USDC-SPL transaction signature. Send the required USDC amount to `2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC` on mainnet-beta, then pass the confirmed tx signature in this header. Valid for 5 minutes."
+      }
+    },
+    "schemas": {
+      "DevWalletResponse": {
+        "type": "object",
+        "required": ["wallet","totalDeployed","rugCount","rugRate","activeCount"],
+        "properties": {
+          "wallet":         { "type": "string", "description": "The queried wallet address" },
+          "totalDeployed":  { "type": "integer", "description": "Total tokens launched by this wallet" },
+          "rugCount":       { "type": "integer", "description": "Number of tokens classified as RUG" },
+          "rugRate":        { "type": "number", "description": "Rug percentage (0–100)" },
+          "activeCount":    { "type": "integer", "description": "Currently active / trading tokens" },
+          "historyPenalty": { "type": "integer", "description": "Score adjustment for use in risk models" },
+          "tokens": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DeployedToken" }
+          }
+        }
+      },
+      "DeployedToken": {
+        "type": "object",
+        "properties": {
+          "mint":           { "type": "string" },
+          "status":         { "type": "string", "enum": ["ACTIVE","DEAD","DUMPED","RUG"] },
+          "name":           { "type": "string" },
+          "symbol":         { "type": "string" },
+          "liquidity":      { "type": "number", "description": "USD liquidity" },
+          "priceChange24h": { "type": "number", "description": "24h price change %" },
+          "mc":             { "type": "number", "description": "Market cap in USD" }
+        }
+      },
+      "LpPredictorRequest": {
+        "type": "object",
+        "required": ["mint"],
+        "properties": {
+          "mint":    { "type": "string", "description": "Token mint address", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+          "creator": { "type": "string", "description": "Deployer wallet address (optional — enables dev history signal)", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" }
+        }
+      },
+      "LpPredictorResponse": {
+        "type": "object",
+        "required": ["score","risk","label","signals"],
+        "properties": {
+          "score":  { "type": "integer", "minimum": 3, "maximum": 97, "description": "Safety score. Higher = safer." },
+          "risk":   { "type": "string", "enum": ["LOW","MEDIUM","HIGH","EXTREME","NO_DATA"], "description": "Risk tier" },
+          "label":  { "type": "string", "example": "LP Pull Possible" },
+          "signals": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LpSignal" }
+          },
+          "lpBurnPct":      { "type": ["number","null"], "description": "% of LP tokens burned" },
+          "lpLockedPct":    { "type": ["number","null"], "description": "% of LP tokens locked via 3rd party" },
+          "lpLocked":       { "type": ["boolean","null"] },
+          "mintAuthority":  { "type": "string", "example": "Renounced" },
+          "freezeAuthority":{ "type": "string", "example": "Renounced" },
+          "poolAgeDays":    { "type": ["number","null"], "description": "Pool age in days" },
+          "liquidityUsd":   { "type": "number" },
+          "mcap":           { "type": "number" },
+          "creatorPct":     { "type": ["number","null"], "description": "Creator's % of supply" },
+          "top10Pct":       { "type": ["number","null"], "description": "Top-10 holders' fraction of supply (0–1)" },
+          "devData": {
+            "type": "object",
+            "properties": {
+              "totalDeployed": { "type": "integer" },
+              "rugCount":      { "type": "integer" },
+              "rugRate":       { "type": "number" },
+              "available":     { "type": "boolean" }
+            }
+          },
+          "creator": { "type": ["string","null"] }
+        }
+      },
+      "LpSignal": {
+        "type": "object",
+        "required": ["label","value","impact","delta"],
+        "properties": {
+          "label":  { "type": "string", "description": "Human-readable signal name" },
+          "value":  { "type": "string", "description": "Display value" },
+          "impact": { "type": "string", "enum": ["positive","negative","neutral"] },
+          "delta":  { "type": "integer", "description": "Points added to / subtracted from base score of 50" }
+        }
+      },
+      "BundleRequest": {
+        "type": "object",
+        "required": ["mint"],
+        "properties": {
+          "mint":         { "type": "string", "pattern": "^[1-9A-HJ-NP-Za-km-z]{32,44}$" },
+          "hasGraduated": { "type": "boolean", "default": false, "description": "Whether the token has graduated from pump.fun" }
+        }
+      },
+      "BundleResponse": {
+        "type": "object",
+        "required": ["bundleScore","verdict"],
+        "properties": {
+          "bundleScore":          { "type": "integer", "minimum": 0, "maximum": 100, "description": "Bundle safety score. Higher = cleaner." },
+          "verdict":              { "type": "string", "enum": ["CLEAN","WARN","BUNDLED"] },
+          "earlyPct":             { "type": "number", "description": "% of supply bought by detected bundles at launch" },
+          "uniqueWallets":        { "type": "integer" },
+          "commonFunderDetected": { "type": "boolean", "description": "True if early buyers share a common SOL funder" },
+          "estimatedControllers": { "type": "integer", "description": "Estimated number of distinct real controllers" },
+          "topBuyers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "wallet":     { "type": "string", "description": "Truncated address" },
+                "fullWallet": { "type": "string" },
+                "slotOffset": { "type": "integer", "description": "Slots after launch this wallet bought" }
+              }
+            }
+          }
+        }
+      },
+      "SmartMoneyLeaderboardResponse": {
+        "type": "object",
+        "required": ["entries","distribution"],
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/LeaderboardEntry" }
+          },
+          "distribution": {
+            "type": "object",
+            "description": "Wallet count per archetype, plus `all` total",
+            "additionalProperties": { "type": "integer" }
+          },
+          "archetype": { "type": "string" },
+          "sort":      { "type": "string" },
+          "limit":     { "type": "integer" }
+        }
+      },
+      "LeaderboardEntry": {
+        "type": "object",
+        "properties": {
+          "rank":           { "type": "integer" },
+          "wallet":         { "type": "string" },
+          "walletShort":    { "type": "string", "example": "9WzD...AWWM" },
+          "archetype":      { "type": "string" },
+          "archetypeEmoji": { "type": "string" },
+          "archetypeName":  { "type": "string" },
+          "archetypeColor": { "type": "string" },
+          "copyScore":      { "type": "integer", "minimum": 0, "maximum": 100, "description": "How worth copying this wallet's trades is (0–100)" },
+          "winRate":        { "type": "number", "description": "Win rate 0–100" },
+          "totalValue":     { "type": "number", "description": "Estimated portfolio value in USD" },
+          "totalDeployed":  { "type": "integer" },
+          "rugRate":        { "type": "number" },
+          "scanCount":      { "type": "integer", "description": "How many times this wallet has been scanned on Scan2Moon" },
+          "lastScanned":    { "type": "string", "format": "date-time" },
+          "tags":           { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "NewPairsResponse": {
+        "type": "object",
+        "required": ["ok","tokens","count"],
+        "properties": {
+          "ok":     { "type": "boolean" },
+          "source": { "type": "string", "enum": ["scan2moon-signal","birdeye-live","redis"], "description": "Data source" },
+          "count":  { "type": "integer" },
+          "tokens": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/NewPairToken" }
+          }
+        }
+      },
+      "NewPairToken": {
+        "type": "object",
+        "properties": {
+          "mint":        { "type": "string" },
+          "symbol":      { "type": "string" },
+          "name":        { "type": "string" },
+          "logo":        { "type": ["string","null"], "format": "uri" },
+          "price":       { "type": "number" },
+          "mc":          { "type": "number", "description": "Market cap USD" },
+          "liquidity":   { "type": "number" },
+          "vol24h":      { "type": "number" },
+          "holders":     { "type": "integer" },
+          "createdAt":   { "type": "string", "format": "date-time" },
+          "age":         { "type": "string", "example": "14m", "description": "Human-readable age string" },
+          "riskLevel":   { "type": "string", "enum": ["LOW","MED","HIGH"] },
+          "riskScore":   { "type": "integer", "minimum": 0, "maximum": 100 },
+          "source":      { "type": "string" },
+          "creationSrc": { "type": "string", "enum": ["onchain","detected","estimated"] }
+        }
+      },
+      "PricesResponse": {
+        "type": "object",
+        "properties": {
+          "version":       { "type": "string" },
+          "platform":      { "type": "string" },
+          "description":   { "type": "string" },
+          "documentation": { "type": "string", "format": "uri" },
+          "authentication": {
+            "type": "object",
+            "properties": {
+              "methods": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "type":        { "type": "string" },
+                    "header":      { "type": "string" },
+                    "network":     { "type": "string" },
+                    "description": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "endpoint":    { "type": "string" },
+                "url":         { "type": "string", "format": "uri" },
+                "description": { "type": "string" },
+                "priceUsd":    { "type": "number" },
+                "x402": {
+                  "type": "object",
+                  "description": "x402 payment requirements for Base (machine-readable for agent clients)"
+                },
+                "solana": {
+                  "type": "object",
+                  "description": "Solana USDC-SPL payment instructions"
+                }
+              }
+            }
+          },
+          "contact": {
+            "type": "object",
+            "properties": {
+              "x":     { "type": "string" },
+              "email": { "type": "string", "format": "email" }
+            }
+          }
+        }
+      },
+      "SelfServeKeyRequest": {
+        "type": "object",
+        "required": ["email"],
+        "properties": {
+          "email": { "type": "string", "format": "email" }
+        }
+      },
+      "SelfServeKeyResponse": {
+        "type": "object",
+        "required": ["ok","keyId","plan"],
+        "properties": {
+          "ok":         { "type": "boolean" },
+          "keyId":      { "type": "string", "description": "Your API key — save this, it cannot be recovered", "example": "s2m_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" },
+          "email":      { "type": "string", "format": "email" },
+          "plan":       { "type": "string", "enum": ["starter"] },
+          "dailyLimit": { "type": "integer", "example": 1000 },
+          "message":    { "type": "string" }
+        }
+      },
+      "UpgradeKeyRequest": {
+        "type": "object",
+        "required": ["txSignature","email"],
+        "properties": {
+          "txSignature":   { "type": "string", "description": "Solana transaction signature for the 49 USDC-SPL payment" },
+          "email":         { "type": "string", "format": "email" },
+          "existingKeyId": { "type": "string", "description": "Optional: existing Starter key to upgrade in-place", "example": "s2m_a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4" }
+        }
+      },
+      "UpgradeKeyResponse": {
+        "type": "object",
+        "required": ["ok","keyId","plan"],
+        "properties": {
+          "ok":         { "type": "boolean" },
+          "action":     { "type": "string", "enum": ["upgraded","created"], "description": "Whether an existing key was upgraded or a new one was created" },
+          "keyId":      { "type": "string" },
+          "email":      { "type": "string", "format": "email" },
+          "plan":       { "type": "string", "enum": ["pro", "power"] },
+          "planLabel":  { "type": "string", "enum": ["Pro", "Power"] },
+          "dailyLimit": { "type": "integer", "description": "25000 for Pro, 100000 for Power", "example": 25000 },
+          "amountPaid": { "type": "number", "example": 49 }
+        }
+      },
+      "PaymentRequiredBody": {
+        "type": "object",
+        "description": "402 Payment Required response. Machine-readable by x402-compatible agent clients.",
+        "properties": {
+          "x402Version": { "type": "integer", "example": 1 },
+          "accepts": {
+            "type": "array",
+            "description": "x402 payment requirements (Base/EVM)",
+            "items": {
+              "type": "object",
+              "properties": {
+                "scheme":            { "type": "string", "example": "exact" },
+                "network":           { "type": "string", "example": "base" },
+                "maxAmountRequired": { "type": "string", "description": "USDC in 6-decimal units", "example": "5000" },
+                "resource":          { "type": "string", "format": "uri" },
+                "description":       { "type": "string" },
+                "mimeType":          { "type": "string" },
+                "payTo":             { "type": "string", "description": "Recipient EVM address" },
+                "maxTimeoutSeconds": { "type": "integer", "example": 300 },
+                "asset":             { "type": "string", "description": "USDC contract on Base" },
+                "extra":             { "type": "object" }
+              }
+            }
+          },
+          "solana": {
+            "type": "object",
+            "description": "Solana USDC-SPL payment instructions",
+            "properties": {
+              "description":  { "type": "string" },
+              "recipient":    { "type": "string" },
+              "asset":        { "type": "string" },
+              "mint":         { "type": "string" },
+              "amountUnits":  { "type": "integer" },
+              "amountUsd":    { "type": "number" },
+              "network":      { "type": "string" },
+              "instructions": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "error": { "type": "string" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "properties": {
+          "error": { "type": "string" }
+        }
+      }
+    },
+    "responses": {
+      "BadRequest": {
+        "description": "Bad request — invalid parameters or missing required fields",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "error": "Invalid mint address" }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "API key invalid or revoked",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "error": "Invalid API key" }
+          }
+        }
+      },
+      "PaymentRequired": {
+        "description": "Payment required. Response body contains machine-readable x402 payment requirements (Base) and Solana USDC-SPL instructions. x402-compatible agent clients will handle this automatically.",
+        "headers": {
+          "X-Payment-Requirements": {
+            "schema": { "type": "string", "example": "x402" }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/PaymentRequiredBody" }
+          }
+        }
+      },
+      "TooManyRequests": {
+        "description": "Daily plan limit reached, or IP rate limit exceeded for site visitors",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "error": "Too many requests" }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Internal error or upstream data source unavailable (transient — retry)",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": { "error": "Failed to fetch token data" }
+          }
+        }
+      }
+    }
+  },
+  "x-scan2moon": {
+    "plans": {
+      "starter":    { "dailyLimit": 1000,    "price": "free" },
+      "pro":        { "dailyLimit": 25000,   "price": "$49/mo USDC" },
+      "power":      { "dailyLimit": 100000,  "price": "$99/mo USDC" },
+      "enterprise": { "dailyLimit": 1000000, "price": "custom" }
+    },
+    "perCallPrices": {
+      "devWallet":             { "usd": 0.005, "usdcUnits": 5000  },
+      "lpPredictor":           { "usd": 0.005, "usdcUnits": 5000  },
+      "bundle":                { "usd": 0.010, "usdcUnits": 10000 },
+      "smartMoneyLeaderboard": { "usd": 0.002, "usdcUnits": 2000  },
+      "newPairs":              { "usd": 0.001, "usdcUnits": 1000  }
+    },
+    "paymentAddresses": {
+      "base":   "0x57fe97c1be493f100514aaa8ab1adda713ca5ffb",
+      "solana": "2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC"
+    }
+  }
+}

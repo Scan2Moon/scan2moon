@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>Top Gainers — Scan2Moon</title>
+  <meta name="description" content="Top gaining Solana tokens ranked by price performance. Live data with risk scoring." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="home.css" />
+  <script src="skin-global.js"></script>
+</head>
+<body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+
+<div class="app">
+
+  <!-- HEADER IMAGE -->
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by home.js → nav.js -->
+
+  <!-- ═══════════════════════════════════════
+       PAGE HEADER
+  ═══════════════════════════════════════ -->
+  <div class="pg-header">
+    <div class="pg-header-sweep"></div>
+    <div class="pg-header-inner">
+      <div class="pg-header-left">
+        <div class="pg-header-icon pg-header-icon--teal">▲</div>
+        <div>
+          <div class="pg-header-title">TOP GAINERS</div>
+          <div class="pg-header-sub">Best performing Solana tokens · Live on-chain data</div>
+        </div>
+      </div>
+      <div class="pg-header-right">
+        <div class="tg-chain-badge">
+          <div class="tg-chain-dot"></div>
+          <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+            class="tg-chain-logo" alt="SOL" />
+          <span class="tg-chain-name">SOLANA</span>
+          <span class="tg-chain-live">LIVE</span>
+          <div class="tg-refresh-ring" id="tgRefreshRing" title="Refreshes every 90s"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════
+       GAINERS PANEL
+  ═══════════════════════════════════════ -->
+  <div class="panel tg-panel">
+
+    <!-- Titlebar: timeframe tabs + stats bar -->
+    <div class="tg-titlebar">
+      <div class="tg-tf-tabs" id="tgTfTabs">
+        <button class="tg-tf-btn" data-tf="30m">30M</button>
+        <button class="tg-tf-btn tg-tf-active" data-tf="1h">1H</button>
+        <button class="tg-tf-btn" data-tf="6h">6H</button>
+        <button class="tg-tf-btn" data-tf="12h">12H</button>
+        <button class="tg-tf-btn" data-tf="24h">24H</button>
+      </div>
+    </div>
+
+    <!-- Stats bar -->
+    <div class="tg-stats-bar" id="tgStatsBar" style="display:none;">
+      <div class="tg-stat-chip" id="tgStatSolPrice"></div>
+      <div class="tg-stat-chip" id="tgStatGainers"></div>
+      <div class="tg-stat-chip" id="tgStatAvgGain"></div>
+      <div class="tg-stat-chip" id="tgStatTopGain"></div>
+      <div class="tg-stat-chip tg-stat-updated" id="tgStatUpdated"></div>
+    </div>
+
+    <!-- Gainers filter bar -->
+    <div class="tg-gain-filter-bar" id="tgGainFilterBar">
+      <span class="tg-gain-label">Min Gain:</span>
+      <button class="tg-gain-btn tg-gain-active" data-gain="0">All</button>
+      <button class="tg-gain-btn" data-gain="20">+20%</button>
+      <button class="tg-gain-btn" data-gain="50">+50%</button>
+      <button class="tg-gain-btn" data-gain="100">+100%</button>
+      <button class="tg-gain-btn" data-gain="200">+200%</button>
+      <button class="tg-risk-filter-btn" id="tgRiskFilterBtn" title="Click to hide HIGH risk tokens">▲ Safe Only</button>
+    </div>
+
+    <!-- Table -->
+    <div class="panel-body tg-body">
+      <div class="tg-table-wrap">
+        <table class="tg-table" id="tgTable">
+          <thead>
+            <tr>
+              <th class="tg-th tg-th-rank">#</th>
+              <th class="tg-th tg-th-token tg-th-sortable" data-sort="name">TOKEN<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-price tg-th-sortable" data-sort="price">PRICE<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-change tg-th-sortable tg-th-sort-active" data-sort="change" data-dir="desc" id="tgThChange">1H %<span class="tg-sort-icon"> ▼</span></th>
+              <th class="tg-th tg-th-mc tg-th-sortable" data-sort="mc">MC<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-liq tg-th-sortable" data-sort="liq">LIQ<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-vol tg-th-sortable" data-sort="vol">VOL 24H<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-risk tg-th-sortable" data-sort="risk">RISK<span class="tg-sort-icon"> ↕</span></th>
+              <th class="tg-th tg-th-actions">ACTIONS</th>
+            </tr>
+          </thead>
+          <tbody id="tgBody"><!-- injected by home.js --></tbody>
+        </table>
+      </div>
+      <div class="tg-loading" id="tgLoading">
+        <div class="tg-spinner"></div>
+        <div class="tg-loading-text">Fetching top gainers…</div>
+      </div>
+      <div class="tg-error" id="tgError" style="display:none;">
+        <div class="tg-error-icon">▲</div>
+        <div class="tg-error-msg" id="tgErrorMsg">Failed to load data.</div>
+        <button class="tg-retry-btn" id="tgRetryBtn">Retry</button>
+      </div>
+      <div class="tg-pagination" id="tgPagination" style="display:none;">
+        <button class="tg-page-btn" id="tgPrevBtn">← Prev</button>
+        <div class="tg-page-info" id="tgPageInfo">Page 1 of 5</div>
+        <button class="tg-page-btn" id="tgNextBtn">Next →</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- COMMUNITY PANEL -->
+  <div id="communityPanel"></div>
+
+  <footer class="footer">
+    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-right">
+      <span class="version">Version V2.0</span>
+      <span class="separator">•</span>
+      <span class="powered">Scan2Moon · Solana Analytics</span>
+    </div>
+  </footer>
+
+</div>
+
+<!-- Chart modal (shared with home.js) -->
+<div id="hmChartModal" class="hm-chart-overlay" style="display:none;" onclick="window._hmChartBgClick(event)">
+  <div class="hm-chart-inner">
+    <div class="hm-chart-header">
+      <div class="hm-chart-token-info">
+        <img id="hmChartLogo" class="hm-chart-logo" src="" alt=""
+          onerror="this.src='https://placehold.co/36x36/0a2a1e/2cffc9?text=?'" referrerpolicy="no-referrer" />
+        <div>
+          <div class="hm-chart-name" id="hmChartName">—</div>
+          <div class="hm-chart-price-row">
+            <span class="hm-chart-price" id="hmChartPrice">—</span>
+            <span class="hm-chart-change" id="hmChartChange"></span>
+          </div>
+        </div>
+      </div>
+      <div class="hm-chart-header-actions">
+        <button class="hm-chart-scan-btn" id="hmChartScanBtn" title="Full Risk Scan">Scan</button>
+        <button class="hm-chart-close" onclick="window.closeHomeChart()" title="Close (Esc)">✕</button>
+      </div>
+    </div>
+    <div class="hm-chart-body">
+      <div class="hm-chart-frame-wrap">
+        <div class="hm-tf-bar" id="hmChartTfBar">
+          <button class="hm-chart-tf-btn" data-tf="1m">1M</button>
+          <button class="hm-chart-tf-btn" data-tf="5m">5M</button>
+          <button class="hm-chart-tf-btn hm-chart-tf-active" data-tf="15m">15M</button>
+          <button class="hm-chart-tf-btn" data-tf="1h">1H</button>
+          <button class="hm-chart-tf-btn" data-tf="4h">4H</button>
+          <button class="hm-chart-tf-btn" data-tf="1d">1D</button>
+        </div>
+        <div id="hmChartCanvas" class="hm-chart-canvas"></div>
+        <div id="hmChartLoading" class="hm-chart-loading" style="display:none;"><div class="hm-chart-spin"></div><span>Loading chart…</span></div>
+        <div id="hmChartError" class="hm-chart-err" style="display:none;">▲ Could not load chart data</div>
+      </div>
+      <div class="hm-trade-panel">
+        <div class="hm-trade-tabs">
+          <button class="hm-trade-tab active" id="hmTabBuy" onclick="window._hmSetTab('buy')">BUY</button>
+          <button class="hm-trade-tab" id="hmTabSell" onclick="window._hmSetTab('sell')">SELL</button>
+        </div>
+        <div id="hmBuyPanel" class="hm-tab-panel">
+          <div class="hm-trade-label">Amount (SOL)</div>
+          <div class="hm-trade-input-row">
+            <input type="number" id="hmBuyAmount" class="hm-trade-input" placeholder="0.1" min="0.01" step="0.01" value="0.1" />
+            <span class="hm-trade-unit">SOL</span>
+          </div>
+          <div class="hm-trade-est" id="hmBuyEst">≈ — tokens</div>
+          <button class="hm-exec-btn hm-exec-buy" onclick="window._hmExecuteBuy()">BUY POSITION</button>
+        </div>
+        <div id="hmSellPanel" class="hm-tab-panel" style="display:none;">
+          <div class="hm-trade-label">Close position</div>
+          <div class="hm-sell-pct-row">
+            <button class="hm-pct-btn" data-pct="25">25%</button>
+            <button class="hm-pct-btn" data-pct="50">50%</button>
+            <button class="hm-pct-btn" data-pct="75">75%</button>
+            <button class="hm-pct-btn active" data-pct="100">100%</button>
+          </div>
+          <div class="hm-trade-est" id="hmSellEst">No open position</div>
+          <button class="hm-exec-btn hm-exec-sell" onclick="window._hmExecuteSell()">EXIT POSITION</button>
+        </div>
+        <div class="hm-sim-balance-row">
+          <span class="hm-sim-balance-label">Sim Balance:</span>
+          <span class="hm-sim-balance-val" id="hmSimBalance">—</span>
+        </div>
+        <button class="hm-jup-btn" onclick="window._hmOpenJupiter()">Swap on Jupiter ↗</button>
+        <div class="hm-trade-note">Trades saved to Paper Trading Simulator · No real funds</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+<script type="module" src="home.js?v=1776969471"></script>
+</body>
+</html>

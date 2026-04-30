@@ -1,0 +1,1689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <title>API &amp; Payments &mdash; Scan2Moon</title>
+  <meta name="description" content="Scan2Moon developer API. Pay-per-call with x402 on Base or USDC-SPL on Solana. No sign-up needed for AI agents." />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="scanner-hero.css" />
+  <link rel="stylesheet" href="scanner-hero-sizing.css" />
+  <style>
+    /* ── Google Fonts ────────────────────────────── */
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+    /* ── Design tokens ───────────────────────────── */
+    :root {
+      --accent:        #2cffc9;
+      --accent-dim:    rgba(44,255,201,0.08);
+      --accent-border: rgba(44,255,201,0.20);
+      --purple:        #c084fc;
+      --purple-dim:    rgba(192,132,252,0.08);
+      --purple-border: rgba(192,132,252,0.20);
+      --gold:          #ffd166;
+      --gold-dim:      rgba(255,209,102,0.08);
+      --gold-border:   rgba(255,209,102,0.20);
+      --surface:       rgba(6,22,16,0.85);
+      --surface-2:     rgba(6,28,18,0.95);
+      --border:        rgba(44,255,201,0.08);
+      --border-mid:    rgba(44,255,201,0.14);
+      --border-light:  rgba(44,255,201,0.04);
+      --text-1:        #cffff4;
+      --text-2:        rgba(207,255,244,0.60);
+      --text-3:        rgba(207,255,244,0.28);
+      --red:           #ff4d6d;
+      --green:         #2cffc9;
+      --amber:         #ffd166;
+      --mono:          'JetBrains Mono', 'Courier New', monospace;
+    }
+
+    /* ── Base ────────────────────────────────────── */
+    body {
+      background: #030e09;
+      font-family: var(--mono);
+    }
+
+    /* Dot-grid background */
+    .app::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-image: radial-gradient(circle, rgba(44,255,201,0.07) 1px, transparent 1px);
+      background-size: 28px 28px;
+    }
+    .app > *:not(.s2m-nav) { position: relative; z-index: 1; }
+
+    /* ── Top toolbar ─────────────────────────────── */
+    .ap-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 24px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(3,14,9,0.9);
+      backdrop-filter: blur(12px);
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      color: var(--text-3);
+    }
+    .ap-live-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent);
+      flex-shrink: 0;
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .4; }
+    }
+    .ap-toolbar-title { color: var(--accent); font-weight: 700; }
+    .ap-toolbar-sep { color: var(--border-mid); margin: 0 4px; }
+
+    /* ── Stats bar ───────────────────────────────── */
+    .ap-stats-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      background: rgba(3,14,9,0.7);
+      overflow-x: auto;
+    }
+    .ap-stat {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 10px 24px;
+      border-right: 1px solid var(--border);
+      white-space: nowrap;
+      gap: 2px;
+    }
+    .ap-stat:last-child { border-right: none; }
+    .ap-stat-val {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .ap-stat-val.purple { color: var(--purple); }
+    .ap-stat-val.gold   { color: var(--gold); }
+    .ap-stat-lbl {
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--text-3);
+    }
+
+    /* ── Section headings ───────────────────────── */
+    .s-title {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-3);
+      margin: 40px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .s-title::after {
+      content: "";
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+    .s-title .s-dot {
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    /* ── Hero ───────────────────────────────────── */
+    .ap-hero {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 12px;
+      padding: 52px 40px 44px;
+      margin: 28px 0 36px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .ap-hero::before {
+      content: "";
+      position: absolute;
+      top: -60px; left: 50%;
+      transform: translateX(-50%);
+      width: 400px; height: 200px;
+      background: radial-gradient(ellipse at center, rgba(44,255,201,0.06) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .ap-eyebrow {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-bottom: 16px;
+    }
+    .ap-title {
+      font-size: clamp(24px,3.5vw,42px);
+      font-weight: 800;
+      color: var(--text-1);
+      line-height: 1.15;
+      margin-bottom: 14px;
+      letter-spacing: -0.5px;
+    }
+    .ap-title span { color: var(--accent); }
+    .ap-sub {
+      font-size: 14px;
+      color: var(--text-2);
+      max-width: 520px;
+      margin: 0 auto 28px;
+      line-height: 1.8;
+    }
+    .ap-tags {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 32px;
+    }
+    .ap-tag {
+      font-size: 11px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 6px;
+      border: 1px solid var(--border-mid);
+      color: var(--text-2);
+      background: var(--accent-dim);
+    }
+    .ap-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #2cffc9, #00d4a8);
+      color: #021209;
+      font-weight: 800;
+      font-size: 13px;
+      padding: 12px 28px;
+      border-radius: 8px;
+      text-decoration: none;
+      letter-spacing: .5px;
+      transition: opacity .15s, transform .15s;
+    }
+    .ap-cta:hover { opacity: .9; transform: translateY(-1px); }
+
+    /* ── Plans ──────────────────────────────────── */
+    .plans {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 14px;
+      margin-bottom: 32px;
+    }
+    .plan {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 24px 20px;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      transition: border-color .15s;
+    }
+    .plan:hover { border-color: var(--border-mid); }
+    .plan.featured {
+      border-color: var(--accent-border);
+      background: rgba(44,255,201,0.03);
+    }
+    .plan-popular {
+      display: inline-block;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 14px;
+    }
+    .plan-name  {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-3);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .plan-price {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text-1);
+      line-height: 1;
+      margin-bottom: 4px;
+      letter-spacing: -1px;
+    }
+    .plan-period { font-size: 13px; font-weight: 400; color: var(--text-3); }
+    .plan-limit  { font-size: 11px; color: var(--text-2); margin-bottom: 18px; margin-top: 4px; }
+    .plan-feats  { list-style: none; padding: 0; margin: 0 0 20px; flex: 1; }
+    .plan-feats li {
+      font-size: 12px;
+      color: var(--text-2);
+      padding: 6px 0;
+      padding-left: 16px;
+      position: relative;
+      border-bottom: 1px solid var(--border-light);
+    }
+    .plan-feats li:last-child { border-bottom: none; }
+    .plan-feats li::before { content: "›"; color: var(--accent); font-weight: 700; position: absolute; left: 0; }
+    .plan-btn {
+      display: block;
+      text-align: center;
+      padding: 10px;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .5px;
+      border: 1px solid var(--border-mid);
+      color: var(--text-2);
+      background: transparent;
+      cursor: pointer;
+      text-decoration: none;
+      transition: border-color .15s, color .15s, background .15s;
+      margin-top: auto;
+      font-family: var(--mono);
+    }
+    .plan-btn:hover, .plan-btn.hi {
+      border-color: var(--accent-border);
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+
+    /* ── Payment Rails ──────────────────────────── */
+    .rails { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+    @media(max-width:680px){ .rails { grid-template-columns: 1fr; } }
+    .rail-card {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      padding: 22px;
+    }
+    .rail-card.sol-card { border-color: var(--purple-border); }
+    .rail-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .rail-name   { font-size: 13px; font-weight: 700; color: var(--text-1); }
+    .rail-chain  {
+      font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px;
+      background: var(--accent-dim); color: var(--accent); letter-spacing: 1px;
+      text-transform: uppercase; border: 1px solid var(--accent-border);
+    }
+    .rail-chain.sol { background: var(--purple-dim); color: var(--purple); border-color: var(--purple-border); }
+    .rail-desc   { font-size: 12px; color: var(--text-2); line-height: 1.7; margin-bottom: 14px; }
+    .rail-addr   {
+      font-family: var(--mono); font-size: 11px; color: var(--accent);
+      background: var(--accent-dim); border: 1px solid var(--accent-border);
+      border-radius: 6px; padding: 10px 12px; word-break: break-all; margin-bottom: 6px;
+    }
+    .rail-addr.sol-addr {
+      color: var(--purple); background: var(--purple-dim); border-color: var(--purple-border);
+    }
+    .rail-fact { font-size: 10px; color: var(--text-3); letter-spacing: .3px; }
+
+    /* ── Auth / info note ───────────────────────── */
+    .auth-note {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      padding: 16px 18px;
+      font-size: 12px;
+      color: var(--text-2);
+      line-height: 1.8;
+      margin-bottom: 20px;
+    }
+    .auth-note strong { color: var(--text-1); }
+    .auth-note code {
+      font-family: var(--mono);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: var(--accent);
+      font-size: 11px;
+    }
+
+    /* ── Code blocks ────────────────────────────── */
+    pre.code {
+      background: rgba(2,10,6,0.9);
+      border: 1px solid var(--border-mid);
+      border-radius: 8px;
+      padding: 18px;
+      font-family: var(--mono);
+      font-size: 12px;
+      line-height: 1.7;
+      color: rgba(207,255,244,0.75);
+      overflow-x: auto;
+      white-space: pre;
+      margin: 0;
+    }
+    .code-label {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      color: var(--text-3);
+      text-transform: uppercase;
+      margin: 16px 0 5px;
+    }
+
+    /* ── Pricing table ──────────────────────────── */
+    .price-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .price-table th {
+      text-align: left; color: var(--text-3); font-weight: 700;
+      padding: 8px 12px; border-bottom: 1px solid var(--border);
+      font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+      font-family: var(--mono);
+    }
+    .price-table td {
+      padding: 9px 12px; color: var(--text-2);
+      border-bottom: 1px solid var(--border-light); vertical-align: middle;
+      font-family: var(--mono);
+    }
+    .price-table td:first-child { color: var(--text-1); font-size: 12px; }
+    .price-table td:nth-child(3) { color: var(--accent); font-weight: 600; }
+    .price-badge {
+      font-size: 9px; font-weight: 700; padding: 2px 6px; border-radius: 4px;
+      background: rgba(255,77,109,.1); color: var(--red);
+      border: 1px solid rgba(255,77,109,.2);
+    }
+
+    /* ── Endpoint blocks ────────────────────────── */
+    .ep {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      margin-bottom: 12px;
+      overflow: hidden;
+      transition: border-color .15s;
+    }
+    .ep:hover { border-color: var(--border-mid); }
+    .ep-head {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+      background: rgba(44,255,201,0.02);
+    }
+    .ep-method {
+      font-size: 9px; font-weight: 800; padding: 3px 8px;
+      border-radius: 4px; letter-spacing: 1px; flex-shrink: 0;
+      font-family: var(--mono); text-transform: uppercase;
+    }
+    .ep-method.get  { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent-border); }
+    .ep-method.post { background: var(--purple-dim); color: var(--purple); border: 1px solid var(--purple-border); }
+    .ep-path  { font-family: var(--mono); font-size: 12px; color: var(--text-1); font-weight: 600; flex: 1; }
+    .ep-price {
+      font-size: 11px; font-weight: 700; color: var(--accent);
+      background: var(--accent-dim); border: 1px solid var(--accent-border);
+      padding: 2px 8px; border-radius: 5px; flex-shrink: 0;
+      font-family: var(--mono);
+    }
+    .ep-body  { padding: 16px; }
+    .ep-desc  { font-size: 12px; color: var(--text-2); margin-bottom: 12px; line-height: 1.7; }
+
+    /* ── Forms ──────────────────────────────────── */
+    .key-form {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      padding: 28px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    .key-form h3 { font-size: 16px; font-weight: 700; color: var(--text-1); margin: 0 0 6px; }
+    .key-form p  { font-size: 12px; color: var(--text-2); margin: 0 0 22px; line-height: 1.7; }
+    .fg { margin-bottom: 14px; }
+    .fg label {
+      display: block; font-size: 10px; font-weight: 700;
+      color: var(--text-3); letter-spacing: 1px; margin-bottom: 6px;
+      text-transform: uppercase; font-family: var(--mono);
+    }
+    .fg input, .fg select {
+      width: 100%;
+      background: rgba(2,10,6,0.9);
+      border: 1px solid var(--border-mid);
+      border-radius: 7px;
+      padding: 10px 12px;
+      color: var(--text-1);
+      font-size: 12px;
+      font-family: var(--mono);
+      box-sizing: border-box;
+      outline: none;
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .fg input:focus, .fg select:focus {
+      border-color: var(--accent-border);
+      box-shadow: 0 0 0 2px rgba(44,255,201,0.06);
+    }
+    .fg select option { background: #030e09; }
+    .form-sub {
+      width: 100%; padding: 12px;
+      background: linear-gradient(135deg, #2cffc9, #00d4a8);
+      color: #021209;
+      font-weight: 800;
+      font-size: 13px;
+      letter-spacing: .5px;
+      border: none;
+      border-radius: 7px;
+      cursor: pointer;
+      margin-top: 6px;
+      transition: opacity .15s, transform .15s;
+      font-family: var(--mono);
+    }
+    .form-sub:hover { opacity: .88; transform: translateY(-1px); }
+    .form-note { font-size: 10px; color: var(--text-3); text-align: center; margin-top: 10px; letter-spacing: .5px; }
+
+    /* ── Status / alert boxes ───────────────────── */
+    .alert-success {
+      background: rgba(44,255,201,0.05);
+      border: 1px solid var(--accent-border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      color: var(--accent);
+      font-size: 12px;
+    }
+    .alert-warning {
+      background: var(--gold-dim);
+      border: 1px solid var(--gold-border);
+      border-radius: 7px;
+      padding: 10px 14px;
+      font-size: 11px;
+      color: var(--gold);
+    }
+    .alert-error {
+      background: rgba(255,77,109,0.06);
+      border: 1px solid rgba(255,77,109,0.2);
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: var(--red);
+      font-size: 12px;
+    }
+
+    /* ── Upgrade section ────────────────────────── */
+    .upgrade-wrap {
+      background: var(--surface);
+      border: 1px solid var(--purple-border);
+      border-radius: 10px;
+      padding: 28px;
+      margin-bottom: 28px;
+    }
+
+    /* ── Dashboard card ─────────────────────────── */
+    .db-card {
+      background: var(--surface);
+      border: 1px solid var(--border-mid);
+      border-radius: 10px;
+      padding: 26px;
+      margin-bottom: 28px;
+    }
+    .db-stat {
+      background: rgba(2,10,6,0.9);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+    }
+    .db-stat-label {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-3);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      font-family: var(--mono);
+    }
+    .db-stat-value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-1);
+      font-family: var(--mono);
+    }
+
+    /* ── Option panel headers ───────────────────── */
+    .opt-panel {
+      background: rgba(2,10,6,0.9);
+      border: 1px solid var(--border-mid);
+      border-radius: 8px;
+      padding: 18px;
+      margin-bottom: 14px;
+    }
+    .opt-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.5px;
+      text-transform: uppercase; margin-bottom: 12px;
+    }
+    .opt-label.teal   { color: var(--accent); }
+    .opt-label.purple { color: var(--purple); }
+    .opt-panel.purple-border { border-color: var(--purple-border); }
+
+    /* ── Utility ─────────────────────────────────── */
+    code.inline {
+      font-family: var(--mono);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-border);
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: var(--accent);
+      font-size: 11px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Responsive ──────────────────────────────── */
+    @media(max-width: 600px) {
+      .ap-hero { padding: 36px 20px 32px; }
+      .ap-title { font-size: 22px; }
+      .ap-stats-bar { flex-wrap: nowrap; }
+      .plans { grid-template-columns: 1fr; }
+    }
+  </style>
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+  <script src="skin-global.js"></script>
+</head>
+<body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
+<div class="app">
+  <header class="hero-header">
+    <a href="https://x.com/Scan2Moon" target="_blank" class="x-follow-btn">Follow us on X</a>
+  </header>
+
+  <!-- NAV injected by api-portal-init.js -->
+
+  <!-- Toolbar -->
+  <div class="ap-toolbar">
+    <div class="ap-live-dot"></div>
+    <span class="ap-toolbar-title">API &amp; PAYMENTS</span>
+    <span class="ap-toolbar-sep">/</span>
+    <span>SCAN2MOON DEVELOPER PORTAL</span>
+  </div>
+
+  <!-- Stats bar -->
+  <div class="ap-stats-bar">
+    <div class="ap-stat">
+      <div class="ap-stat-val">6</div>
+      <div class="ap-stat-lbl">Endpoints</div>
+    </div>
+    <div class="ap-stat">
+      <div class="ap-stat-val">Free</div>
+      <div class="ap-stat-lbl">Starter Tier</div>
+    </div>
+    <div class="ap-stat">
+      <div class="ap-stat-val gold">$0.001</div>
+      <div class="ap-stat-lbl">Min Price/Call</div>
+    </div>
+    <div class="ap-stat">
+      <div class="ap-stat-val purple">2</div>
+      <div class="ap-stat-lbl">Payment Rails</div>
+    </div>
+    <div class="ap-stat">
+      <div class="ap-stat-val">0</div>
+      <div class="ap-stat-lbl">Sign-Up Required</div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="ap-hero">
+    <div class="ap-eyebrow">Developer API &mdash; Solana Analytics</div>
+    <h1 class="ap-title">Proprietary On-Chain Data.<br><span>Two ways to pay.</span></h1>
+    <p class="ap-sub">Access Scan2Moon's on-chain intelligence programmatically. Subscribe with an API key or pay per call &mdash; no account required for AI agents.</p>
+    <div class="ap-tags">
+      <span class="ap-tag">API Key plans</span>
+      <span class="ap-tag">x402 on Base</span>
+      <span class="ap-tag">Solana USDC-SPL</span>
+      <span class="ap-tag">Agent-compatible</span>
+      <span class="ap-tag">No sign-up for pay-per-call</span>
+    </div>
+    <a href="#get-key" class="ap-cta">&#9670; Get API Key</a>
+  </div>
+
+  <!-- PLANS -->
+  <div class="s-title"><span class="s-dot"></span>Pricing Plans</div>
+  <div class="plans">
+    <div class="plan">
+      <div class="plan-name">Starter</div>
+      <div class="plan-price">Free</div>
+      <div class="plan-limit">1,000 requests / day</div>
+      <ul class="plan-feats">
+        <li>All 5 proprietary endpoints</li>
+        <li>JSON responses</li>
+        <li>Community support</li>
+      </ul>
+      <a href="#get-key" class="plan-btn">Get Free Key</a>
+    </div>
+    <div class="plan featured">
+      <div class="plan-popular">Most Popular</div>
+      <div class="plan-name">Pro</div>
+      <div class="plan-price">$49<span class="plan-period">/mo</span></div>
+      <div class="plan-limit">25,000 requests / day</div>
+      <ul class="plan-feats">
+        <li>Everything in Starter</li>
+        <li>25&times; higher quota</li>
+        <li>Pay with USDC &mdash; instant</li>
+      </ul>
+      <a href="#upgrade-pro" class="plan-btn hi" onclick="selectPlanAndScroll('pro');return false;">Upgrade with USDC</a>
+    </div>
+    <div class="plan" style="border-color:var(--gold-border);">
+      <div class="plan-name" style="color:var(--gold);">Power</div>
+      <div class="plan-price">$99<span class="plan-period">/mo</span></div>
+      <div class="plan-limit" style="color:var(--gold);">100,000 requests / day</div>
+      <ul class="plan-feats">
+        <li>Everything in Pro</li>
+        <li>4&times; Pro quota</li>
+        <li>Pay with USDC &mdash; instant</li>
+      </ul>
+      <a href="#upgrade-pro" class="plan-btn" style="border-color:var(--gold-border);color:var(--gold);" onclick="selectPlanAndScroll('power');return false;">Upgrade with USDC</a>
+    </div>
+    <div class="plan">
+      <div class="plan-name">Enterprise</div>
+      <div class="plan-price">Custom</div>
+      <div class="plan-limit">1,000,000 requests / day</div>
+      <ul class="plan-feats">
+        <li>Everything in Power</li>
+        <li>SLA + dedicated support</li>
+        <li>Custom endpoints</li>
+      </ul>
+      <a href="https://x.com/Scan2Moon" target="_blank" class="plan-btn">Contact on X</a>
+    </div>
+  </div>
+
+  <!-- MY KEY DASHBOARD -->
+  <div class="s-title" id="my-dashboard"><span class="s-dot"></span>Key Dashboard</div>
+  <div class="db-card">
+    <form onsubmit="checkKeyStatus();return false;" style="display:flex;gap:10px;align-items:flex-end;max-width:520px;margin:0 auto 6px;">
+      <div class="fg" style="flex:1;margin-bottom:0;">
+        <label>Your API Key</label>
+        <input type="password" id="dbKey" placeholder="s2m_..." autocomplete="off" />
+      </div>
+      <button onclick="checkKeyStatus()" id="dbCheckBtn"
+        style="flex-shrink:0;padding:10px 20px;background:linear-gradient(135deg,#2cffc9,#00d4a8);color:#021209;font-weight:800;font-size:12px;border:none;border-radius:7px;cursor:pointer;white-space:nowrap;margin-bottom:0;font-family:var(--mono);letter-spacing:.5px;">
+        Check Status
+      </button>
+    </form>
+    <div style="font-size:10px;color:var(--text-3);text-align:center;margin-bottom:16px;letter-spacing:.5px;">Your key is only sent to our own <code style="font-size:10px;color:var(--accent);font-family:var(--mono);">/keyStatus</code> endpoint</div>
+
+    <div id="dbLoading" style="display:none;text-align:center;padding:20px 0;color:var(--accent);font-size:12px;font-weight:700;font-family:var(--mono);">
+      <span style="animation:spin 1s linear infinite;display:inline-block;margin-right:6px;">&#8635;</span>Fetching status&hellip;
+    </div>
+    <div id="dbError" style="display:none;max-width:520px;margin:0 auto;" class="alert-error"></div>
+
+    <div id="dbPanel" style="display:none;margin-top:18px;">
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span id="dbPlanBadge" style="font-size:9px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:3px 10px;border-radius:5px;border:1px solid var(--accent-border);color:var(--accent);background:var(--accent-dim);font-family:var(--mono);">STARTER</span>
+          <code id="dbKeyMasked" style="font-family:var(--mono);font-size:11px;color:var(--text-3);"></code>
+        </div>
+        <span id="dbActiveBadge" style="font-size:11px;font-weight:700;color:var(--green);font-family:var(--mono);">&#9679; ACTIVE</span>
+      </div>
+
+      <!-- Usage bar -->
+      <div style="margin-bottom:22px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
+          <span style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:1px;text-transform:uppercase;font-family:var(--mono);">Today's Usage</span>
+          <span id="dbUsageText" style="font-size:13px;font-weight:700;color:var(--accent);font-family:var(--mono);">0 / 1,000</span>
+        </div>
+        <div style="background:rgba(44,255,201,0.06);border-radius:4px;height:6px;overflow:hidden;border:1px solid var(--border);">
+          <div id="dbUsageBar" style="height:100%;border-radius:4px;width:0%;transition:width .7s cubic-bezier(.4,0,.2,1);background:var(--accent);"></div>
+        </div>
+      </div>
+
+      <!-- Stats grid -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:18px;">
+        <div class="db-stat">
+          <div class="db-stat-label">Remaining Today</div>
+          <div id="dbRemaining" class="db-stat-value" style="color:var(--accent);">—</div>
+        </div>
+        <div class="db-stat">
+          <div class="db-stat-label">Resets In</div>
+          <div id="dbResetsIn" class="db-stat-value">—</div>
+        </div>
+        <div class="db-stat">
+          <div class="db-stat-label">All-Time Calls</div>
+          <div id="dbTotal" class="db-stat-value">—</div>
+        </div>
+        <div class="db-stat">
+          <div class="db-stat-label">Last Used</div>
+          <div id="dbLastUsed" style="font-size:13px;font-weight:600;color:var(--text-2);margin-top:4px;font-family:var(--mono);">—</div>
+        </div>
+      </div>
+
+      <!-- Renewal tile -->
+      <div id="dbRenewalTile" style="display:none;margin-bottom:14px;background:rgba(2,10,6,0.9);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--text-3);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:4px;font-family:var(--mono);">Plan Renewal</div>
+          <div style="display:flex;align-items:baseline;gap:8px;">
+            <span id="dbRenewsDate" style="font-size:15px;font-weight:700;color:var(--text-1);font-family:var(--mono);">—</span>
+            <span id="dbDaysLeft" style="font-size:11px;font-weight:600;color:var(--accent);font-family:var(--mono);"></span>
+          </div>
+        </div>
+        <button onclick="scrollToRenew()" id="dbRenewBtn"
+          style="font-size:11px;font-weight:800;padding:8px 16px;border-radius:6px;border:none;background:linear-gradient(135deg,#2cffc9,#00d4a8);color:#021209;cursor:pointer;white-space:nowrap;font-family:var(--mono);">
+          Renew
+        </button>
+      </div>
+
+      <!-- Footer -->
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:10px;color:var(--text-3);padding-top:14px;border-top:1px solid var(--border);font-family:var(--mono);letter-spacing:.3px;">
+        <span>Email: <strong id="dbEmail" style="color:var(--text-2);"></strong></span>
+        <span>Resets at <strong id="dbResetsAt" style="color:var(--text-2);"></strong> UTC &bull; Since <strong id="dbCreatedAt" style="color:var(--text-2);"></strong></span>
+      </div>
+
+      <!-- Upgrade nudge -->
+      <div id="dbUpgradeNudge" style="display:none;margin-top:14px;background:var(--purple-dim);border:1px solid var(--purple-border);border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <span style="font-size:11px;color:var(--text-2);font-family:var(--mono);">Need more requests? Upgrade to Pro (25k/day) or Power (100k/day).</span>
+        <a href="#upgrade-pro" onclick="document.getElementById('upgrade-pro').scrollIntoView({behavior:'smooth'});return false;"
+           style="font-size:11px;font-weight:700;color:var(--purple);text-decoration:none;white-space:nowrap;font-family:var(--mono);">Upgrade with USDC &rarr;</a>
+      </div>
+
+      <!-- Expiry warning -->
+      <div id="dbExpiryWarn" style="display:none;margin-top:10px;background:var(--gold-dim);border:1px solid var(--gold-border);border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+        <span id="dbExpiryWarnText" style="font-size:11px;color:var(--gold);font-weight:700;font-family:var(--mono);">Your plan expires soon &mdash; renew to keep full access.</span>
+        <button onclick="scrollToRenew()" style="font-size:11px;font-weight:800;padding:7px 14px;border-radius:6px;border:none;background:var(--gold);color:#1a0800;cursor:pointer;font-family:var(--mono);">Renew Now</button>
+      </div>
+
+      <!-- Danger zone -->
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,77,109,.08);">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
+          <div>
+            <div style="font-size:10px;font-weight:700;color:var(--red);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;font-family:var(--mono);">Danger Zone</div>
+            <div style="font-size:11px;color:var(--text-3);font-family:var(--mono);">Lost or leaked your key? Revoke it instantly. This cannot be undone.</div>
+          </div>
+          <button onclick="revokeMyKey()" id="dbRevokeBtn"
+            style="font-size:11px;font-weight:700;padding:7px 14px;border-radius:6px;border:1px solid rgba(255,77,109,.25);background:transparent;color:var(--red);cursor:pointer;white-space:nowrap;font-family:var(--mono);">
+            Revoke This Key
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UPGRADE / PAY WITH USDC -->
+  <div class="s-title" id="upgrade-pro"><span class="s-dot"></span>Upgrade Plan &mdash; Pay with USDC</div>
+  <div class="upgrade-wrap">
+    <!-- Plan selector -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">
+      <button onclick="setPlan('pro')" id="upPlanPro"
+        style="padding:14px 10px;border-radius:8px;border:2px solid var(--purple-border);background:var(--purple-dim);color:var(--purple);font-weight:800;font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.5px;">
+        Pro &mdash; $49/mo<br/><span style="font-weight:400;font-size:10px;color:var(--text-3);">25,000 req/day</span>
+      </button>
+      <button onclick="setPlan('power')" id="upPlanPower"
+        style="padding:14px 10px;border-radius:8px;border:2px solid var(--gold-border);background:transparent;color:var(--gold);font-weight:800;font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.5px;">
+        Power &mdash; $99/mo<br/><span style="font-weight:400;font-size:10px;color:var(--text-3);">100,000 req/day</span>
+      </button>
+    </div>
+
+    <div class="fg">
+      <label>Email <span style="color:var(--text-3);font-weight:400;text-transform:none;letter-spacing:0;">(required for key delivery)</span></label>
+      <input type="email" id="upEmail" placeholder="you@example.com" />
+    </div>
+    <div class="fg" style="margin-bottom:22px;">
+      <label>Existing Key <span style="color:var(--text-3);font-weight:400;text-transform:none;letter-spacing:0;">(optional &mdash; upgrades your current key in-place)</span></label>
+      <input type="text" id="upExistingKey" placeholder="s2m_... (leave blank for a new key)" />
+    </div>
+
+    <!-- Option A: Browser Wallet -->
+    <div class="opt-panel purple-border">
+      <div class="opt-label purple">Option A &mdash; Connect Browser Wallet</div>
+      <div id="upWalletConnect">
+        <button onclick="initWalletPay()" id="upConnectBtn"
+          style="width:100%;padding:12px;background:var(--purple);color:#fff;font-weight:800;font-size:13px;border:none;border-radius:7px;cursor:pointer;transition:opacity .15s;font-family:var(--mono);letter-spacing:.5px;">
+          Connect Wallet &amp; Pay <span id="upPayBtnAmount2">49</span> USDC
+        </button>
+        <div style="font-size:10px;color:var(--text-3);margin-top:8px;text-align:center;font-family:var(--mono);">Phantom &bull; Backpack &bull; Solflare &bull; any window.solana wallet</div>
+      </div>
+      <div id="upWalletReady" style="display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:11px;color:var(--text-2);font-family:var(--mono);">Connected: <code id="upWalletAddr" style="font-family:var(--mono);color:var(--purple);font-size:12px;"></code></span>
+          <button onclick="disconnectWallet()" style="font-size:11px;color:var(--text-3);background:none;border:none;cursor:pointer;text-decoration:underline;padding:0;font-family:var(--mono);">Disconnect</button>
+        </div>
+        <button onclick="sendUsdcPayment()" id="upPayBtn"
+          style="width:100%;padding:12px;background:var(--purple);color:#fff;font-weight:800;font-size:13px;border:none;border-radius:7px;cursor:pointer;font-family:var(--mono);">
+          Send <span id="upPayBtnAmount">49</span> USDC &mdash; Get Key Instantly
+        </button>
+      </div>
+      <div id="upWalletConfirm" style="display:none;text-align:center;padding:16px 0;">
+        <span style="animation:spin 1s linear infinite;display:inline-block;color:var(--purple);margin-right:6px;">&#8635;</span>
+        <span style="font-size:12px;font-weight:700;color:var(--purple);font-family:var(--mono);">Waiting for blockchain confirmation&hellip;</span>
+        <div id="upWalletTxLink" style="margin-top:8px;"></div>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div style="display:flex;align-items:center;gap:12px;margin:16px 0;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:10px;color:var(--text-3);white-space:nowrap;font-family:var(--mono);">or already sent from your phone / app?</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+
+    <!-- Option B: Manual -->
+    <div>
+      <div class="opt-label purple" style="margin-bottom:10px;">Option B &mdash; Send Manually, Paste Signature</div>
+      <div style="font-size:12px;color:var(--text-2);margin-bottom:10px;line-height:1.7;font-family:var(--mono);">
+        Send exactly <strong id="upManualAmount" style="color:var(--text-1);">49 USDC</strong> to the address below, then paste the transaction signature.
+      </div>
+      <div style="font-size:10px;font-weight:700;color:var(--text-3);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;font-family:var(--mono);">Recipient (Solana mainnet)</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <code id="proWallet" style="font-family:var(--mono);font-size:11px;color:var(--text-1);background:rgba(2,10,6,0.9);border:1px solid var(--border-mid);border-radius:6px;padding:10px 12px;flex:1;word-break:break-all;">2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC</code>
+        <button onclick="copyProWallet()" id="proWalletCopyBtn" style="flex-shrink:0;background:var(--accent-dim);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:11px;padding:10px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);">Copy</button>
+      </div>
+      <div style="font-size:10px;color:var(--text-3);margin-bottom:16px;font-family:var(--mono);">Token: USDC-SPL &bull; Mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</div>
+    </div>
+
+    <div id="upFormWrap">
+      <div class="fg"><label>Transaction Signature</label><input type="text" id="upTx" placeholder="Paste Solana tx signature&hellip;" /></div>
+      <button onclick="claimProKey()" style="width:100%;padding:12px;background:var(--purple);color:#fff;font-weight:800;font-size:13px;border:none;border-radius:7px;cursor:pointer;margin-top:4px;font-family:var(--mono);letter-spacing:.5px;">Verify Payment &amp; Get Key</button>
+      <div class="form-note" style="margin-top:10px;">Verified on-chain via Helius &bull; Key issued instantly &bull; 48-hour claim window</div>
+    </div>
+
+    <div id="upLoading" style="display:none;text-align:center;padding:18px 0;color:var(--purple);font-size:12px;font-weight:700;font-family:var(--mono);">
+      <span style="animation:spin 1s linear infinite;display:inline-block;margin-right:6px;">&#8635;</span>Verifying payment on-chain&hellip;
+    </div>
+    <div id="upError" style="display:none;margin-top:12px;" class="alert-error"></div>
+    <div id="upSuccess" style="display:none;margin-top:12px;">
+      <div style="background:var(--purple-dim);border:1px solid var(--purple-border);border-radius:8px;padding:20px;">
+        <div style="font-size:10px;font-weight:700;color:var(--purple);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;font-family:var(--mono);">Key Active</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <code id="upDisplay" style="font-family:var(--mono);font-size:13px;color:var(--text-1);background:rgba(2,10,6,0.9);border:1px solid var(--border);border-radius:6px;padding:10px 14px;flex:1;word-break:break-all;"></code>
+          <button id="upCopyBtn" onclick="copyProKey()" style="flex-shrink:0;background:var(--purple-dim);border:1px solid var(--purple-border);color:var(--purple);font-weight:700;font-size:11px;padding:10px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);">Copy</button>
+        </div>
+        <div class="alert-warning" style="margin-bottom:10px;">Save this key now. We cannot recover lost keys.</div>
+        <div style="font-size:11px;color:var(--text-2);line-height:1.8;font-family:var(--mono);">
+          Plan: <strong id="upSuccessPlan" style="color:var(--purple);">Pro &mdash; 25,000 req/day</strong> &bull; Resets midnight UTC<br/>
+          To renew: send the same amount next month and verify again.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAYMENT RAILS -->
+  <div class="s-title"><span class="s-dot"></span>Payment Rails</div>
+  <div class="rails">
+    <div class="rail-card">
+      <div class="rail-header">
+        <span class="rail-name">Base &mdash; x402</span>
+        <span class="rail-chain">EVM / L2</span>
+      </div>
+      <p class="rail-desc">The x402 open protocol, designed for AI agents. No account needed. Sign an ERC-3009 USDC authorisation, pass it in <code style="font-family:var(--mono);font-size:11px;color:var(--accent);">X-Payment</code>, done.</p>
+      <div class="code-label">Recipient address (Base)</div>
+      <div class="rail-addr">0x57fe97c1be493f100514aaa8ab1adda713ca5ffb</div>
+      <div class="rail-fact">Asset: USDC on Base &bull; Contract: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913</div>
+    </div>
+    <div class="rail-card sol-card">
+      <div class="rail-header">
+        <span class="rail-name">Solana &mdash; USDC-SPL</span>
+        <span class="rail-chain sol">Solana mainnet</span>
+      </div>
+      <p class="rail-desc">Native Solana path for devs already in the ecosystem. Send USDC-SPL to our wallet, pass the transaction signature in <code style="font-family:var(--mono);font-size:11px;color:var(--purple);">X-Solana-Payment</code>.</p>
+      <div class="code-label">Recipient address (Solana)</div>
+      <div class="rail-addr sol-addr">2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC</div>
+      <div class="rail-fact">Asset: USDC-SPL &bull; Mint: EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v</div>
+    </div>
+  </div>
+
+  <!-- HOW IT WORKS -->
+  <div class="s-title"><span class="s-dot"></span>How Pay-Per-Call Works</div>
+  <div class="auth-note">
+    Every proprietary endpoint checks credentials in this order:
+    <strong>1.</strong> <code>X-Api-Key</code> (plan-based) &nbsp;&bull;&nbsp;
+    <strong>2.</strong> <code>X-Payment</code> (x402 / Base USDC) &nbsp;&bull;&nbsp;
+    <strong>3.</strong> <code>X-Solana-Payment</code> (Solana USDC-SPL) &nbsp;&bull;&nbsp;
+    <strong>4.</strong> Browser request from scan2moon.com (IP rate limited).
+    External callers with no credential receive a <strong>402 Payment Required</strong> response with full machine-readable payment instructions.
+  </div>
+
+  <!-- AGENT QUICK-START: x402 -->
+  <div class="s-title"><span class="s-dot"></span>Agent Quick-Start &mdash; x402 (Base)</div>
+
+  <div class="code-label">Step 1 &mdash; Discover pricing</div>
+  <pre class="code">curl https://scan2moon.com/.netlify/functions/prices</pre>
+
+  <div class="code-label">Step 2 &mdash; Call without credentials, read the 402</div>
+  <pre class="code">curl -i https://scan2moon.com/.netlify/functions/devWallet?wallet=WALLET_ADDRESS
+
+HTTP/2 402
+{
+  "x402Version": 1,
+  "accepts": [{
+    "scheme": "exact",
+    "network": "base",
+    "maxAmountRequired": "5000",
+    "asset": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "payTo": "0x57fe97c1be493f100514aaa8ab1adda713ca5ffb",
+    "maxTimeoutSeconds": 300,
+    "resource": "https://scan2moon.com/.netlify/functions/devWallet"
+  }]
+}</pre>
+
+  <div class="code-label">Step 3 &mdash; Sign ERC-3009 &amp; retry with X-Payment (using x402-fetch)</div>
+  <pre class="code">import { wrapFetch } from "x402-fetch";
+import { privateKeyToAccount } from "viem/accounts";
+
+const account = privateKeyToAccount("0x_YOUR_PRIVATE_KEY");
+const fetchWithPayment = wrapFetch(fetch, account);
+
+const res  = await fetchWithPayment(
+  "https://scan2moon.com/.netlify/functions/devWallet?wallet=WALLET_ADDRESS"
+);
+const data = await res.json();</pre>
+
+  <!-- AGENT QUICK-START: Solana -->
+  <div class="s-title"><span class="s-dot"></span>Agent Quick-Start &mdash; Solana USDC-SPL</div>
+
+  <div class="code-label">Step 1 &mdash; Send USDC-SPL (@solana/spl-token)</div>
+  <pre class="code">import { Connection, PublicKey, Transaction,
+         createTransferInstruction, getOrCreateAssociatedTokenAccount } from "@solana/spl-token";
+
+const connection  = new Connection("https://api.mainnet-beta.solana.com");
+const USDC_MINT   = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+const RECIPIENT   = new PublicKey("2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC");
+const AMOUNT      = 5000; // 0.005 USDC (6 decimals)
+
+const senderATA    = await getOrCreateAssociatedTokenAccount(connection, payer, USDC_MINT, payer.publicKey);
+const recipientATA = await getOrCreateAssociatedTokenAccount(connection, payer, USDC_MINT, RECIPIENT);
+
+const tx        = new Transaction().add(
+  createTransferInstruction(senderATA.address, recipientATA.address, payer.publicKey, AMOUNT)
+);
+const signature = await connection.sendTransaction(tx, [payer]);
+await connection.confirmTransaction(signature, "confirmed");</pre>
+
+  <div class="code-label">Step 2 &mdash; Pass the signature in X-Solana-Payment</div>
+  <pre class="code">const res = await fetch(
+  "https://scan2moon.com/.netlify/functions/devWallet?wallet=WALLET_ADDRESS",
+  { headers: { "X-Solana-Payment": signature } }
+);
+const data = await res.json();</pre>
+
+  <!-- API KEY DESCRIPTION -->
+  <div class="s-title"><span class="s-dot"></span>API Key Usage</div>
+  <div class="auth-note">
+    Plan keys give a daily quota and higher sustained throughput &mdash; better for production apps.
+    Pass your key in the <code>X-Api-Key</code> header or <code>?apiKey=</code> query parameter.
+    Daily counters reset at <strong>midnight UTC</strong>.
+  </div>
+  <div class="code-label">Header (recommended)</div>
+  <pre class="code">curl -H "X-Api-Key: s2m_your_key_here" \
+     "https://scan2moon.com/.netlify/functions/devWallet?wallet=WALLET"</pre>
+
+  <!-- ENDPOINTS -->
+  <div class="s-title"><span class="s-dot"></span>Endpoints &amp; Pricing</div>
+
+  <div class="ep">
+    <div class="ep-head">
+      <span class="ep-method get">GET</span>
+      <span class="ep-path">/.netlify/functions/devWallet?wallet=ADDRESS</span>
+      <span class="ep-price">$0.005 / call</span>
+    </div>
+    <div class="ep-body">
+      <p class="ep-desc">Full deployment history for any Solana wallet. Every token the address launched, classified ACTIVE / DEAD / DUMPED / RUG with liquidity &amp; price data. Aggregate rug rate. Unique Scan2Moon data.</p>
+      <div class="code-label">Response shape</div>
+      <pre class="code">{ "wallet":"...", "totalDeployed":7, "rugCount":2, "rugRate":28.6,
+  "tokens":[{ "mint":"...", "status":"ACTIVE", "liquidity":45200, "mc":890000 }] }</pre>
+    </div>
+  </div>
+
+  <div class="ep">
+    <div class="ep-head">
+      <span class="ep-method post">POST</span>
+      <span class="ep-path">/.netlify/functions/lpPredictor</span>
+      <span class="ep-price">$0.005 / call</span>
+    </div>
+    <div class="ep-body">
+      <p class="ep-desc">LP pull probability score (0&ndash;100). Combines LP burn/lock %, pool age, mint authority, creator holdings, top-10 concentration, deployer rug history. Named signal breakdown included.</p>
+      <div class="code-label">Request body</div>
+      <pre class="code">{ "mint": "TOKEN_MINT_ADDRESS", "creator": "DEPLOYER_WALLET" }</pre>
+      <div class="code-label">Response shape</div>
+      <pre class="code">{ "score":72, "risk":"MEDIUM", "signals":[{ "label":"LP Burn","value":"85%","delta":20 }],
+  "lpBurnPct":85, "poolAgeDays":14.3, "mintAuthority":"Renounced" }</pre>
+    </div>
+  </div>
+
+  <div class="ep">
+    <div class="ep-head">
+      <span class="ep-method post">POST</span>
+      <span class="ep-path">/.netlify/functions/bundle</span>
+      <span class="ep-price">$0.010 / call</span>
+    </div>
+    <div class="ep-body">
+      <p class="ep-desc">Detects coordinated wallet bundling at token launch. Early buyer clustering, common SOL funder tracing (unique signal via Helius raw RPC), estimated real controllers. Bundle safety score 0&ndash;100.</p>
+      <div class="code-label">Request body</div>
+      <pre class="code">{ "mint": "TOKEN_MINT_ADDRESS", "hasGraduated": false }</pre>
+      <div class="code-label">Response shape</div>
+      <pre class="code">{ "bundleScore":82, "verdict":"CLEAN", "earlyPct":4,
+  "commonFunderDetected":false, "estimatedControllers":11 }</pre>
+    </div>
+  </div>
+
+  <div class="ep">
+    <div class="ep-head">
+      <span class="ep-method get">GET</span>
+      <span class="ep-path">/.netlify/functions/smartMoneyLeaderboard</span>
+      <span class="ep-price">$0.002 / call</span>
+    </div>
+    <div class="ep-body">
+      <p class="ep-desc">Classified wallet leaderboard built from every Whale DNA scan. Filter by archetype, sort by copy score, win rate, or value. Grows with every user scan.</p>
+      <div class="code-label">Query params</div>
+      <pre class="code">?archetype=smart_money&sort=win_rate&limit=20</pre>
+    </div>
+  </div>
+
+  <div class="ep">
+    <div class="ep-head">
+      <span class="ep-method get">GET</span>
+      <span class="ep-path">/.netlify/functions/newPairs</span>
+      <span class="ep-price">$0.001 / call</span>
+    </div>
+    <div class="ep-body">
+      <p class="ep-desc">Live new token feed from Scan2Moon's detection pipeline, updated every 2 minutes. Pre-scored risk level, liquidity, market cap, holder count, and on-chain launch time. 7-day rolling window.</p>
+    </div>
+  </div>
+
+  <div class="ep">
+    <div class="ep-head">
+      <span class="ep-method get">GET</span>
+      <span class="ep-path">/.netlify/functions/prices</span>
+      <span class="ep-price">Free</span>
+    </div>
+    <div class="ep-body">
+      <p class="ep-desc">Machine-readable pricing discovery. Returns all endpoint prices, Base x402 payment requirements, and Solana payment instructions. Designed for agent auto-discovery.</p>
+    </div>
+  </div>
+
+  <!-- ERROR CODES -->
+  <div class="s-title"><span class="s-dot"></span>HTTP Status Codes</div>
+  <div class="ep">
+    <div class="ep-body" style="padding:16px;">
+      <table class="price-table">
+        <thead><tr><th>Status</th><th>Meaning</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td>200</td><td style="color:var(--green)">OK</td><td>Success</td></tr>
+          <tr><td>400</td><td>Bad Request</td><td>Fix request params</td></tr>
+          <tr><td>401</td><td>Unauthorized</td><td>API key invalid or revoked</td></tr>
+          <tr><td>402</td><td>Payment Required</td><td>Read the <code style="font-family:var(--mono);font-size:11px;color:var(--accent);">accepts[]</code> field and pay</td></tr>
+          <tr><td>429</td><td>Too Many Requests</td><td>Daily plan limit hit or IP rate limit</td></tr>
+          <tr><td>502</td><td>Bad Gateway</td><td>Upstream data source unavailable &mdash; retry</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- GET KEY -->
+  <div class="s-title" id="get-key"><span class="s-dot"></span>Get Your API Key</div>
+  <div class="key-form">
+    <h3>Generate a Free Starter Key</h3>
+    <p>Enter your email &mdash; your key is created instantly. No approval, no credit card. Need higher limits? <a href="#upgrade-pro" onclick="document.getElementById('upgrade-pro').scrollIntoView({behavior:'smooth'});return false;" style="color:var(--accent);">Upgrade with USDC</a>.</p>
+    <div id="kFormWrap">
+      <div class="fg"><label>Email</label><input type="email" id="kEmail" placeholder="you@example.com" autocomplete="email" /></div>
+      <button id="kGenBtn" class="form-sub" onclick="generateKey()">&#9670; Generate Key</button>
+      <div class="form-note">Free forever &bull; 1,000 req/day &bull; No credit card</div>
+    </div>
+    <div id="kLoading" style="display:none;text-align:center;padding:20px 0;">
+      <span style="display:inline-flex;gap:8px;align-items:center;color:var(--accent);font-size:12px;font-weight:700;font-family:var(--mono);">
+        <span style="animation:spin 1s linear infinite;display:inline-block;">&#8635;</span>Generating key&hellip;
+      </span>
+    </div>
+    <div id="kError" style="display:none;" class="alert-error" style="margin-top:14px;"></div>
+    <div id="kSuccess" style="display:none;margin-top:4px;">
+      <div class="alert-success" style="margin-bottom:12px;">
+        <div style="font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;color:var(--accent);font-family:var(--mono);">API Key Ready</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+          <code id="kDisplay" style="font-family:var(--mono);font-size:13px;color:var(--text-1);background:rgba(2,10,6,0.9);border:1px solid var(--border);border-radius:6px;padding:9px 12px;flex:1;word-break:break-all;"></code>
+          <button id="kCopyBtn" onclick="copyKey()" style="flex-shrink:0;background:var(--accent-dim);border:1px solid var(--accent-border);color:var(--accent);font-weight:700;font-size:11px;padding:9px 14px;border-radius:6px;cursor:pointer;font-family:var(--mono);">Copy</button>
+        </div>
+        <div class="alert-warning">We also emailed this key to you. If lost, generate a new one &mdash; we cannot recover keys.</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="height:48px;"></div>
+
+  <footer class="footer">
+    <div class="footer-left">Informational tool only. Always DYOR.</div>
+    <div class="footer-right">
+      <span class="version">Version V2.0</span>
+      <span class="separator">&bull;</span>
+      <span class="powered">Powered by Scan2Moon</span>
+    </div>
+  </footer>
+</div>
+
+
+<script type="module" src="script.js"></script>
+<script type="module" src="./api-portal-init.js"></script>
+<script>
+var _generatedKey = "";
+var _proKey       = "";
+
+/* ── Starter key generation ──────────────────────────────── */
+async function generateKey() {
+  var email = (document.getElementById("kEmail").value || "").trim();
+  if (!email || !email.includes("@") || !email.includes(".")) {
+    showError("Please enter a valid email address.");
+    return;
+  }
+
+  document.getElementById("kFormWrap").style.display = "none";
+  document.getElementById("kError").style.display    = "none";
+  document.getElementById("kSuccess").style.display  = "none";
+  document.getElementById("kLoading").style.display  = "block";
+
+  try {
+    var res  = await fetch("/.netlify/functions/selfServeKey", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ email: email }),
+    });
+    var data = await res.json();
+    document.getElementById("kLoading").style.display = "none";
+
+    if (!res.ok || !data.ok) {
+      showError(data.error || "Something went wrong. Please try again.");
+      document.getElementById("kFormWrap").style.display = "block";
+      return;
+    }
+    _generatedKey = data.keyId;
+    document.getElementById("kDisplay").textContent = data.keyId;
+    document.getElementById("kSuccess").style.display = "block";
+  } catch (e) {
+    document.getElementById("kLoading").style.display = "none";
+    showError("Network error. Please check your connection and try again.");
+    document.getElementById("kFormWrap").style.display = "block";
+  }
+}
+
+function copyKey() {
+  if (!_generatedKey) return;
+  navigator.clipboard.writeText(_generatedKey).then(function() {
+    var btn = document.getElementById("kCopyBtn");
+    btn.textContent = "Copied!";
+    btn.style.background = "rgba(44,255,201,.28)";
+    setTimeout(function() {
+      btn.textContent = "Copy";
+      btn.style.background = "var(--accent-dim)";
+    }, 2000);
+  }).catch(function() {
+    var el = document.getElementById("kDisplay");
+    var r = document.createRange(); r.selectNode(el);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+  });
+}
+
+function showError(msg) {
+  var el = document.getElementById("kError");
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+/* ── Key Dashboard ───────────────────────────────────────── */
+var PLAN_COLORS_DB = { starter:"#2cffc9", pro:"#c084fc", power:"#ffd166", enterprise:"#5bc8ff" };
+
+async function checkKeyStatus() {
+  var key = (document.getElementById("dbKey").value || "").trim();
+  if (!key || !/^s2m_[0-9a-f]{32}$/.test(key)) {
+    showDbError("Please paste a valid API key (format: s2m_ followed by 32 hex characters).");
+    return;
+  }
+  var btn = document.getElementById("dbCheckBtn");
+  btn.disabled = true;
+  btn.textContent = "Checking\u2026";
+  document.getElementById("dbLoading").style.display = "block";
+  document.getElementById("dbError").style.display   = "none";
+  document.getElementById("dbPanel").style.display   = "none";
+
+  try {
+    var res  = await fetch("/.netlify/functions/keyStatus?apiKey=" + encodeURIComponent(key));
+    var data = await res.json();
+    document.getElementById("dbLoading").style.display = "none";
+    btn.disabled = false; btn.textContent = "Check Status";
+
+    if (!res.ok || !data.ok) {
+      showDbError(data.error || "Could not fetch key status.");
+      return;
+    }
+    renderDashboard(data);
+  } catch (e) {
+    document.getElementById("dbLoading").style.display = "none";
+    btn.disabled = false; btn.textContent = "Check Status";
+    showDbError("Network error. Please try again.");
+  }
+}
+
+function renderDashboard(d) {
+  var color = PLAN_COLORS_DB[d.plan] || "#2cffc9";
+
+  /* Plan badge */
+  var badge = document.getElementById("dbPlanBadge");
+  badge.textContent = d.plan.toUpperCase();
+  badge.style.color       = color;
+  badge.style.borderColor = color + "55";
+  badge.style.background  = color + "14";
+
+  /* Masked key */
+  document.getElementById("dbKeyMasked").textContent = d.keyId;
+
+  /* Active badge */
+  var ab = document.getElementById("dbActiveBadge");
+  ab.textContent = d.active ? "\u25CF ACTIVE" : "\u25CF REVOKED";
+  ab.style.color = d.active ? "var(--green)" : "var(--red)";
+
+  /* Usage bar */
+  var pct      = d.dailyLimit > 0 ? Math.min(100, (d.dailyUsed / d.dailyLimit) * 100) : 0;
+  var barColor = pct > 85 ? "var(--red)" : pct > 60 ? "var(--amber)" : color;
+  document.getElementById("dbUsageText").textContent = d.dailyUsed.toLocaleString() + " / " + d.dailyLimit.toLocaleString();
+  document.getElementById("dbUsageText").style.color = barColor;
+  document.getElementById("dbUsageBar").style.width      = pct + "%";
+  document.getElementById("dbUsageBar").style.background = barColor;
+
+  /* Stats */
+  document.getElementById("dbRemaining").textContent = d.dailyRemaining.toLocaleString();
+  document.getElementById("dbRemaining").style.color = color;
+  document.getElementById("dbTotal").textContent     = (d.totalRequests || 0).toLocaleString();
+
+  /* Resets in */
+  var resetsAt = new Date(d.resetsAt);
+  var diffMs   = Math.max(0, resetsAt - Date.now());
+  var diffH    = Math.floor(diffMs / 3600000);
+  var diffM    = Math.floor((diffMs % 3600000) / 60000);
+  document.getElementById("dbResetsIn").textContent = diffH + "h " + diffM + "m";
+  document.getElementById("dbResetsAt").textContent = resetsAt.toUTCString().slice(17, 22);
+
+  /* Last used */
+  document.getElementById("dbLastUsed").textContent = d.lastUsedAt
+    ? new Date(d.lastUsedAt).toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" })
+    : "Never";
+
+  /* Footer meta */
+  document.getElementById("dbEmail").textContent     = d.email;
+  document.getElementById("dbCreatedAt").textContent = d.createdAt
+    ? new Date(d.createdAt).toLocaleDateString(undefined, { month:"short", year:"numeric" })
+    : "\u2014";
+
+  /* Upgrade nudge for starter */
+  var nudge = document.getElementById("dbUpgradeNudge");
+  if (nudge) nudge.style.display = d.plan === "starter" ? "flex" : "none";
+
+  /* Renewal tile */
+  var renewTile  = document.getElementById("dbRenewalTile");
+  var expiryWarn = document.getElementById("dbExpiryWarn");
+  if (renewTile) {
+    if (d.plan !== "starter" && d.renewsAt) {
+      renewTile.style.display = "flex";
+      var renewDate = new Date(d.renewsAt);
+      document.getElementById("dbRenewsDate").textContent = renewDate.toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric", timeZone:"UTC" });
+      var days   = d.daysUntilExpiry;
+      var daysEl = document.getElementById("dbDaysLeft");
+      var renewBtn = document.getElementById("dbRenewBtn");
+      if (days <= 0) {
+        daysEl.textContent = "EXPIRED";
+        daysEl.style.color = "var(--red)";
+        if (renewBtn) { renewBtn.style.background = "var(--red)"; renewBtn.style.color = "#fff"; }
+      } else if (days <= 7) {
+        daysEl.textContent = days + " day" + (days !== 1 ? "s" : "") + " left";
+        daysEl.style.color = "var(--amber)";
+        if (expiryWarn) {
+          expiryWarn.style.display = "flex";
+          var warnText = document.getElementById("dbExpiryWarnText");
+          if (warnText) warnText.textContent = "\u26A0 Your plan expires in " + days + " day" + (days !== 1 ? "s" : "") + " \u2014 renew to keep full access.";
+        }
+      } else {
+        daysEl.textContent = days + " days left";
+        daysEl.style.color = "var(--green)";
+      }
+    } else {
+      renewTile.style.display = "none";
+      if (expiryWarn) expiryWarn.style.display = "none";
+    }
+  }
+
+  document.getElementById("dbPanel").style.display = "block";
+}
+
+function scrollToRenew() {
+  var keyInput = document.getElementById("upExistingKey");
+  var rawKey   = (document.getElementById("dbKey") || {}).value || "";
+  if (keyInput && rawKey) keyInput.value = rawKey;
+  var target = document.getElementById("upgrade-pro");
+  if (target) target.scrollIntoView({ behavior: "smooth" });
+}
+
+async function revokeMyKey() {
+  var rawKey = (document.getElementById("dbKey") || {}).value || "";
+  if (!rawKey || !rawKey.startsWith("s2m_")) {
+    alert("Re-enter your API key in the field above first, then click Revoke.");
+    return;
+  }
+  var confirmed = window.confirm(
+    "Revoke key " + rawKey.slice(0, 8) + "\u2026" + rawKey.slice(-4) + "?\n\n" +
+    "This is PERMANENT. The key will stop working immediately.\n" +
+    "A confirmation email will be sent to the address on file."
+  );
+  if (!confirmed) return;
+
+  var btn = document.getElementById("dbRevokeBtn");
+  if (btn) { btn.disabled = true; btn.textContent = "Revoking\u2026"; }
+
+  try {
+    var res  = await fetch("/.netlify/functions/revokeMyKey", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ keyId: rawKey, confirm: "REVOKE" }),
+    });
+    var data = await res.json();
+    if (data.ok) {
+      if (btn) { btn.textContent = "\u2713 Revoked"; btn.style.color = "var(--green)"; btn.style.borderColor = "rgba(44,255,201,.4)"; }
+      var ab = document.getElementById("dbActiveBadge");
+      if (ab) { ab.textContent = "\u25CF REVOKED"; ab.style.color = "var(--red)"; }
+      alert("Key revoked. Check your email for confirmation.\nYou can generate a new key from the API portal.");
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = "Revoke This Key"; }
+      alert("Error: " + (data.error || "Unknown error"));
+    }
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = "Revoke This Key"; }
+    alert("Network error \u2014 please try again.");
+  }
+}
+
+function showDbError(msg) {
+  var el = document.getElementById("dbError");
+  el.textContent   = msg;
+  el.style.display = "block";
+}
+
+/* ── Plan selector ───────────────────────────────────────── */
+var _selectedPlan = { id: "pro", usd: 49, units: 49000000, label: "Pro", dailyLimit: 25000 };
+var PLANS = {
+  pro:   { id: "pro",   usd: 49,  units: 49000000, label: "Pro",   dailyLimit: 25000  },
+  power: { id: "power", usd: 99,  units: 99000000, label: "Power", dailyLimit: 100000 },
+};
+
+function setPlan(id) {
+  _selectedPlan = PLANS[id] || PLANS.pro;
+  var amt = _selectedPlan.usd;
+  document.getElementById("upPlanPro").style.borderColor   = id === "pro"   ? "rgba(192,132,252,.8)"  : "rgba(192,132,252,.2)";
+  document.getElementById("upPlanPro").style.background    = id === "pro"   ? "rgba(192,132,252,.12)" : "transparent";
+  document.getElementById("upPlanPower").style.borderColor = id === "power" ? "rgba(255,209,102,.8)"  : "rgba(255,209,102,.2)";
+  document.getElementById("upPlanPower").style.background  = id === "power" ? "rgba(255,209,102,.12)" : "transparent";
+  var payBtnAmt  = document.getElementById("upPayBtnAmount");
+  var payBtnAmt2 = document.getElementById("upPayBtnAmount2");
+  var manualAmt  = document.getElementById("upManualAmount");
+  if (payBtnAmt)  payBtnAmt.textContent  = amt;
+  if (payBtnAmt2) payBtnAmt2.textContent = amt;
+  if (manualAmt)  manualAmt.textContent  = amt + " USDC";
+}
+
+function selectPlanAndScroll(id) {
+  setPlan(id);
+  var target = document.getElementById("upgrade-pro");
+  if (target) target.scrollIntoView({ behavior: "smooth" });
+}
+
+/* ── Solana wallet connect ───────────────────────────────── */
+var _solanaProvider     = null;
+var _solanaWalletPubkey = null;
+
+function getSolanaProvider() {
+  return (window.phantom && window.phantom.solana)
+    || window.solana
+    || window.backpack
+    || null;
+}
+
+async function initWalletPay() {
+  var provider = getSolanaProvider();
+  if (!provider) {
+    showUpError("No Solana wallet detected. Install Phantom (phantom.com) then refresh.");
+    return;
+  }
+  var btn = document.getElementById("upConnectBtn");
+  btn.textContent = "Connecting\u2026";
+  btn.disabled    = true;
+  try {
+    var resp            = await provider.connect();
+    _solanaProvider     = provider;
+    _solanaWalletPubkey = resp.publicKey.toString();
+    document.getElementById("upWalletConnect").style.display = "none";
+    document.getElementById("upWalletAddr").textContent =
+      _solanaWalletPubkey.slice(0, 5) + "\u2026" + _solanaWalletPubkey.slice(-4);
+    document.getElementById("upWalletReady").style.display = "block";
+  } catch (e) {
+    btn.textContent = "Connect Wallet & Pay " + _selectedPlan.usd + " USDC";
+    btn.disabled    = false;
+    var msg = (e && e.message) ? e.message.toLowerCase() : "";
+    showUpError(
+      (e && e.code === 4001) || msg.includes("reject") || msg.includes("cancel")
+        ? "Connection rejected. Please approve in your wallet."
+        : "Could not connect: " + ((e && e.message) || "unknown error")
+    );
+  }
+}
+
+function disconnectWallet() {
+  _solanaProvider     = null;
+  _solanaWalletPubkey = null;
+  document.getElementById("upWalletReady").style.display   = "none";
+  document.getElementById("upWalletConnect").style.display = "block";
+  var btn = document.getElementById("upConnectBtn");
+  btn.textContent = "Connect Wallet & Pay " + _selectedPlan.usd + " USDC";
+  btn.disabled    = false;
+}
+
+/* ── Send USDC via wallet ─────────────────────────────────── */
+async function sendUsdcPayment() {
+  var provider = _solanaProvider || getSolanaProvider();
+  if (!provider || !_solanaWalletPubkey) { showUpError("Wallet not connected."); return; }
+
+  var email = (document.getElementById("upEmail").value || "").trim();
+  if (!email || !email.includes("@") || !email.includes(".")) {
+    document.getElementById("upEmail").focus();
+    showUpError("Please fill in your email first.");
+    return;
+  }
+
+  /* Show spinner */
+  document.getElementById("upWalletReady").style.display   = "none";
+  document.getElementById("upWalletConfirm").style.display = "block";
+  document.getElementById("upError").style.display         = "none";
+
+  try {
+    var w3 = window.solanaWeb3;
+    if (!w3) throw new Error("solana/web3.js not loaded \u2014 please hard-refresh.");
+
+    var connection   = new w3.Connection("https://api.mainnet-beta.solana.com", "confirmed");
+    var payerPk      = new w3.PublicKey(_solanaWalletPubkey);
+    var mintPk       = new w3.PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"); /* USDC-SPL */
+    var recipientPk  = new w3.PublicKey("2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC"); /* Scan2Moon */
+    var tokenProgId  = new w3.PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+    var ataProgId    = new w3.PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bJ");
+    var sysProgId    = new w3.PublicKey("11111111111111111111111111111111");
+
+    /* Derive associated token accounts */
+    var senderATA = w3.PublicKey.findProgramAddressSync(
+      [payerPk.toBuffer(), tokenProgId.toBuffer(), mintPk.toBuffer()], ataProgId)[0];
+    var recipientATA = w3.PublicKey.findProgramAddressSync(
+      [recipientPk.toBuffer(), tokenProgId.toBuffer(), mintPk.toBuffer()], ataProgId)[0];
+
+    var ixList = [];
+
+    /* Create recipient ATA if it doesn't exist yet */
+    var ataInfo = await connection.getAccountInfo(recipientATA);
+    if (!ataInfo) {
+      ixList.push(new w3.TransactionInstruction({
+        programId: ataProgId,
+        keys: [
+          { pubkey: payerPk,      isSigner: true,  isWritable: true  },
+          { pubkey: recipientATA, isSigner: false, isWritable: true  },
+          { pubkey: recipientPk,  isSigner: false, isWritable: false },
+          { pubkey: mintPk,       isSigner: false, isWritable: false },
+          { pubkey: sysProgId,    isSigner: false, isWritable: false },
+          { pubkey: tokenProgId,  isSigner: false, isWritable: false },
+        ],
+        data: Buffer.alloc(0),
+      }));
+    }
+
+    /* SPL token transfer: amount in raw units (USDC has 6 decimals) */
+    var rawAmount = _selectedPlan.units; /* e.g. 49_000_000 for $49 */
+    var transferData = Buffer.alloc(9);
+    transferData.writeUInt8(3, 0); /* instruction index 3 = Transfer */
+    transferData.writeBigUInt64LE(BigInt(rawAmount), 1);
+
+    ixList.push(new w3.TransactionInstruction({
+      programId: tokenProgId,
+      keys: [
+        { pubkey: senderATA,    isSigner: false, isWritable: true  },
+        { pubkey: recipientATA, isSigner: false, isWritable: true  },
+        { pubkey: payerPk,      isSigner: true,  isWritable: false },
+      ],
+      data: transferData,
+    }));
+
+    /* Build and sign transaction */
+    var { blockhash } = await connection.getLatestBlockhash("confirmed");
+    var tx = new w3.Transaction({ recentBlockhash: blockhash, feePayer: payerPk });
+    ixList.forEach(function(ix) { tx.add(ix); });
+
+    /* Request wallet signature */
+    var signedTx = await provider.signTransaction(tx);
+
+    /* Broadcast */
+    var rawTx = signedTx.serialize();
+    var txSig  = await connection.sendRawTransaction(rawTx, { skipPreflight: false });
+
+    /* Wait for 1 confirmation */
+    await connection.confirmTransaction(txSig, "confirmed");
+
+    /* Success — auto-fill the manual claim field and switch view */
+    document.getElementById("upWalletConfirm").style.display = "none";
+    document.getElementById("upTx").value = txSig;
+
+    var txLinkEl = document.getElementById("upWalletTxLink");
+    if (txLinkEl) {
+      txLinkEl.innerHTML = '<a href="https://solscan.io/tx/' + txSig + '" target="_blank" rel="noopener" style="font-size:12px;color:var(--accent);">View on Solscan &rarr;</a>';
+      txLinkEl.style.display = "block";
+    }
+
+    /* Trigger claim automatically */
+    await claimProKey();
+
+  } catch (e) {
+    document.getElementById("upWalletConfirm").style.display = "none";
+    document.getElementById("upWalletReady").style.display   = "block";
+    var msg = (e && e.message) ? e.message.toLowerCase() : "";
+    showUpError(
+      (e && e.code === 4001) || msg.includes("reject") || msg.includes("cancel")
+        ? "Transaction rejected. You can still pay manually using the address below."
+        : "Payment failed: " + ((e && e.message) || "unknown error") + ". Try the manual method below."
+    );
+  }
+}
+
+/* ── Claim key after pasting tx sig ─────────────────────── */
+async function claimProKey() {
+  var txSig = (document.getElementById("upTx").value          || "").trim();
+  var email = (document.getElementById("upEmail").value       || "").trim();
+  var keyId = (document.getElementById("upExistingKey").value || "").trim();
+
+  if (!txSig) { showUpError("Please paste your transaction signature."); return; }
+  if (!email || !email.includes("@") || !email.includes(".")) {
+    showUpError("Please enter a valid email address."); return;
+  }
+
+  document.getElementById("upFormWrap").style.display = "none";
+  document.getElementById("upError").style.display    = "none";
+  document.getElementById("upSuccess").style.display  = "none";
+  document.getElementById("upLoading").style.display  = "block";
+
+  try {
+    var body = { txSignature: txSig, email: email };
+    if (keyId) body.existingKeyId = keyId;
+
+    var res  = await fetch("/.netlify/functions/upgradeKey", {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify(body),
+    });
+    var data = await res.json();
+    document.getElementById("upLoading").style.display = "none";
+
+    if (!res.ok || !data.ok) {
+      showUpError(data.error || "Verification failed. Please double-check the signature and email.");
+      document.getElementById("upFormWrap").style.display = "block";
+      return;
+    }
+
+    _proKey = data.keyId;
+    document.getElementById("upDisplay").textContent = data.keyId;
+    var planEl = document.getElementById("upSuccessPlan");
+    if (planEl) planEl.textContent = data.planLabel + " \u2014 " + data.dailyLimit.toLocaleString() + " req/day";
+    document.getElementById("upSuccess").style.display = "block";
+
+  } catch (e) {
+    document.getElementById("upLoading").style.display = "none";
+    showUpError("Network error. Please check your connection and try again.");
+    document.getElementById("upFormWrap").style.display = "block";
+  }
+}
+
+function copyProKey() {
+  if (!_proKey) return;
+  navigator.clipboard.writeText(_proKey).then(function() {
+    var btn = document.getElementById("upCopyBtn");
+    btn.textContent = "Copied!";
+    btn.style.background = "rgba(192,132,252,.28)";
+    setTimeout(function() {
+      btn.textContent = "Copy";
+      btn.style.background = "var(--purple-dim)";
+    }, 2000);
+  }).catch(function() {
+    var el = document.getElementById("upDisplay");
+    var r = document.createRange(); r.selectNode(el);
+    window.getSelection().removeAllRanges(); window.getSelection().addRange(r);
+  });
+}
+
+function copyProWallet() {
+  var addr = document.getElementById("proWallet").textContent.trim();
+  var btn  = document.getElementById("proWalletCopyBtn");
+  navigator.clipboard.writeText(addr).then(function() {
+    btn.textContent = "Copied!";
+    setTimeout(function() { btn.textContent = "Copy"; }, 2000);
+  }).catch(function() {});
+}
+
+function showUpError(msg) {
+  var el = document.getElementById("upError");
+  el.textContent   = msg;
+  el.style.display = "block";
+  /* if wallet confirm is showing, switch back to form */
+  var wc = document.getElementById("upWalletConfirm");
+  if (wc && wc.style.display !== "none") {
+    wc.style.display = "none";
+    document.getElementById("upFormWrap").style.display = "block";
+  }
+}
+
+/* ── Enter-key shortcuts ─────────────────────────────────── */
+document.addEventListener("DOMContentLoaded", function() {
+  var kEmail = document.getElementById("kEmail");
+  if (kEmail) kEmail.addEventListener("keydown", function(e) {
+    if (e.key === "Enter") { e.preventDefault(); generateKey(); }
+  });
+});
+</script>
+</body>
+</html>

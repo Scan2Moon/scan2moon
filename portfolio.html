@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <title>Portfolio Scanner — Scan2Moon</title>
   <meta name="description" content="Scan your entire Solana wallet portfolio at once. See risk scores, P&amp;L and market data for every token you hold." />
@@ -10,19 +11,23 @@
   <meta property="og:url"          content="https://scan2moon.com/portfolio.html" />
   <meta property="og:title"        content="Portfolio Scanner — Scan2Moon" />
   <meta property="og:description"  content="Scan your entire Solana wallet portfolio at once. See risk scores, P&L and market data for every token you hold." />
-  <meta property="og:image"        content="https://scan2moon.com/headerweb.png" />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.jpg" />
   <meta property="og:image:width"  content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card"        content="summary_large_image" />
   <meta name="twitter:site"        content="@Scan2Moon" />
   <meta name="twitter:title"       content="Portfolio Scanner — Scan2Moon" />
   <meta name="twitter:description" content="Scan your entire Solana wallet portfolio at once. See risk scores, P&L and market data for every token you hold." />
-  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.png" />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.jpg" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="style-portfolio.css" />
-  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+  <script src="skin-global.js"></script>
 </head>
 <body>
+<script>
+  (function(){try{var s=localStorage.getItem('s2m_dash_skin');if(s)document.body.dataset.skin=s;}catch(e){}}());
+</script>
 
 <div class="app">
 
