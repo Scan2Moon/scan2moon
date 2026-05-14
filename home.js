@@ -1089,14 +1089,21 @@ async function _hmLoadChart(tf) {
 }
 
 async function _hmLoadSimProfile() {
-  try {
-    const wallet = window._saWallet || localStorage.getItem("sa_wallet");
-    if (!wallet) return;
-    const r = await fetch(`${HM_SIM_API}?wallet=${wallet}`, { signal: AbortSignal.timeout(8000) });
-    if (!r.ok) return;
-    const d = await r.json();
-    if (d.profile) { _hmSimProfile = d.profile; _hmUpdateSellPanel(); _hmRenderBalance(); }
-  } catch {}
+  const wallet = window._saWallet || localStorage.getItem("sa_wallet");
+  if (!wallet) return;
+  // Retry up to 3× on 503 — Netlify Blobs occasionally returns null transiently
+  // for registered wallets; the server guards against data wipe by returning 503.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) await new Promise(r => setTimeout(r, attempt * 1500));
+      const r = await fetch(`${HM_SIM_API}?wallet=${wallet}`, { signal: AbortSignal.timeout(8000) });
+      if (r.status === 503) continue; // Blobs transient — retry
+      if (!r.ok) return;
+      const d = await r.json();
+      if (d.profile) { _hmSimProfile = d.profile; _hmUpdateSellPanel(); _hmRenderBalance(); }
+      return;
+    } catch {}
+  }
 }
 
 function _hmUpdateBuyEst() {
