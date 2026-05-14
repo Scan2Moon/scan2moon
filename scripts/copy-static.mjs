@@ -25,10 +25,13 @@ let copied = 0;
 // that are referenced as runtime strings like "/badges/First_Profit.png"
 const DIRS = ['badges', 'CardsBG', 'academy_bages'];
 
+// Netlify rejects filenames containing # or ? — skip them.
+const netlifyUnsafe = (src) => !src.includes('#') && !src.includes('?');
+
 for (const dir of DIRS) {
   const src = join(root, dir);
   if (existsSync(src)) {
-    cpSync(src, join(dist, dir), { recursive: true });
+    cpSync(src, join(dist, dir), { recursive: true, filter: netlifyUnsafe });
     console.log(`  ✓  ${dir}/`);
     copied++;
   } else {
