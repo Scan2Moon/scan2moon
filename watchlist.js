@@ -582,17 +582,27 @@ async function liveRefreshTick() {
       injectPnlStrip(card, pnlSol, pnlPct);
     }
 
-    /* ── Risk badge — show stored score from last full scan ── */
-    const storedScore = t.totalScore ?? 0;
-    const storedLevel = t.riskLevel  || riskLevelFromScore(storedScore);
+    /* ── Risk badge — prefer fresh scanner score (< 5 min old) for consistency ── */
+    let displayScore = t.totalScore ?? 0;
+    let displayLevel = t.riskLevel  || riskLevelFromScore(displayScore);
+    try {
+      const raw = localStorage.getItem(`s2m_score_cache:${t.mint}`);
+      if (raw) {
+        const cached = JSON.parse(raw);
+        if (cached?.score != null && cached?.level && Date.now() - cached.ts < 5 * 60 * 1000) {
+          displayScore = cached.score;
+          displayLevel = cached.level;
+        }
+      }
+    } catch { /* non-fatal */ }
 
     const badgeEl = document.getElementById(`wl-badge-${t.mint}`);
     if (badgeEl) {
-      badgeEl.textContent = storedLevel;
+      badgeEl.textContent = displayLevel;
       const isRow  = !!badgeEl.closest(".wl-row");
       const isFavC = !!badgeEl.closest(".wl-card--fav");
       const base   = isRow ? "wl-row-badge" : isFavC ? "wl-fav-inline-badge" : "wl-risk-badge";
-      badgeEl.className = `${base} ${badgeClass(storedScore)}`;
+      badgeEl.className = `${base} ${badgeClass(displayScore)}`;
     }
 
     /* ── Bundle staleness indicator ── */

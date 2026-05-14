@@ -744,6 +744,22 @@ async function checkRateLimit(ip) {
   } catch { return false; } // Redis error → allow through
 }
 
+// ── Per-wallet trade rate limiter (anti-bot) ──────────────────────────────
+// Limits buy/sell executions to 20 per 5-minute window per wallet.
+// Generous enough for any real user; blocks rapid-fire bot trading.
+const WALLET_TRADE_LIMIT_MAX = 20;
+const WALLET_TRADE_WINDOW_SECS = 300;
+async function checkWalletTradeLimit(wallet) {
+  if (!_redisAvailable() || !wallet) return false;
+  try {
+    const window5m = Math.floor(Date.now() / (WALLET_TRADE_WINDOW_SECS * 1000));
+    const key = `s2m:rl:wt:${wallet}:${window5m}`;
+    const count = await _redisCmd("INCR", key);
+    if (count === 1) await _redisCmd("EXPIRE", key, WALLET_TRADE_WINDOW_SECS + 30);
+    return count > WALLET_TRADE_LIMIT_MAX;
+  } catch { return false; }
+}
+
 exports.handler = async function(event, context) {
   const headers = {
     "Content-Type": "application/json",
@@ -1147,6 +1163,10 @@ exports.handler = async function(event, context) {
 
     // ── BUY ──
     if (action === "buy") {
+      const walletLimited = await checkWalletTradeLimit(wallet);
+      if (walletLimited) {
+        return { statusCode: 429, headers, body: JSON.stringify({ error: "Too many trades — please wait a few minutes." }) };
+      }
       const { mint, symbol, name, logo, priceUsd, amount, slippage, riskScore,
               solAmount: clientSolAmount, solPrice: clientSolPrice } = body;
       if (!mint || !priceUsd) {
@@ -1241,6 +1261,10 @@ exports.handler = async function(event, context) {
 
     // ── SELL ──
     if (action === "sell") {
+      const walletLimitedSell = await checkWalletTradeLimit(wallet);
+      if (walletLimitedSell) {
+        return { statusCode: 429, headers, body: JSON.stringify({ error: "Too many trades — please wait a few minutes." }) };
+      }
       const { mint, priceUsd, amount, slippage, riskScore,
               solPrice: clientSolPrice } = body;
       if (!mint || !priceUsd || !amount) {

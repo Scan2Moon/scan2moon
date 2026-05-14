@@ -225,9 +225,14 @@ async function renderDevHistory() {
     // Apply history penalty to trust score
     const finalTrust = Math.max(0, trustScore - (data.historyPenalty ?? 0));
     if (data.historyPenalty > 0) {
-      // Re-render the trust block with updated score
-      el.querySelector(".dh-trust-block").outerHTML = buildStaticHTML(finalTrust)
-        .match(/<div class="dh-trust-block">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/)?.[0] ?? "";
+      // Re-render the trust block with updated score using safe DOM replacement
+      const trustEl = el.querySelector(".dh-trust-block");
+      if (trustEl) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = buildStaticHTML(finalTrust);
+        const newBlock = tmp.querySelector(".dh-trust-block");
+        if (newBlock) trustEl.replaceWith(newBlock);
+      }
     }
 
     // Token status badge helper
@@ -398,6 +403,19 @@ if (_scanBtn) _scanBtn.onclick = async () => {
     await renderSignals(mint);
     await renderTokenStats(mint);
     await renderFinalScore();
+
+    // Cache exact scanner score in localStorage so other pages (gainers, new-pairs,
+    // watchlist) can show the identical score for tokens you've just scanned.
+    if (window.scanResult?.totalScore != null) {
+      try {
+        const scoreCache = {
+          score: window.scanResult.totalScore,
+          level: window.scanResult.riskLevel,
+          ts: Date.now(),
+        };
+        localStorage.setItem(`s2m_score_cache:${mint}`, JSON.stringify(scoreCache));
+      } catch { /* non-fatal */ }
+    }
 
     renderDevHistory();
     renderTokenLinks(mint);
