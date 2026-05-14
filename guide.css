@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap');
+
 /* ================================================================
    guide.css — Scan2Moon Academy / Quick Start Guide Styles
    ================================================================ */
@@ -774,8 +776,6 @@
 /* ================================================================
    GUIDE HUB — PRO REDESIGN  (scoped to .page-guides)
    ================================================================ */
-
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700;800&display=swap');
 
 /* ── Dot-grid overlay ── */
 .page-guides::before {
