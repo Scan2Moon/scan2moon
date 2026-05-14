@@ -55,7 +55,7 @@ for (const f of readdirSync(root)) {
 // as regular (classic) scripts in HTML and must be copied as-is.
 //   skin-global.js        — blocking <head> skin loader, all pages
 //   guide-risk-scanner-app.js — classic script for guide quiz
-const CLASSIC_SCRIPTS = ['skin-global.js', 'guide-risk-scanner-app.js'];
+const CLASSIC_SCRIPTS = ['skin-global.js', 'guide-risk-scanner-app.js', 'skin-init.js'];
 
 for (const f of CLASSIC_SCRIPTS) {
   const src = join(root, f);
