@@ -790,7 +790,6 @@ exports.handler = async function(event, context) {
     store = await getStore();
   } catch(storeErr) {
     console.error("getStore() failed:", storeErr.message);
-    console.error("getStore() failed:", storeErr.message);
     return { statusCode: 503, headers, body: JSON.stringify({ error: "Storage temporarily unavailable — please retry." }) };
   }
 
@@ -962,10 +961,11 @@ exports.handler = async function(event, context) {
       // Recovery profiles are NEVER written to Redis — they are transient.
       // ══════════════════════════════════════════════════════════════════
 
-      // ── Step 1: Try Blobs (retry 3× for cold-start propagation lag) ──
+      // ── Step 1: Try Blobs (retry 4× for cold-start propagation lag) ──
       let raw = await store.get(wallet);
-      if (!raw) { await new Promise(r => setTimeout(r, 500)); raw = await store.get(wallet); }
-      if (!raw) { await new Promise(r => setTimeout(r, 700)); raw = await store.get(wallet); }
+      if (!raw) { await new Promise(r => setTimeout(r, 400)); raw = await store.get(wallet); }
+      if (!raw) { await new Promise(r => setTimeout(r, 600)); raw = await store.get(wallet); }
+      if (!raw) { await new Promise(r => setTimeout(r, 900)); raw = await store.get(wallet); }
 
       if (raw) {
         // Blobs returned real data — parse it and refresh Redis cache with the
