@@ -89,7 +89,7 @@ let lbPage          = 0;
 const LB_PAGE_SIZE  = 15;
 let solPrice = 0;
 
-const SOL_LOGO = "S2M-Logo.png";
+const SOL_LOGO = "S2M-Logo.webp";
 
 async function fetchSolPrice() {
   /* Route through server-side function — avoids CORS + geo-block issues */

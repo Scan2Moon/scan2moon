@@ -78,7 +78,9 @@ async function checkKeyStatus() {
   document.getElementById("dbPanel").style.display   = "none";
 
   try {
-    var res  = await fetch("/.netlify/functions/keyStatus?apiKey=" + encodeURIComponent(key));
+    var res  = await fetch("/.netlify/functions/keyStatus", {
+      headers: { "X-Api-Key": key },
+    });
     var data = await res.json();
     document.getElementById("dbLoading").style.display = "none";
     btn.disabled = false; btn.textContent = "Check Status";
@@ -394,10 +396,15 @@ async function sendUsdcPayment() {
     var signedTx = await provider.signTransaction(tx);
 
     /* Broadcast */
-    var rawTx = signedTx.serialize();
-    var txSig  = await connection.sendRawTransaction(rawTx, { skipPreflight: false });
+    var rawTx    = signedTx.serialize();
+    var broadcastSig = null; /* tracked separately so the catch block can surface it */
+    var txSig    = await connection.sendRawTransaction(rawTx, { skipPreflight: false });
+    broadcastSig = txSig; /* tx is now on-chain — capture before confirmTransaction can throw */
 
-    /* Wait for 1 confirmation */
+    /* Wait for 1 confirmation.
+       NOTE: if this times out the payment IS on-chain. The catch block below
+       detects this case via broadcastSig and surfaces the sig so the user can
+       claim manually rather than thinking their payment failed. */
     await connection.confirmTransaction(txSig, "confirmed");
 
     /* Success — auto-fill the manual claim field and switch view */
@@ -417,6 +424,18 @@ async function sendUsdcPayment() {
     document.getElementById("upWalletConfirm").style.display = "none";
     document.getElementById("upWalletReady").style.display   = "block";
     var msg = (e && e.message) ? e.message.toLowerCase() : "";
+
+    /* If the broadcast already succeeded but confirmation timed out, the payment
+       IS on-chain. Surface the sig so the user can claim manually. */
+    if (typeof broadcastSig === "string" && broadcastSig.length > 0) {
+      document.getElementById("upTx").value = broadcastSig;
+      showUpError(
+        "Payment sent but confirmation timed out. Your transaction signature has been filled in above — click \"Claim My Key\" to complete. " +
+        "You can also verify on Solscan: https://solscan.io/tx/" + broadcastSig
+      );
+      return;
+    }
+
     showUpError(
       (e && e.code === 4001) || msg.includes("reject") || msg.includes("cancel")
         ? "Transaction rejected. You can still pay manually using the address below."

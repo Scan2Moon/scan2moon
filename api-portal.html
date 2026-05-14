@@ -3,9 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="canonical" href="https://scan2moon.com/api-portal.html" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <title>API &amp; Payments &mdash; Scan2Moon</title>
   <meta name="description" content="Scan2Moon developer API. Pay-per-call with x402 on Base or USDC-SPL on Solana. No sign-up needed for AI agents." />
+  <!-- Open Graph -->
+  <meta property="og:type"         content="website" />
+  <meta property="og:site_name"    content="Scan2Moon" />
+  <meta property="og:url"          content="https://scan2moon.com/api-portal.html" />
+  <meta property="og:title"        content="Developer API — Scan2Moon" />
+  <meta property="og:description"  content="Scan2Moon developer API. Pay-per-call with x402 on Base or USDC-SPL on Solana. No sign-up needed for AI agents." />
+  <meta property="og:image"        content="https://scan2moon.com/headerweb.jpg" />
+  <!-- Twitter / X -->
+  <meta name="twitter:card"        content="summary_large_image" />
+  <meta name="twitter:site"        content="@Scan2Moon" />
+  <meta name="twitter:title"       content="Developer API — Scan2Moon" />
+  <meta name="twitter:description" content="Pay-per-call Solana intelligence API. x402 payments on Base, USDC-SPL on Solana. No sign-up." />
+  <meta name="twitter:image"       content="https://scan2moon.com/headerweb.jpg" />
   <link rel="stylesheet" href="style.css" />
   <link rel="stylesheet" href="scanner-hero.css" />
   <link rel="stylesheet" href="scanner-hero-sizing.css" />
@@ -588,8 +602,25 @@
       .ap-stats-bar { flex-wrap: nowrap; }
       .plans { grid-template-columns: 1fr; }
     }
+    @media(max-width: 680px) {
+      #upPlanIndie, #upPlanPro, #upPlanPower {
+        font-size: 11px;
+        padding: 10px 6px;
+      }
+    }
+    @media(max-width: 480px) {
+      #upPlanGrid { grid-template-columns: 1fr !important; }
+    }
   </style>
-  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
+  <!-- SECURITY: This CDN script builds and signs the USDC payment transaction.
+       Add Subresource Integrity (SRI) before going to high traffic:
+         curl -s https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js \
+           | openssl dgst -sha384 -binary | openssl base64 -A
+       Then add: integrity="sha384-<hash>" crossorigin="anonymous"
+       Until then, the version is pinned (@1.98.0) which is the next best protection. -->
+  <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"
+          integrity="sha384-1/Ll6ABlJDlMx1URcif2stL9Fxod/1rg71YHzGqTl6Bwzi0Vq993Jt/oVLFXfUgQ"
+          crossorigin="anonymous"></script>
   <script src="skin-global.js"></script>
 </head>
 <body>
@@ -656,13 +687,24 @@
     <div class="plan">
       <div class="plan-name">Starter</div>
       <div class="plan-price">Free</div>
-      <div class="plan-limit">1,000 requests / day</div>
+      <div class="plan-limit">100 requests / day</div>
       <ul class="plan-feats">
         <li>All 5 proprietary endpoints</li>
         <li>JSON responses</li>
         <li>Community support</li>
       </ul>
       <a href="#get-key" class="plan-btn">Get Free Key</a>
+    </div>
+    <div class="plan" style="border-color:rgba(52,211,153,0.25);">
+      <div class="plan-name" style="color:#34d399;">Indie</div>
+      <div class="plan-price">$15<span class="plan-period">/mo</span></div>
+      <div class="plan-limit" style="color:#34d399;">3,000 requests / day</div>
+      <ul class="plan-feats">
+        <li>Everything in Starter</li>
+        <li>30&times; higher quota</li>
+        <li>Pay with USDC &mdash; instant</li>
+      </ul>
+      <a href="#upgrade-pro" class="plan-btn" style="border-color:rgba(52,211,153,0.35);color:#34d399;" onclick="selectPlanAndScroll('indie');return false;">Upgrade with USDC</a>
     </div>
     <div class="plan featured">
       <div class="plan-popular">Most Popular</div>
@@ -784,7 +826,7 @@
 
       <!-- Upgrade nudge -->
       <div id="dbUpgradeNudge" style="display:none;margin-top:14px;background:var(--purple-dim);border:1px solid var(--purple-border);border-radius:8px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;">
-        <span style="font-size:11px;color:var(--text-2);font-family:var(--mono);">Need more requests? Upgrade to Pro (25k/day) or Power (100k/day).</span>
+        <span style="font-size:11px;color:var(--text-2);font-family:var(--mono);">Need more requests? Upgrade to Indie (3k/day), Pro (25k/day), or Power (100k/day).</span>
         <a href="#upgrade-pro" onclick="document.getElementById('upgrade-pro').scrollIntoView({behavior:'smooth'});return false;"
            style="font-size:11px;font-weight:700;color:var(--purple);text-decoration:none;white-space:nowrap;font-family:var(--mono);">Upgrade with USDC &rarr;</a>
       </div>
@@ -815,7 +857,11 @@
   <div class="s-title" id="upgrade-pro"><span class="s-dot"></span>Upgrade Plan &mdash; Pay with USDC</div>
   <div class="upgrade-wrap">
     <!-- Plan selector -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:20px;">
+    <div id="upPlanGrid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:20px;">
+      <button onclick="setPlan('indie')" id="upPlanIndie"
+        style="padding:14px 10px;border-radius:8px;border:2px solid rgba(52,211,153,0.25);background:transparent;color:#34d399;font-weight:800;font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.5px;">
+        Indie &mdash; $15/mo<br/><span style="font-weight:400;font-size:10px;color:var(--text-3);">3,000 req/day</span>
+      </button>
       <button onclick="setPlan('pro')" id="upPlanPro"
         style="padding:14px 10px;border-radius:8px;border:2px solid var(--purple-border);background:var(--purple-dim);color:var(--purple);font-weight:800;font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--mono);letter-spacing:.5px;">
         Pro &mdash; $49/mo<br/><span style="font-weight:400;font-size:10px;color:var(--text-3);">25,000 req/day</span>
@@ -1129,7 +1175,7 @@ const data = await res.json();</pre>
     <div id="kFormWrap">
       <div class="fg"><label>Email</label><input type="email" id="kEmail" placeholder="you@example.com" autocomplete="email" /></div>
       <button id="kGenBtn" class="form-sub" onclick="generateKey()">&#9670; Generate Key</button>
-      <div class="form-note">Free forever &bull; 1,000 req/day &bull; No credit card</div>
+      <div class="form-note">Free forever &bull; 100 req/day &bull; No credit card</div>
     </div>
     <div id="kLoading" style="display:none;text-align:center;padding:20px 0;">
       <span style="display:inline-flex;gap:8px;align-items:center;color:var(--accent);font-size:12px;font-weight:700;font-family:var(--mono);">
@@ -1229,7 +1275,7 @@ function showError(msg) {
 }
 
 /* ── Key Dashboard ───────────────────────────────────────── */
-var PLAN_COLORS_DB = { starter:"#2cffc9", pro:"#c084fc", power:"#ffd166", enterprise:"#5bc8ff" };
+var PLAN_COLORS_DB = { starter:"#2cffc9", indie:"#34d399", pro:"#c084fc", power:"#ffd166", enterprise:"#5bc8ff" };
 
 async function checkKeyStatus() {
   var key = (document.getElementById("dbKey").value || "").trim();
@@ -1407,6 +1453,7 @@ function showDbError(msg) {
 /* ── Plan selector ───────────────────────────────────────── */
 var _selectedPlan = { id: "pro", usd: 49, units: 49000000, label: "Pro", dailyLimit: 25000 };
 var PLANS = {
+  indie: { id: "indie", usd: 15,  units: 15000000, label: "Indie", dailyLimit: 3000   },
   pro:   { id: "pro",   usd: 49,  units: 49000000, label: "Pro",   dailyLimit: 25000  },
   power: { id: "power", usd: 99,  units: 99000000, label: "Power", dailyLimit: 100000 },
 };
@@ -1414,6 +1461,8 @@ var PLANS = {
 function setPlan(id) {
   _selectedPlan = PLANS[id] || PLANS.pro;
   var amt = _selectedPlan.usd;
+  document.getElementById("upPlanIndie").style.borderColor = id === "indie" ? "rgba(52,211,153,.8)"   : "rgba(52,211,153,.25)";
+  document.getElementById("upPlanIndie").style.background  = id === "indie" ? "rgba(52,211,153,.12)"  : "transparent";
   document.getElementById("upPlanPro").style.borderColor   = id === "pro"   ? "rgba(192,132,252,.8)"  : "rgba(192,132,252,.2)";
   document.getElementById("upPlanPro").style.background    = id === "pro"   ? "rgba(192,132,252,.12)" : "transparent";
   document.getElementById("upPlanPower").style.borderColor = id === "power" ? "rgba(255,209,102,.8)"  : "rgba(255,209,102,.2)";

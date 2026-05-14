@@ -83,23 +83,28 @@ exports.handler = async (event) => {
     const json  = await holderRes.json();
     const items = json?.data?.items ?? [];
 
-    // Authoritative top10 from overview (stored as 0-1 fraction by Birdeye)
-    // e.g. 0.9999 = 99.99%
-    let top10Percent;
-    if (ovTop10 !== null) {
-      top10Percent = parseFloat((ovTop10 * 100).toFixed(2));
-    } else {
-      // Fallback: sum from holder items (less reliable — field may be absent)
-      top10Percent = 0;
-      items.slice(0, 10).forEach(h => {
-        top10Percent += parseFloat(h.percentage ?? 0);
-      });
-      top10Percent = parseFloat(top10Percent.toFixed(2));
-    }
-
     // Build per-holder percentage for display table
     // v3 items use snake_case: ui_amount, owner/address
     const totalUiAmount = items.reduce((s, h) => s + parseFloat(h.ui_amount ?? h.uiAmount ?? 0), 0) || 1;
+
+    // Authoritative top10 from overview (stored as 0-1 fraction by Birdeye)
+    // Fall back to summing ui_amount-based percentages when overview returns null or 0
+    let top10Percent;
+    const ovTop10Pct = (ovTop10 !== null && ovTop10 > 0)
+      ? parseFloat((ovTop10 * 100).toFixed(2))
+      : null;
+
+    if (ovTop10Pct !== null) {
+      top10Percent = ovTop10Pct;
+    } else {
+      // Fallback: compute from ui_amount (Birdeye items don't include a percentage field)
+      top10Percent = 0;
+      items.slice(0, 10).forEach(h => {
+        const uiAmt = parseFloat(h.ui_amount ?? h.uiAmount ?? 0);
+        top10Percent += (uiAmt / totalUiAmount) * 100;
+      });
+      top10Percent = parseFloat(top10Percent.toFixed(2));
+    }
 
     const holders = items.map(h => {
       const amt = parseFloat(h.ui_amount ?? h.uiAmount ?? 0);

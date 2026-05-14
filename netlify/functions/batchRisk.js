@@ -20,7 +20,7 @@ const { redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis } = require("./db
 
 const MAX_MINTS  = 15;
 const CACHE_TTL  = 90; // seconds
-const CACHE_VER  = "risk:v2:"; // bump version to bust stale v1 entries
+const CACHE_VER  = "risk:v3:"; // v3 = includes top10HolderPercent concentration caps
 
 /* ================================================================
    EXACT COPY of scoring signals from scanSignals.js
@@ -214,7 +214,7 @@ function scorePumpFunRisk(pair, isPumpFun, hasGraduated) {
 }
 
 /* ── FINAL SCORE — same weights as computeRiskScore() in scanSignals.js ── */
-function computeScore(pair, isPumpFun, hasGraduated) {
+function computeScore(pair, isPumpFun, hasGraduated, top10Pct = 0) {
   const ageTrust      = scoreTokenAge(pair);
   const integrity     = scoreMarketIntegrity(pair);
   const pumpDanger    = scorePumpDanger(pair);
@@ -274,6 +274,12 @@ function computeScore(pair, isPumpFun, hasGraduated) {
 
   if (_vol24 < 100 && _liq < 10000) totalScore = Math.min(totalScore, 25);
   if (_vol24 < 500 && _liq <  5000) totalScore = Math.min(totalScore, 28);
+
+  // ── Holder concentration hard caps — matches scanSignals.js exactly ──
+  // top10HolderPercent from Birdeye token_overview (already 0-100 at this point)
+  if (top10Pct >= 95)      totalScore = Math.min(totalScore, 20);
+  else if (top10Pct >= 85) totalScore = Math.min(totalScore, 33);
+  else if (top10Pct >= 70) totalScore = Math.min(totalScore, 48);
 
   return Math.max(5, Math.min(95, totalScore));
 }
@@ -406,7 +412,11 @@ exports.handler = async (event) => {
       const isPumpFun    = String(mint).toLowerCase().endsWith("pump");
       const hasGraduated = (d.liquidity ?? 0) > 500;
 
-      const rs    = computeScore(pair, isPumpFun, hasGraduated);
+      // token_overview returns top10HolderPercent as a 0–1 fraction → convert to 0–100
+      const top10Raw = d.top10HolderPercent ?? null;
+      const top10Pct = top10Raw !== null ? parseFloat((top10Raw * 100).toFixed(2)) : 0;
+
+      const rs    = computeScore(pair, isPumpFun, hasGraduated, top10Pct);
       const level = rs >= 80 ? "MOON" : rs >= 65 ? "LOW" : rs >= 45 ? "MED" : "HIGH";
       const entry = { score: rs, level };
       scores[mint] = entry;

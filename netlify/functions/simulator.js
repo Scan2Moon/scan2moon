@@ -1468,6 +1468,10 @@ exports.handler = async function(event, context) {
       profile.academyXp            = 0;    // ← clear academy XP
       profile.academyProgress      = {};   // ← clear guide completions so XP/SOL rewards can be earned again
       profile.socialTasksClaimed   = [];   // ← allow re-completing social tasks
+      // Mark old pending SOL payouts as cancelled to prevent double-payment after re-claim
+      if (Array.isArray(profile.pendingSolPayouts)) {
+        profile.pendingSolPayouts = profile.pendingSolPayouts.map(p => ({ ...p, cancelled: true, cancelledAt: new Date().toISOString() }));
+      }
       profile.lastLogin            = null; // ← reset daily login so streak restarts from Day 1
       profile.loginStreak          = 0;
       profile.welcomeGiftClaimed   = false; // ← allow re-claiming welcome gift after reset

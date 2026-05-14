@@ -100,59 +100,75 @@ export async function renderFinalScore() {
     container.innerHTML = `
       <div class="score-card-pro" id="scoreCard">
 
-        <div class="score-top">
-          <div class="token-block">
-            <img class="score-logo" id="finalScoreLogo" />
+        <!-- Ambient glow layer (color changes by score) -->
+        <div class="sc-glow-layer ${scoreClass}"></div>
+
+        <!-- Corner brackets -->
+        <div class="sc-corner sc-corner-tl"></div>
+        <div class="sc-corner sc-corner-tr"></div>
+        <div class="sc-corner sc-corner-bl"></div>
+        <div class="sc-corner sc-corner-br"></div>
+
+        <!-- Header row: logo + token name | scan time -->
+        <div class="sc-header">
+          <div class="sc-token-row">
+            <div class="sc-logo-wrap ${scoreClass}">
+              <img class="sc-logo" id="finalScoreLogo" />
+            </div>
             <div>
-              <div class="token-name">${esc(name)}</div>
-              <div class="token-symbol">${esc(symbol)}</div>
+              <div class="sc-token-name">${esc(name)}</div>
+              <div class="sc-token-symbol">${esc(symbol)}</div>
             </div>
           </div>
-          <div class="scan-time">
-            ${t("scan_time_label")}<br/>
-            <strong>${esc(timestamp)}</strong>
+          <div class="sc-scan-time">
+            <div class="sc-scan-time-label">${t("scan_time_label")}</div>
+            <div class="sc-scan-time-val">${esc(timestamp)}</div>
           </div>
         </div>
 
-        <div class="score-main-pro ${scoreClass}">
-          <span class="score-value-pro">${r.totalScore ?? "N/A"}</span>
-          <span class="score-max-pro">/100</span>
-        </div>
+        <!-- Divider -->
+        <div class="sc-divider"></div>
 
-        <div class="risk-badge-pro ${riskBadgeClass}">${esc(riskLevelText)}</div>
-
-        <div class="score-sub-pro">
-          ${t("calculated_from")}
-        </div>
-
-        <div class="signal-explainer-pro ${explainClass}">
-          <strong>${t("explain_risk")}</strong>
-          <div class="explain-text">${esc(explanation)}</div>
-        </div>
-
-        <div class="metrics-row">
-          <div class="metric">
-            <div class="metric-label">${t("liquidity_label")}</div>
-            <div class="metric-value">${esc(liquidity)}</div>
+        <!-- Score + verdict -->
+        <div class="sc-score-section">
+          <div class="sc-score-ring ${scoreClass}">
+            <span class="sc-score-num">${r.totalScore ?? "N/A"}</span>
+            <span class="sc-score-denom">/100</span>
           </div>
-          <div class="metric">
-            <div class="metric-label">${t("top10_label")}</div>
-            <div class="metric-value">${esc(top10)}</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">${t("market_cap_label")}</div>
-            <div class="metric-value">${esc(marketCap)}</div>
-          </div>
-          <div class="metric">
-            <div class="metric-label">${t("net_buy_label")}</div>
-            <div class="metric-value ${pressureClass}">
-              ${esc(netPressureDisplay)}
-              <div class="pressure-badge ${badgeClass}">${esc(pressureBadge)}</div>
-            </div>
+          <div class="sc-verdict-col">
+            <div class="sc-verdict-badge ${riskBadgeClass}">${esc(riskLevelText)}</div>
+            <div class="sc-score-sub">${t("calculated_from")}</div>
           </div>
         </div>
 
-        <!-- ⭐ WATCHLIST BUTTON -->
+        <!-- AI Explanation -->
+        <div class="sc-explain ${explainClass}">
+          <div class="sc-explain-tag">SIGNAL ANALYSIS</div>
+          <div class="sc-explain-text">${esc(explanation)}</div>
+        </div>
+
+        <!-- 4-metric grid -->
+        <div class="sc-metrics">
+          <div class="sc-metric sc-metric-liq">
+            <div class="sc-metric-val">${esc(liquidity)}</div>
+            <div class="sc-metric-lbl">${t("liquidity_label")}</div>
+          </div>
+          <div class="sc-metric sc-metric-top10">
+            <div class="sc-metric-val">${esc(top10)}</div>
+            <div class="sc-metric-lbl">${t("top10_label")}</div>
+          </div>
+          <div class="sc-metric sc-metric-mcap">
+            <div class="sc-metric-val">${esc(marketCap)}</div>
+            <div class="sc-metric-lbl">${t("market_cap_label")}</div>
+          </div>
+          <div class="sc-metric sc-metric-pressure ${pressureClass}">
+            <div class="sc-metric-val">${esc(netPressureDisplay)}</div>
+            <div class="sc-metric-lbl">${t("net_buy_label")}</div>
+            <div class="pressure-badge ${badgeClass}">${esc(pressureBadge)}</div>
+          </div>
+        </div>
+
+        <!-- Watchlist button -->
         ${mint ? `
         <div class="wl-btn-wrap">
           <button class="wl-add-btn ${alreadySaved ? 'wl-saved' : ''}" id="wlToggleBtn">
@@ -161,8 +177,11 @@ export async function renderFinalScore() {
         </div>
         ` : ""}
 
-        <div class="score-footer-pro">
-          ${t("verified_footer")}
+        <!-- Brand footer -->
+        <div class="sc-footer">
+          <span class="sc-footer-brand">⟨S2M⟩ SCAN2MOON</span>
+          <span class="sc-footer-sep">·</span>
+          <span class="sc-footer-url">scan2moon.com</span>
         </div>
 
       </div>

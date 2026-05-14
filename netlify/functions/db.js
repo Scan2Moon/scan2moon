@@ -158,7 +158,7 @@ const CORS_429 = { ...CORS, "Retry-After": "10" };
      { valid:true,  plan, email }      -- authorised
    ────────────────────────────────────────────────────────────── */
 const KEY_RE    = /^s2m_[0-9a-f]{32}$/;
-const PLAN_DAILY = { starter: 1000, pro: 25000, power: 100000, enterprise: 1000000 };
+const PLAN_DAILY = { starter: 100, indie: 3000, pro: 25000, power: 100000, enterprise: 1000000 };
 
 /* Redis key prefixes */
 const NEG_CACHE_PREFIX = "apik:";   // negative cache (invalid/revoked)

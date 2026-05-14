@@ -1,17 +1,19 @@
 const _DEBUG = false;
+// Expose site key as a global so sub-modules can use it without import.meta.env
+window.__s2mKey = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SITE_KEY) || "";
 
 // UPDATED FILE: script.js – V2.0
 import { renderMainAnalysis } from "./mainAnalysis.js";
 import { renderSignals } from "./scanSignals.js";
 import { renderMarketCap, stopMarketCap } from "./marketCap.js";
 import { renderHolders } from "./holders.js";
-import { renderFinalScore } from "./finalScore.js";
+import { renderFinalScore } from "./finalScore.js?v=2";
 import { renderTokenStats } from "./tokenStats.js";
 import { renderNav } from "./nav.js";
 import { askSentinel } from "./sentinel.js";
 import { esc } from "./utils.js";
-import { renderBundlePanel } from "./bundle-panel.js";
-import { renderLpPredictorPanel } from "./lp-predictor.js";
+import { renderBundlePanel } from "./bundle-panel.js?v=4";
+import { renderLpPredictorPanel } from "./lp-predictor.js?v=2";
 import { prefetchScanData } from "./scanData.js";
 import "./community.js";
 import bs58 from "https://cdn.jsdelivr.net/npm/bs58@5.0.0/+esm";
@@ -79,6 +81,29 @@ function checkPrefill() {
   } catch { }
 }
 
+/* ── Dev History SVG gauge (270° arc) ── */
+function dhGaugeSVG(score) {
+  const col = score >= 65 ? "#2cffc9" : score >= 40 ? "#ffd166" : "#ff4d6d";
+  const R = 38, cx = 48, cy = 50;
+  const C = 2 * Math.PI * R;
+  const arcFull = (270 / 360) * C;
+  const arcFill = Math.max(4, (score / 100) * arcFull);
+  return `<svg class="dh-gauge-svg" viewBox="0 0 96 100" width="96" height="100" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="7"
+      stroke-dasharray="${arcFull.toFixed(1)} ${(C-arcFull).toFixed(1)}" stroke-linecap="round" transform="rotate(135 ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="7" opacity="0.2"
+      stroke-dasharray="${arcFill.toFixed(1)} ${(C-arcFill).toFixed(1)}" stroke-linecap="round" transform="rotate(135 ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${col}" stroke-width="6"
+      stroke-dasharray="${arcFill.toFixed(1)} ${(C-arcFill).toFixed(1)}" stroke-linecap="round" transform="rotate(135 ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="26" fill="rgba(0,8,5,0.6)"/>
+    <text x="${cx}" y="${cy - 3}" text-anchor="middle" dominant-baseline="middle"
+      font-family="JetBrains Mono,monospace" font-size="17" font-weight="900" fill="${col}">${score}</text>
+    <text x="${cx}" y="${cy + 12}" text-anchor="middle"
+      font-family="JetBrains Mono,monospace" font-size="6" font-weight="700"
+      fill="rgba(200,220,210,0.4)" letter-spacing="1">TRUST</text>
+  </svg>`;
+}
+
 /* ================================================
    DEV HISTORY PANEL
    ================================================ */
@@ -87,16 +112,20 @@ async function renderDevHistory() {
   if (!el) return;
 
   const creator    = window.scanCreator    || "N/A";
-  const freezeAuth = window.scanFreezeAuth || "Renounced";
+  const mintAuth   = window.scanMintAuth   || "Unknown";
+  const freezeAuth = window.scanFreezeAuth || "Unknown";
   const devPercent = window.scanDevPercent || "N/A";
 
-  const isRenounced = creator === "Renounced";
-  const isFrozen    = freezeAuth !== "Renounced" && freezeAuth !== "N/A";
-  const devPctNum   = parseFloat(devPercent) || 0;
+  // isRenounced = no real deployer wallet (mint was renounced from the start)
+  const isRenounced   = creator === "Renounced" || !creator || creator === "N/A";
+  // isMintRenounced reads the actual mintAuthority field, not the creator wallet
+  const isMintRenounced = mintAuth === "Renounced" || mintAuth === null;
+  const isFrozen        = freezeAuth !== "Renounced" && freezeAuth !== "Unknown" && freezeAuth !== "N/A";
+  const devPctNum       = parseFloat(devPercent) || 0;
 
-  const mintIcon  = isRenounced ? "✅" : "⚠️";
-  const mintLabel = isRenounced ? "Renounced" : "Active";
-  const mintClass = isRenounced ? "dh-good" : "dh-warn";
+  const mintIcon  = isMintRenounced ? "✅" : "⚠️";
+  const mintLabel = isMintRenounced ? "Renounced" : "Active";
+  const mintClass = isMintRenounced ? "dh-good" : "dh-warn";
 
   const freezeIcon  = isFrozen ? "🚨" : "✅";
   const freezeLabel = isFrozen ? "Active – Risky" : "Renounced";
@@ -117,7 +146,7 @@ async function renderDevHistory() {
 
   // Base trust score from on-chain authority data (fast, no API needed)
   let trustScore = 80;
-  if (!isRenounced) trustScore -= 25;
+  if (!isMintRenounced) trustScore -= 25;
   if (isFrozen)     trustScore -= 30;
   if (devPctNum > 15) trustScore -= 25;
   else if (devPctNum > 5) trustScore -= 12;
@@ -131,48 +160,45 @@ async function renderDevHistory() {
   function buildStaticHTML(score) {
     const tc = score >= 65 ? "dh-good" : score >= 40 ? "dh-warn" : "dh-bad";
     const tl = score >= 65 ? "Trustworthy" : score >= 40 ? "Use Caution" : "High Risk";
-    const bc = score >= 65 ? "#2cffc9" : score >= 40 ? "#ffd166" : "#ff4d6d";
     return `
-      <div class="dh-trust-block">
-        <div class="dh-trust-top">
-          <span class="dh-trust-title">Dev Trust Score</span>
-          <span class="dh-trust-num ${tc}">${score}/100</span>
-        </div>
-        <div class="dh-bar-wrap">
-          <div class="dh-bar-fill" style="width:${score}%; background: linear-gradient(90deg, ${bc}, ${bc}bb);"></div>
-        </div>
-        <div class="dh-trust-verdict ${tc}">${tl}</div>
-      </div>
-      <div class="dh-checks">
-        <div class="dh-check-row">
-          <span class="dh-check-icon">${mintIcon}</span>
-          <span class="dh-check-label">Mint Authority</span>
-          <span class="dh-check-val ${mintClass}">${mintLabel}</span>
-        </div>
-        <div class="dh-check-row">
-          <span class="dh-check-icon">${freezeIcon}</span>
-          <span class="dh-check-label">Freeze Authority</span>
-          <span class="dh-check-val ${freezeClass}">${freezeLabel}</span>
-        </div>
-        <div class="dh-check-row">
-          <span class="dh-check-icon">${devIcon}</span>
-          <span class="dh-check-label">Dev Holdings</span>
-          <span class="dh-check-val ${devClass}">${esc(devPercent)} — ${devRisk}</span>
-        </div>
-        <div class="dh-check-row">
-          <span class="dh-check-icon">👛</span>
-          <span class="dh-check-label">Creator Wallet</span>
-          <a href="${esc(solscanCreator)}" target="_blank" rel="noopener noreferrer"
-            class="dh-wallet-link ${isRenounced ? "dh-good" : "dh-warn"}">${esc(shortCreator)}</a>
+      <div class="dh-top">
+        <div class="dh-gauge-col">${dhGaugeSVG(score)}</div>
+        <div class="dh-info-col">
+          <div class="dh-verdict-pill ${tc}">${tl}</div>
+          <div class="dh-checks">
+            <div class="dh-check-row">
+              <span class="dh-check-icon">${mintIcon}</span>
+              <span class="dh-check-label">Mint Auth</span>
+              <span class="dh-check-val ${mintClass}">${mintLabel}</span>
+            </div>
+            <div class="dh-check-row">
+              <span class="dh-check-icon">${freezeIcon}</span>
+              <span class="dh-check-label">Freeze Auth</span>
+              <span class="dh-check-val ${freezeClass}">${freezeLabel}</span>
+            </div>
+            <div class="dh-check-row">
+              <span class="dh-check-icon">${devIcon}</span>
+              <span class="dh-check-label">Dev Holdings</span>
+              <span class="dh-check-val ${devClass}">${esc(devPercent)} — ${devRisk}</span>
+            </div>
+            <div class="dh-check-row">
+              <span class="dh-check-icon">👛</span>
+              <span class="dh-check-label">Creator</span>
+              <a href="${esc(solscanCreator)}" target="_blank" rel="noopener noreferrer"
+                class="dh-wallet-link ${isRenounced ? "dh-good" : "dh-warn"}">${esc(shortCreator)}</a>
+            </div>
+          </div>
         </div>
       </div>`;
   }
 
-  el.innerHTML = buildStaticHTML(trustScore) +
-    `<div id="dh-history-section" class="dh-history-loading">
-       <span class="dh-history-spinner"></span> Scanning deploy history…
-     </div>
-     <div class="dh-note">⛓️ On-chain data · Helius + Birdeye</div>`;
+  el.innerHTML = '<div class="dh-card">'
+    + buildStaticHTML(trustScore)
+    + `<div id="dh-history-section" class="dh-history-loading">
+         <span class="dh-history-spinner"></span> Scanning deploy history…
+       </div>`
+    + '<div class="dh-footer">⛓️ Helius · Birdeye</div>'
+    + '</div>';
 
   // ── Step 2: if wallet is known → skip history fetch ─────────────────────
   if (isRenounced || !creator || creator === "N/A" || creator === "Unknown") {
@@ -183,7 +209,9 @@ async function renderDevHistory() {
 
   // ── Step 3: fetch dev wallet history from our new endpoint ──────────────
   try {
-    const res = await fetch(`/.netlify/functions/devWallet?wallet=${encodeURIComponent(creator)}`);
+    const res = await fetch(`/.netlify/functions/devWallet?wallet=${encodeURIComponent(creator)}`, {
+      headers: { "X-Api-Key": window.__s2mKey || "" },
+    });
     const data = res.ok ? await res.json() : null;
 
     const histSec = document.getElementById("dh-history-section");
@@ -265,31 +293,34 @@ function renderTokenLinks(mint) {
   const risk   = window.scanResult?.riskLevel  ?? "";
 
   const links = [
-    { icon: "📊", label: "Birdeye",       sub: "Charts & liquidity",   url: `https://birdeye.so/token/${mint}?chain=solana`,                                                        cls: "tl-dex"  },
-    { icon: "🔎", label: "Solscan",      sub: "On-chain explorer",     url: `https://solscan.io/token/${mint}`,                                                              cls: "tl-sol"  },
-    { icon: "🦅", label: "Birdeye",      sub: "Advanced analytics",    url: `https://birdeye.so/token/${mint}?chain=solana`,                                                 cls: "tl-bird" },
-    { icon: "🪐", label: "Jupiter",      sub: "Swap token",            url: `https://jup.ag/swap/SOL-${mint}`,                                                              cls: "tl-jup"  },
-    { icon: "🌊", label: "Raydium",      sub: "DEX pool",              url: `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${mint}`,                             cls: "tl-ray"  },
-    { icon: "🐦", label: "Post to X",    sub: "Share your scan",       url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Scanned ${name} ($${symbol}) on @Scan2Moon 🔍\nScore: ${score}/100 — ${risk}\nhttps://scan2moon.com`)}`, cls: "tl-x" },
+    { icon: "📈", label: "DexScreener",  sub: "Charts & price",      url: `https://dexscreener.com/solana/${mint}`,                                                                cls: "tl-dex"  },
+    { icon: "🔎", label: "Solscan",       sub: "On-chain explorer",   url: `https://solscan.io/token/${mint}`,                                                                     cls: "tl-sol"  },
+    { icon: "🦅", label: "Birdeye",       sub: "Advanced analytics",  url: `https://birdeye.so/token/${mint}?chain=solana`,                                                        cls: "tl-bird" },
+    { icon: "🪐", label: "Jupiter",       sub: "Swap token",          url: `https://jup.ag/swap/SOL-${mint}`,                                                                      cls: "tl-jup"  },
+    { icon: "🌊", label: "Raydium",       sub: "DEX pool",            url: `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${mint}`,                                    cls: "tl-ray"  },
+    { icon: "🐦", label: "Post to X",     sub: "Share your scan",     url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Scanned ${name} ($${symbol}) on @Scan2Moon 🔍\nScore: ${score}/100 — ${risk}\nhttps://scan2moon.com`)}`, cls: "tl-x" },
   ];
 
   el.innerHTML = `
-    <div class="tl-mint-row">
-      <span class="tl-mint-label">Token Mint</span>
-      <span class="tl-mint-addr" title="${esc(mint)}">${esc(mint.slice(0,8))}…${esc(mint.slice(-8))}</span>
-      <button class="tl-copy-btn" data-mint="${esc(mint)}">Copy</button>
-    </div>
-    <div class="tl-grid">
-      ${links.map(l => `
-        <a href="${l.url}" target="_blank" rel="noopener noreferrer" class="tl-btn ${l.cls}">
-          <span class="tl-btn-icon">${l.icon}</span>
-          <div class="tl-btn-text">
-            <div class="tl-btn-label">${l.label}</div>
-            <div class="tl-btn-sub">${l.sub}</div>
-          </div>
-          <span class="tl-arrow">↗</span>
-        </a>
-      `).join("")}
+    <div class="tl-card">
+      <div class="tl-mint-row">
+        <span class="tl-mint-label">MINT</span>
+        <span class="tl-mint-addr" title="${esc(mint)}">${esc(mint.slice(0,8))}…${esc(mint.slice(-8))}</span>
+        <button class="tl-copy-btn" data-mint="${esc(mint)}">Copy</button>
+      </div>
+      <div class="tl-grid">
+        ${links.map(l => `
+          <a href="${l.url}" target="_blank" rel="noopener noreferrer" class="tl-btn ${l.cls}">
+            <span class="tl-btn-icon">${l.icon}</span>
+            <div class="tl-btn-text">
+              <div class="tl-btn-label">${l.label}</div>
+              <div class="tl-btn-sub">${l.sub}</div>
+            </div>
+            <span class="tl-arrow">↗</span>
+          </a>
+        `).join("")}
+      </div>
+      <div class="tl-footer">⛓️ Solana · Links open in new tab</div>
     </div>
   `;
 
@@ -359,14 +390,9 @@ if (_scanBtn) _scanBtn.onclick = async () => {
   setText("devHistoryPanel", "Loading...");
   setText("tokenLinksPanel", "Loading...");
 
-  window.scanVol24h  = 0;
-  window.scanBuys24h = 0;
-  stopMarketCap();
-
   try {
-    // ── ONE Birdeye call feeds ALL modules (mainAnalysis, scanSignals, tokenStats) ──
+    stopMarketCap();
     await prefetchScanData(mint);
-
     await renderMainAnalysis(mint);
     await renderHolders(mint);
     await renderSignals(mint);

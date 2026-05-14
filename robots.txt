@@ -1,0 +1,15 @@
+User-agent: *
+Allow: /
+
+# Keep admin panel out of search indexes
+Disallow: /admin.html
+
+# No need to crawl audit/doc files
+Disallow: /*.md$
+Disallow: /*.docx$
+Disallow: /*.txt$
+
+# Don't crawl Netlify internals
+Disallow: /.netlify/
+
+Sitemap: https://scan2moon.com/sitemap.xml

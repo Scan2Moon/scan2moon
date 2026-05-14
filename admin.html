@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Scan2Moon — Admin</title>
+<script>if(typeof __DEFINES__==="undefined")window.__DEFINES__={};</script>
 <style>
 :root {
   --bg:       #080f18;
@@ -210,8 +211,10 @@ tr:hover td { background: rgba(255,255,255,.02); }
   <div class="login-box">
     <div class="login-logo">S2M Admin</div>
     <div class="login-sub">Scan2Moon key management</div>
-    <input type="password" id="secretInput" placeholder="Admin secret key" autocomplete="current-password" />
-    <button class="login-btn" onclick="login()">Sign In</button>
+    <form onsubmit="login();return false;">
+      <input type="password" id="secretInput" placeholder="Admin secret key" autocomplete="current-password" />
+      <button type="submit" class="login-btn">Sign In</button>
+    </form>
     <div class="login-err" id="loginErr">Invalid secret. Try again.</div>
   </div>
 </div>

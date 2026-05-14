@@ -735,7 +735,7 @@ a {
   position: relative;
   width: 100%;
   height: 220px;
-  background: url("headerweb.png") center center / cover no-repeat;
+  background: url("headerweb.webp") center center / cover no-repeat;
   border-radius: 12px;
   margin-bottom: 20px;
   overflow: hidden;
@@ -2425,7 +2425,7 @@ body[data-skin="neon_degen"] .nav-dropdown .nav-drop-btn.active .nav-link-icon, 
 
 /* ── Neon Degen hero header image ── */
 body[data-skin="neon_degen"] .hero-header, html[data-skin="neon_degen"] .hero-header {
-  background-image: url("headerweb-neon-degen.png") !important;
+  background-image: url("headerweb-neon-degen.webp") !important;
 }
 
 /* ============================================================
@@ -8619,59 +8619,6 @@ body[data-skin="neon_degen"] .mc-live-label, html[data-skin="neon_degen"] .mc-li
   color: #c840ff !important;
   letter-spacing: 1.5px !important;
 }
-body[data-skin="neon_degen"] .dh-trust-block, html[data-skin="neon_degen"] .dh-trust-block {
-  background: rgba(200,64,255,0.03) !important;
-  border: 1px solid rgba(200,64,255,0.1) !important;
-  border-radius: 12px !important;
-  padding: 14px 16px !important;
-  margin-bottom: 14px !important;
-}
-body[data-skin="neon_degen"] .dh-check-row, html[data-skin="neon_degen"] .dh-check-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  padding: 8px 6px !important;
-  border-bottom: 1px solid rgba(200,64,255,0.06) !important;
-  font-size: 13px !important;
-}
-body[data-skin="neon_degen"] .dh-good, html[data-skin="neon_degen"] .dh-good { color: #c840ff !important; }
-body[data-skin="neon_degen"] .dh-bad, html[data-skin="neon_degen"] .dh-bad { color: #ff3aaa !important; }
-body[data-skin="neon_degen"] .dh-note, html[data-skin="neon_degen"] .dh-note {
-  font-size: 11px !important;
-  opacity: 0.4 !important;
-  text-align: center !important;
-  padding-top: 6px !important;
-  border-top: 1px solid rgba(200,64,255,0.06) !important;
-  font-style: italic !important;
-}
-body[data-skin="neon_degen"] .tl-mint-row, html[data-skin="neon_degen"] .tl-mint-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 8px 10px !important;
-  background: rgba(200,64,255,0.04) !important;
-  border: 1px solid rgba(200,64,255,0.1) !important;
-  border-radius: 8px !important;
-  margin-bottom: 12px !important;
-  flex-wrap: wrap !important;
-}
-body[data-skin="neon_degen"] .tl-copy-btn, html[data-skin="neon_degen"] .tl-copy-btn {
-  padding: 3px 10px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  background: rgba(200,64,255,0.1) !important;
-  border: 1px solid rgba(200,64,255,0.3) !important;
-  border-radius: 6px !important;
-  color: #c840ff !important;
-  cursor: pointer !important;
-  flex-shrink: 0 !important;
-  transition: all 0.2s ease !important;
-}
-body[data-skin="neon_degen"] .tl-copy-btn:hover, html[data-skin="neon_degen"] .tl-copy-btn:hover { background: rgba(200,64,255,0.2) !important; }
-body[data-skin="neon_degen"] .tl-dex, html[data-skin="neon_degen"] .tl-dex { background: rgba(200,64,255,0.06) !important;  border-color: rgba(200,64,255,0.18) !important;  color: #f0d8ff !important; }
-body[data-skin="neon_degen"] .tl-dex:hover, html[data-skin="neon_degen"] .tl-dex:hover { border-color: rgba(200,64,255,0.45) !important;  background: rgba(200,64,255,0.12) !important; }
-body[data-skin="neon_degen"] .tl-x, html[data-skin="neon_degen"] .tl-x { background: rgba(220,170,255,0.04) !important; border-color: rgba(220,170,255,0.12) !important; color: #f0d8ff !important; }
-body[data-skin="neon_degen"] .tl-x:hover, html[data-skin="neon_degen"] .tl-x:hover { border-color: rgba(220,170,255,0.35) !important; background: rgba(220,170,255,0.08) !important; }
 body[data-skin="neon_degen"] .mc-change-badge.mc-up, html[data-skin="neon_degen"] .mc-change-badge.mc-up {
   background: rgba(200,64,255,0.12) !important;
   color: #c840ff !important;
@@ -8713,59 +8660,6 @@ body[data-skin="neon_degen"] .mc-live-label, html[data-skin="neon_degen"] .mc-li
   color: #c840ff !important;
   letter-spacing: 1.5px !important;
 }
-body[data-skin="neon_degen"] .dh-trust-block, html[data-skin="neon_degen"] .dh-trust-block {
-  background: rgba(200,64,255,0.03) !important;
-  border: 1px solid rgba(200,64,255,0.1) !important;
-  border-radius: 12px !important;
-  padding: 14px 16px !important;
-  margin-bottom: 14px !important;
-}
-body[data-skin="neon_degen"] .dh-check-row, html[data-skin="neon_degen"] .dh-check-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 10px !important;
-  padding: 8px 6px !important;
-  border-bottom: 1px solid rgba(200,64,255,0.06) !important;
-  font-size: 13px !important;
-}
-body[data-skin="neon_degen"] .dh-good, html[data-skin="neon_degen"] .dh-good { color: #c840ff !important; }
-body[data-skin="neon_degen"] .dh-bad, html[data-skin="neon_degen"] .dh-bad { color: #ff3aaa !important; }
-body[data-skin="neon_degen"] .dh-note, html[data-skin="neon_degen"] .dh-note {
-  font-size: 11px !important;
-  opacity: 0.4 !important;
-  text-align: center !important;
-  padding-top: 6px !important;
-  border-top: 1px solid rgba(200,64,255,0.06) !important;
-  font-style: italic !important;
-}
-body[data-skin="neon_degen"] .tl-mint-row, html[data-skin="neon_degen"] .tl-mint-row {
-  display: flex !important;
-  align-items: center !important;
-  gap: 8px !important;
-  padding: 8px 10px !important;
-  background: rgba(200,64,255,0.04) !important;
-  border: 1px solid rgba(200,64,255,0.1) !important;
-  border-radius: 8px !important;
-  margin-bottom: 12px !important;
-  flex-wrap: wrap !important;
-}
-body[data-skin="neon_degen"] .tl-copy-btn, html[data-skin="neon_degen"] .tl-copy-btn {
-  padding: 3px 10px !important;
-  font-size: 11px !important;
-  font-weight: 700 !important;
-  background: rgba(200,64,255,0.1) !important;
-  border: 1px solid rgba(200,64,255,0.3) !important;
-  border-radius: 6px !important;
-  color: #c840ff !important;
-  cursor: pointer !important;
-  flex-shrink: 0 !important;
-  transition: all 0.2s ease !important;
-}
-body[data-skin="neon_degen"] .tl-copy-btn:hover, html[data-skin="neon_degen"] .tl-copy-btn:hover { background: rgba(200,64,255,0.2) !important; }
-body[data-skin="neon_degen"] .tl-dex, html[data-skin="neon_degen"] .tl-dex { background: rgba(200,64,255,0.06) !important;  border-color: rgba(200,64,255,0.18) !important;  color: #f0d8ff !important; }
-body[data-skin="neon_degen"] .tl-dex:hover, html[data-skin="neon_degen"] .tl-dex:hover { border-color: rgba(200,64,255,0.45) !important;  background: rgba(200,64,255,0.12) !important; }
-body[data-skin="neon_degen"] .tl-x, html[data-skin="neon_degen"] .tl-x { background: rgba(220,170,255,0.04) !important; border-color: rgba(220,170,255,0.12) !important; color: #f0d8ff !important; }
-body[data-skin="neon_degen"] .tl-x:hover, html[data-skin="neon_degen"] .tl-x:hover { border-color: rgba(220,170,255,0.35) !important; background: rgba(220,170,255,0.08) !important; }
 body[data-skin="neon_degen"] .wl-add-btn, html[data-skin="neon_degen"] .wl-add-btn {
   display: inline-flex !important;
   align-items: center !important;
@@ -8795,23 +8689,81 @@ body[data-skin="neon_degen"] .wl-add-btn.wl-saved, html[data-skin="neon_degen"] 
   color: #c840ff !important;
   box-shadow: 0 0 14px rgba(200,64,255,0.15) !important;
 }
-body[data-skin="neon_degen"] .dh-history-spinner, html[data-skin="neon_degen"] .dh-history-spinner {
-  display: inline-block !important;
-  width: 10px !important;
-  height: 10px !important;
-  border: 2px solid rgba(200,64,255,0.2) !important;
+/* ── Dev History – neon_degen ── */
+body[data-skin="neon_degen"] .dh-card,
+html[data-skin="neon_degen"] .dh-card {
+  background: transparent;
+}
+body[data-skin="neon_degen"] .dh-check-row,
+html[data-skin="neon_degen"] .dh-check-row {
+  border-bottom-color: rgba(200,64,255,0.08) !important;
+}
+body[data-skin="neon_degen"] .dh-good,
+html[data-skin="neon_degen"] .dh-good { color: #c840ff !important; }
+body[data-skin="neon_degen"] .dh-bad,
+html[data-skin="neon_degen"] .dh-bad  { color: #ff3aaa !important; }
+body[data-skin="neon_degen"] .dh-footer,
+body[data-skin="neon_degen"] .dh-note,
+html[data-skin="neon_degen"] .dh-footer,
+html[data-skin="neon_degen"] .dh-note {
+  border-top-color: rgba(200,64,255,0.08) !important;
+  color: rgba(230,180,255,0.4) !important;
+}
+body[data-skin="neon_degen"] .dh-history-spinner,
+html[data-skin="neon_degen"] .dh-history-spinner {
+  border-color: rgba(200,64,255,0.2) !important;
   border-top-color: #c840ff !important;
-  border-radius: 50% !important;
   animation: dh-spin 0.8s linear infinite !important;
-  flex-shrink: 0 !important;
 }
-body[data-skin="neon_degen"] .dh-history-loaded, html[data-skin="neon_degen"] .dh-history-loaded {
-  border-top: 1px solid rgba(200,64,255,0.08) !important;
-  margin-top: 10px !important;
-  padding-top: 10px !important;
+body[data-skin="neon_degen"] .dh-history-loaded,
+html[data-skin="neon_degen"] .dh-history-loaded {
+  background: rgba(200,64,255,0.03) !important;
+  border-color: rgba(200,64,255,0.1) !important;
 }
-body[data-skin="neon_degen"] .dh-badge-active, html[data-skin="neon_degen"] .dh-badge-active { background: rgba(200,64,255,0.12) !important; color: #c840ff !important; border: 1px solid rgba(200,64,255,0.25) !important; }
-body[data-skin="neon_degen"] .dh-badge-rug, html[data-skin="neon_degen"] .dh-badge-rug { background: rgba(255,58,170,0.15) !important; color: #ff3aaa !important; border: 1px solid rgba(255,58,170,0.3) !important; }
+body[data-skin="neon_degen"] .dh-badge-active,
+html[data-skin="neon_degen"] .dh-badge-active { background: rgba(200,64,255,0.12) !important; color: #c840ff !important; border: 1px solid rgba(200,64,255,0.25) !important; }
+body[data-skin="neon_degen"] .dh-badge-rug,
+html[data-skin="neon_degen"] .dh-badge-rug   { background: rgba(255,58,170,0.15) !important; color: #ff3aaa !important; border: 1px solid rgba(255,58,170,0.3) !important; }
+body[data-skin="neon_degen"] .dh-verdict-pill.dh-good,
+html[data-skin="neon_degen"] .dh-verdict-pill.dh-good { background: rgba(200,64,255,0.1) !important; color: #c840ff !important; border-color: rgba(200,64,255,0.25) !important; }
+body[data-skin="neon_degen"] .dh-verdict-pill.dh-warn,
+html[data-skin="neon_degen"] .dh-verdict-pill.dh-warn { background: rgba(255,209,102,0.1) !important; color: #ffd166 !important; border-color: rgba(255,209,102,0.25) !important; }
+body[data-skin="neon_degen"] .dh-verdict-pill.dh-bad,
+html[data-skin="neon_degen"] .dh-verdict-pill.dh-bad { background: rgba(255,58,170,0.1) !important; color: #ff3aaa !important; border-color: rgba(255,58,170,0.25) !important; }
+
+/* ── Token Links – neon_degen ── */
+body[data-skin="neon_degen"] .tl-mint-row,
+html[data-skin="neon_degen"] .tl-mint-row {
+  background: rgba(200,64,255,0.04) !important;
+  border-color: rgba(200,64,255,0.12) !important;
+}
+body[data-skin="neon_degen"] .tl-mint-addr,
+html[data-skin="neon_degen"] .tl-mint-addr { color: #e0b0ff !important; }
+body[data-skin="neon_degen"] .tl-copy-btn,
+html[data-skin="neon_degen"] .tl-copy-btn {
+  background: rgba(200,64,255,0.1) !important;
+  border-color: rgba(200,64,255,0.3) !important;
+  color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .tl-copy-btn:hover,
+html[data-skin="neon_degen"] .tl-copy-btn:hover { background: rgba(200,64,255,0.2) !important; }
+body[data-skin="neon_degen"] .tl-dex,
+html[data-skin="neon_degen"] .tl-dex { background: rgba(200,64,255,0.06) !important; border-color: rgba(200,64,255,0.18) !important; color: #f0d8ff !important; }
+body[data-skin="neon_degen"] .tl-dex:hover,
+html[data-skin="neon_degen"] .tl-dex:hover { border-color: rgba(200,64,255,0.45) !important; background: rgba(200,64,255,0.12) !important; }
+body[data-skin="neon_degen"] .tl-ray,
+html[data-skin="neon_degen"] .tl-ray { background: rgba(200,64,255,0.06) !important; border-color: rgba(200,64,255,0.18) !important; color: #f0d8ff !important; }
+body[data-skin="neon_degen"] .tl-ray:hover,
+html[data-skin="neon_degen"] .tl-ray:hover { border-color: rgba(200,64,255,0.45) !important; background: rgba(200,64,255,0.12) !important; }
+body[data-skin="neon_degen"] .tl-x,
+html[data-skin="neon_degen"] .tl-x { background: rgba(220,170,255,0.04) !important; border-color: rgba(220,170,255,0.12) !important; color: #f0d8ff !important; }
+body[data-skin="neon_degen"] .tl-x:hover,
+html[data-skin="neon_degen"] .tl-x:hover { border-color: rgba(220,170,255,0.35) !important; background: rgba(220,170,255,0.08) !important; }
+body[data-skin="neon_degen"] .tl-footer,
+html[data-skin="neon_degen"] .tl-footer {
+  border-top-color: rgba(200,64,255,0.08) !important;
+  color: rgba(230,180,255,0.4) !important;
+}
 
 /* ---- scanner-panels.css (26 rules) ---- */
 body[data-skin="neon_degen"] .scan-log-panel.log-done, html[data-skin="neon_degen"] .scan-log-panel.log-done {
@@ -12271,3 +12223,208 @@ html[data-skin="neon_degen"] .sa-trade-info {
   background: rgba(200,64,255,0.04) !important;
   color: rgba(200,150,255,0.6) !important;
 }
+
+/* ================================================================
+   NEON DEGEN — Bundle Attack Detector (bd-*) overrides
+   ================================================================ */
+body[data-skin="neon_degen"] .bd-loading-dots span,
+html[data-skin="neon_degen"] .bd-loading-dots span {
+  background: #c840ff !important;
+  animation: bdDotPulseND 1.2s ease-in-out infinite !important;
+}
+body[data-skin="neon_degen"] .bd-loading-dots span:nth-child(2),
+html[data-skin="neon_degen"] .bd-loading-dots span:nth-child(2) { animation-delay: 0.2s !important; }
+body[data-skin="neon_degen"] .bd-loading-dots span:nth-child(3),
+html[data-skin="neon_degen"] .bd-loading-dots span:nth-child(3) { animation-delay: 0.4s !important; }
+body[data-skin="neon_degen"] .bd-loading-text,
+html[data-skin="neon_degen"] .bd-loading-text { color: rgba(200,64,255,0.55) !important; }
+body[data-skin="neon_degen"] .bd-gauge-svg,
+html[data-skin="neon_degen"] .bd-gauge-svg { filter: drop-shadow(0 0 10px rgba(200,64,255,0.40)) !important; }
+body[data-skin="neon_degen"] .bd-verdict-clean,
+html[data-skin="neon_degen"] .bd-verdict-clean {
+  background: rgba(200,64,255,0.09) !important;
+  border-color: rgba(200,64,255,0.28) !important;
+  color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .bd-clean,
+html[data-skin="neon_degen"] .bd-clean {
+  color: #c840ff !important;
+  border-color: #c840ff !important;
+  background: rgba(200,64,255,0.05) !important;
+}
+body[data-skin="neon_degen"] .bd-stat-val.bd-clean,
+html[data-skin="neon_degen"] .bd-stat-val.bd-clean { color: #c840ff !important; background: none !important; border: none !important; }
+body[data-skin="neon_degen"] .bd-slot-normal,
+html[data-skin="neon_degen"] .bd-slot-normal {
+  background: rgba(200,64,255,0.08) !important;
+  color: #c840ff !important;
+  border-color: rgba(200,64,255,0.20) !important;
+}
+body[data-skin="neon_degen"] .bd-buyer-addr,
+html[data-skin="neon_degen"] .bd-buyer-addr { color: rgba(200,64,255,0.65) !important; }
+body[data-skin="neon_degen"] .bd-buyer-addr:hover,
+html[data-skin="neon_degen"] .bd-buyer-addr:hover { color: #c840ff !important; }
+body[data-skin="neon_degen"] .bd-buyer-row:hover,
+html[data-skin="neon_degen"] .bd-buyer-row:hover {
+  background: rgba(200,64,255,0.04) !important;
+  border-color: rgba(200,64,255,0.12) !important;
+}
+body[data-skin="neon_degen"] .bd-stat:hover,
+html[data-skin="neon_degen"] .bd-stat:hover { border-color: rgba(200,64,255,0.15) !important; }
+body[data-skin="neon_degen"] .bd-section-title,
+html[data-skin="neon_degen"] .bd-section-title { color: rgba(200,100,255,0.38) !important; }
+body[data-skin="neon_degen"] .bd-section-title::after,
+html[data-skin="neon_degen"] .bd-section-title::after { background: rgba(200,64,255,0.08) !important; }
+body[data-skin="neon_degen"] .bd-buyers-title,
+html[data-skin="neon_degen"] .bd-buyers-title { color: rgba(200,100,255,0.38) !important; }
+body[data-skin="neon_degen"] .bd-buyers-title::after,
+html[data-skin="neon_degen"] .bd-buyers-title::after { background: rgba(200,64,255,0.08) !important; }
+body[data-skin="neon_degen"] .bd-chart-wrap,
+html[data-skin="neon_degen"] .bd-chart-wrap { border-color: rgba(200,64,255,0.10) !important; }
+body[data-skin="neon_degen"] .bd-stat-label,
+html[data-skin="neon_degen"] .bd-stat-label { color: rgba(190,130,255,0.42) !important; }
+body[data-skin="neon_degen"] .bd-footer,
+html[data-skin="neon_degen"] .bd-footer { color: rgba(180,100,255,0.30) !important; }
+
+/* ================================================================
+   NEON DEGEN — LP Pull Predictor (lp-*) overrides
+   ================================================================ */
+body[data-skin="neon_degen"] .lp-loading-dots span,
+html[data-skin="neon_degen"] .lp-loading-dots span {
+  background: #c840ff !important;
+  animation: lpDotND 1.2s ease-in-out infinite !important;
+}
+body[data-skin="neon_degen"] .lp-loading-dots span:nth-child(2),
+html[data-skin="neon_degen"] .lp-loading-dots span:nth-child(2) { animation-delay: 0.2s !important; }
+body[data-skin="neon_degen"] .lp-loading-dots span:nth-child(3),
+html[data-skin="neon_degen"] .lp-loading-dots span:nth-child(3) { animation-delay: 0.4s !important; }
+body[data-skin="neon_degen"] .lp-loading-text,
+html[data-skin="neon_degen"] .lp-loading-text { color: rgba(200,64,255,0.55) !important; }
+body[data-skin="neon_degen"] .lp-gauge-svg,
+html[data-skin="neon_degen"] .lp-gauge-svg { filter: drop-shadow(0 0 10px rgba(200,64,255,0.40)) !important; }
+body[data-skin="neon_degen"] .lp-verdict-clean,
+html[data-skin="neon_degen"] .lp-verdict-clean {
+  background: rgba(200,64,255,0.09) !important;
+  border-color: rgba(200,64,255,0.28) !important;
+  color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .lp-clean,
+html[data-skin="neon_degen"] .lp-clean { color: #c840ff !important; }
+body[data-skin="neon_degen"] .lp-mini-stat:hover,
+html[data-skin="neon_degen"] .lp-mini-stat:hover { border-color: rgba(200,64,255,0.15) !important; }
+body[data-skin="neon_degen"] .lp-mini-label,
+html[data-skin="neon_degen"] .lp-mini-label { color: rgba(190,130,255,0.42) !important; }
+body[data-skin="neon_degen"] .lp-section-title,
+html[data-skin="neon_degen"] .lp-section-title { color: rgba(200,100,255,0.38) !important; }
+body[data-skin="neon_degen"] .lp-section-title::after,
+html[data-skin="neon_degen"] .lp-section-title::after { background: rgba(200,64,255,0.08) !important; }
+body[data-skin="neon_degen"] .lp-signal-positive,
+html[data-skin="neon_degen"] .lp-signal-positive { border-left-color: rgba(200,64,255,0.45) !important; }
+body[data-skin="neon_degen"] .lp-signal-positive .lp-signal-bar-fill,
+html[data-skin="neon_degen"] .lp-signal-positive .lp-signal-bar-fill { background: #c840ff !important; }
+body[data-skin="neon_degen"] .lp-signal-positive .lp-signal-delta,
+html[data-skin="neon_degen"] .lp-signal-positive .lp-signal-delta { color: #c840ff !important; }
+body[data-skin="neon_degen"] .lp-dev-note,
+html[data-skin="neon_degen"] .lp-dev-note {
+  background: rgba(200,64,255,0.04) !important;
+  border-color: rgba(200,64,255,0.10) !important;
+  border-left-color: rgba(200,64,255,0.35) !important;
+}
+body[data-skin="neon_degen"] .lp-footer,
+html[data-skin="neon_degen"] .lp-footer { color: rgba(180,100,255,0.30) !important; }
+
+/* ── Final Score Card – neon_degen ── */
+body[data-skin="neon_degen"] .sc-corner-tl,
+body[data-skin="neon_degen"] .sc-corner-tr,
+body[data-skin="neon_degen"] .sc-corner-bl,
+body[data-skin="neon_degen"] .sc-corner-br,
+html[data-skin="neon_degen"] .sc-corner-tl,
+html[data-skin="neon_degen"] .sc-corner-tr,
+html[data-skin="neon_degen"] .sc-corner-bl,
+html[data-skin="neon_degen"] .sc-corner-br {
+  border-color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .sc-glow-layer.score-moon,
+body[data-skin="neon_degen"] .sc-glow-layer.score-good,
+html[data-skin="neon_degen"] .sc-glow-layer.score-moon,
+html[data-skin="neon_degen"] .sc-glow-layer.score-good {
+  background: radial-gradient(circle, #c840ff 0%, transparent 70%) !important;
+}
+body[data-skin="neon_degen"] .sc-logo-wrap::before,
+html[data-skin="neon_degen"] .sc-logo-wrap::before {
+  background: linear-gradient(135deg, #c840ff, rgba(200,64,255,0.1)) !important;
+}
+body[data-skin="neon_degen"] .sc-token-symbol,
+html[data-skin="neon_degen"] .sc-token-symbol { color: rgba(200,64,255,0.7) !important; }
+body[data-skin="neon_degen"] .sc-divider,
+html[data-skin="neon_degen"] .sc-divider {
+  background: linear-gradient(90deg, transparent, rgba(200,64,255,0.3), transparent) !important;
+}
+body[data-skin="neon_degen"] .sc-score-ring,
+html[data-skin="neon_degen"] .sc-score-ring {
+  border-color: rgba(200,64,255,0.2) !important;
+  box-shadow: 0 0 30px rgba(200,64,255,0.1), inset 0 1px 0 rgba(200,64,255,0.06) !important;
+}
+body[data-skin="neon_degen"] .score-moon .sc-score-num,
+body[data-skin="neon_degen"] .score-good .sc-score-num,
+html[data-skin="neon_degen"] .score-moon .sc-score-num,
+html[data-skin="neon_degen"] .score-good .sc-score-num {
+  color: #c840ff !important;
+  text-shadow: 0 0 40px rgba(200,64,255,0.6), 0 0 80px rgba(200,64,255,0.2) !important;
+}
+body[data-skin="neon_degen"] .risk-badge-moon,
+body[data-skin="neon_degen"] .risk-badge-low,
+html[data-skin="neon_degen"] .risk-badge-moon,
+html[data-skin="neon_degen"] .risk-badge-low {
+  background: rgba(200,64,255,0.1) !important;
+  border-color: rgba(200,64,255,0.35) !important;
+  color: #c840ff !important;
+  box-shadow: 0 0 16px rgba(200,64,255,0.15) !important;
+}
+body[data-skin="neon_degen"] .sc-explain,
+html[data-skin="neon_degen"] .sc-explain {
+  border-color: rgba(200,64,255,0.15) !important;
+  background: rgba(200,64,255,0.04) !important;
+  border-left-color: rgba(200,64,255,0.45) !important;
+}
+body[data-skin="neon_degen"] .sc-metric,
+html[data-skin="neon_degen"] .sc-metric {
+  border-color: rgba(200,64,255,0.1) !important;
+}
+body[data-skin="neon_degen"] .sc-metric:hover,
+html[data-skin="neon_degen"] .sc-metric:hover {
+  border-color: rgba(200,64,255,0.22) !important;
+}
+body[data-skin="neon_degen"] .sc-metric-pressure.positive-pressure .sc-metric-val,
+body[data-skin="neon_degen"] .positive-pressure,
+html[data-skin="neon_degen"] .sc-metric-pressure.positive-pressure .sc-metric-val,
+html[data-skin="neon_degen"] .positive-pressure { color: #c840ff !important; }
+body[data-skin="neon_degen"] .badge-bullish,
+html[data-skin="neon_degen"] .badge-bullish {
+  background: rgba(200,64,255,0.12) !important;
+  color: #c840ff !important;
+  border-color: rgba(200,64,255,0.25) !important;
+}
+body[data-skin="neon_degen"] .wl-add-btn,
+html[data-skin="neon_degen"] .wl-add-btn {
+  background: rgba(200,64,255,0.07) !important;
+  border-color: rgba(200,64,255,0.25) !important;
+}
+body[data-skin="neon_degen"] .wl-add-btn:hover,
+html[data-skin="neon_degen"] .wl-add-btn:hover {
+  background: rgba(200,64,255,0.13) !important;
+  border-color: rgba(200,64,255,0.5) !important;
+  color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .wl-add-btn.wl-saved,
+html[data-skin="neon_degen"] .wl-add-btn.wl-saved {
+  background: rgba(200,64,255,0.12) !important;
+  border-color: rgba(200,64,255,0.45) !important;
+  color: #c840ff !important;
+}
+body[data-skin="neon_degen"] .sc-footer,
+html[data-skin="neon_degen"] .sc-footer {
+  border-top-color: rgba(200,64,255,0.1) !important;
+}
+body[data-skin="neon_degen"] .sc-footer-brand,
+html[data-skin="neon_degen"] .sc-footer-brand { color: rgba(200,64,255,0.5) !important; }

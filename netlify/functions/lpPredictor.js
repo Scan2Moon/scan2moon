@@ -263,11 +263,19 @@ exports.handler = async function(event) {
     const liquidityUsd = parseFloat(ov.liquidity ?? 0) || 0;
     const mcap         = parseFloat(ov.mc         ?? 0) || 0;
 
-    /* Pool age from first trade time */
+    /* Pool age — try multiple timestamp fields across both API responses */
     var poolAgeDays = null;
-    var firstTradeTs = ov.firstTradeUnixTime ?? ov.createdTime ?? ov.blockUnixTime ?? null;
-    if (firstTradeTs) {
+    var firstTradeTs = ov.firstTradeUnixTime
+      ?? ov.createdTime
+      ?? ov.blockUnixTime
+      ?? ov.lastTradeUnixTime   /* rough proxy if nothing else */
+      ?? sec.creationTime       /* token_security sometimes has this */
+      ?? sec.blockTime
+      ?? null;
+    if (firstTradeTs && firstTradeTs > 0) {
       poolAgeDays = (Date.now() / 1000 - firstTradeTs) / 86400;
+      /* sanity-check: ignore future or impossibly old timestamps */
+      if (poolAgeDays < 0 || poolAgeDays > 3650) poolAgeDays = null;
     }
 
     /* Compute score */

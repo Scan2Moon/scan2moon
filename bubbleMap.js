@@ -696,23 +696,12 @@ function _bmBuild() {
     const mx = (e.clientX - rect.left) * (_bmCanvas.width  / rect.width);
     const my = (e.clientY - rect.top)  * (_bmCanvas.height / rect.height);
     const hit = _bmSim.hitTest(mx, my);
-    if (hit && window.openHomeChart) {
-      // Build minimal tok object compatible with openHomeChart
-      window.closeBubbleMap();
-      const tok = {
-        mint:      hit.mint,
-        name:      hit.name,
-        symbol:    hit.symbol,
-        logo:      hit.logo,
-        price:     hit.price,
-        mc:        hit.mc,
-        liquidity: hit.liq,
-        vol24h:    hit.vol24h,
-        changes:   { h24: hit.change },
-        riskScore: 50,
-        riskLevel: "MED",
-      };
-      window.openHomeChart(tok);
+    if (hit?.mint) {
+      // Navigate directly — do NOT call closeBubbleMap() here because home.js
+      // overrides it on bubbles.html to redirect to index.html, which would win.
+      // Page navigation destroys the overlay anyway.
+      try { localStorage.setItem("s2m_prefill_mint", hit.mint); } catch {}
+      window.location.href = "risk-scanner.html";
     }
   });
 
@@ -724,9 +713,9 @@ function _bmBuild() {
     const mx = (touch.clientX - rect.left) * (_bmCanvas.width  / rect.width);
     const my = (touch.clientY - rect.top)  * (_bmCanvas.height / rect.height);
     const hit = _bmSim.hitTest(mx, my);
-    if (hit && window.openHomeChart) {
-      window.closeBubbleMap();
-      window.openHomeChart({ mint: hit.mint, name: hit.name, symbol: hit.symbol, logo: hit.logo, price: hit.price, mc: hit.mc, liquidity: hit.liq, vol24h: hit.vol24h, changes: { h24: hit.change }, riskScore: 50, riskLevel: "MED" });
+    if (hit?.mint) {
+      try { localStorage.setItem("s2m_prefill_mint", hit.mint); } catch {}
+      window.location.href = "risk-scanner.html";
     }
   }, { passive: true });
 

@@ -29,14 +29,17 @@ const CORS = {
 
 const SOL_RECIPIENT     = "2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC";
 const SOL_USDC_MINT     = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
-const MIN_PRICE_USDC    = 49.0;          /* minimum accepted payment */
+const MIN_PRICE_USDC    = 15.0;          /* minimum accepted payment */
 const MAX_TX_AGE_SECS   = 48 * 3600;    /* 48-hour claim window */
 const PLAN_BY_AMOUNT    = [
   { minUsd: 99 - 0.01,  plan: "power", dailyLimit: 100000, label: "Power" },
   { minUsd: 49 - 0.01,  plan: "pro",   dailyLimit: 25000,  label: "Pro"   },
+  { minUsd: 15 - 0.01,  plan: "indie", dailyLimit: 3000,   label: "Indie" },
 ];
 const EMAIL_RE        = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const KEY_RE          = /^s2m_[0-9a-f]{32}$/;
+/* Solana tx signatures are 87–88 base58 characters. Anything else is not a real sig. */
+const TX_SIG_RE       = /^[1-9A-HJ-NP-Za-km-z]{87,88}$/;
 
 function generateKey() {
   var bytes = new Uint8Array(16);
@@ -70,8 +73,8 @@ exports.handler = async (event) => {
   var email        = (body.email       || "").trim().toLowerCase();
   var existingKey  = (body.existingKeyId || "").trim();
 
-  if (!txSig || txSig.length < 40)
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Transaction signature required" }) };
+  if (!txSig || !TX_SIG_RE.test(txSig))
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Invalid transaction signature. Solana signatures are 87–88 base58 characters." }) };
   if (!email || !EMAIL_RE.test(email))
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Valid email required" }) };
 

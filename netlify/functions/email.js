@@ -10,6 +10,7 @@ const SITE_URL = process.env.URL || "https://scan2moon.com";
 
 const PLAN_COLORS = {
   starter:    "#2cffc9",
+  indie:      "#34d399",
   pro:        "#9945ff",
   power:      "#ff9632",
   enterprise: "#5bc8ff",
@@ -17,6 +18,7 @@ const PLAN_COLORS = {
 
 const PLAN_LABELS = {
   starter:    "Starter",
+  indie:      "Indie",
   pro:        "Pro",
   power:      "Power",
   enterprise: "Enterprise",

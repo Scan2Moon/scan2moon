@@ -220,19 +220,19 @@ async function verifySolanaPayment(txSignature, endpointKey) {
   var required = PRICES[endpointKey] ? PRICES[endpointKey].usd : 0.001;
   var transfers = Array.isArray(txData.tokenTransfers) ? txData.tokenTransfers : [];
 
+  /* Helius Enhanced Transactions normalises SPL transfers so toUserAccount
+     is always the owner's public key (not the ATA address).
+     We check toUserAccount === SOL_RECIPIENT directly — no ambiguity. */
   var match = null;
   for (var i = 0; i < transfers.length; i++) {
     var t = transfers[i];
     if (
       t.mint === SOL_USDC_MINT &&
-      (t.toUserAccount === SOL_RECIPIENT || t.toTokenAccount) &&
+      t.toUserAccount === SOL_RECIPIENT &&
       parseFloat(t.tokenAmount || 0) >= required - 0.0001  /* tiny tolerance for rounding */
     ) {
-      /* Extra check: toUserAccount OR derive from toTokenAccount */
-      if (t.toUserAccount === SOL_RECIPIENT) {
-        match = t;
-        break;
-      }
+      match = t;
+      break;
     }
   }
 
@@ -260,6 +260,23 @@ async function verifySolanaPayment(txSignature, endpointKey) {
      { access: "denied",  status, error }          bad key / bad payment
    ================================================================ */
 async function resolveAccess(event, endpointKey) {
+
+  /* 0a. Localhost dev bypass — only active when host is localhost/127.0.0.1.
+         Never fires in production (scan2moon.com).                          */
+  var host = ((event.headers && (event.headers["host"] || event.headers["Host"])) || "").toLowerCase();
+  if (host.includes("localhost") || host.includes("127.0.0.1")) {
+    return { access: "key", plan: "power", email: "dev@localhost" };
+  }
+
+  /* 0b. Site-owner internal key — checked against SITE_KEY env var, no DB.
+         Used in production so the web UI can call proprietary endpoints.    */
+  var siteKey = (process.env.SITE_KEY || "").trim();
+  if (siteKey) {
+    var incomingKey = (event.headers && (event.headers["x-api-key"] || event.headers["X-Api-Key"] || "")).trim();
+    if (incomingKey === siteKey) {
+      return { access: "key", plan: "power", email: "owner@scan2moon.com" };
+    }
+  }
 
   /* 1. API key ── */
   var keyId = extractKey(event);

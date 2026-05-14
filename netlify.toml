@@ -82,6 +82,13 @@
   status = 404
   force = true
 
+# ── Admin panel: hide from search engines, never cache ──────────────────────
+[[headers]]
+  for = "/admin.html"
+  [headers.values]
+    X-Robots-Tag = "noindex, nofollow"
+    Cache-Control = "no-store"
+
 # ── detectOnchain: watches Pump.fun + Raydium on-chain via Helius every 1 min ──
 [functions."detectOnchain"]
   schedule = "* * * * *"

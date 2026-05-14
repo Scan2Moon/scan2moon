@@ -107,11 +107,13 @@ function quickRisk(tok) {
   /* ── Vol / MC ratio (scoreVolMcapRatio proxy) ──
      Real scanner uses vol/MC not vol/liq.
      High vol relative to MC is a dump churn signal only when price is falling.
-     For rising tokens it's just high activity, not a risk.                    ── */
+     For rising tokens it's just high activity, not a risk.
+     NOTE: quickRisk has no holder concentration data — be conservative here.  ── */
   if (mc > 0 && vol24 > 0) {
     const vm = vol24 / mc;
-    if (vm > 20)              score -= 15;  // extreme churn
-    else if (vm > 5)          score -= 5;
+    if (vm > 50)              score -= 30;  // insane churn — extremely suspicious
+    else if (vm > 20)         score -= 20;  // extreme churn
+    else if (vm > 5)          score -= 8;
     else if (vm > 1)          score += 3;   // healthy activity
   }
 
@@ -299,7 +301,8 @@ exports.handler = async (event) => {
         vol24h:    t.v24hUSD   || 0,
         holders:   t.holder    || 0,
         riskScore: rs,
-        riskLevel: rs >= 80 ? "MOON" : rs >= 65 ? "LOW" : rs >= 45 ? "MED" : "HIGH",
+        // Thresholds raised: quickRisk lacks holder concentration so be conservative
+        riskLevel: rs >= 80 ? "MOON" : rs >= 72 ? "LOW" : rs >= 48 ? "MED" : "HIGH",
       })),
     };
 

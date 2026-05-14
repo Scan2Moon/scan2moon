@@ -3,31 +3,32 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="canonical" href="https://scan2moon.com/risk-scanner.html" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <title>Risk Scanner — Scan2Moon</title>
-  <meta name="description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 10 live signals." />
+  <meta name="description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 12 live signals." />
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="Scan2Moon" />
   <meta property="og:url" content="https://scan2moon.com/risk-scanner.html" />
   <meta property="og:title" content="Risk Scanner — Scan2Moon" />
-  <meta property="og:description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 10 live signals." />
+  <meta property="og:description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 12 live signals." />
   <meta property="og:image" content="https://scan2moon.com/headerweb.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@Scan2Moon" />
   <meta name="twitter:title" content="Risk Scanner — Scan2Moon" />
-  <meta name="twitter:description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 10 live signals." />
+  <meta name="twitter:description" content="Scan any Solana token for rug risk in seconds. On-chain analysis, LP lock detection, holder concentration and 12 live signals." />
   <meta name="twitter:image" content="https://scan2moon.com/headerweb.jpg" />
-  <link rel="stylesheet" href="style.css" />
-  <link rel="stylesheet" href="scanner-hero.css" />
+  <link rel="stylesheet" href="style.css?v=5" />
+  <link rel="stylesheet" href="scanner-hero.css?v=3" />
   <link rel="stylesheet" href="scanner-hero-sizing.css" />
   <link rel="stylesheet" href="watchlist.css" />
-  <link rel="stylesheet" href="bundle.css" />
-  <link rel="stylesheet" href="lp-predictor.css" />
+  <link rel="stylesheet" href="bundle.css?v=2" />
+  <link rel="stylesheet" href="lp-predictor.css?v=2" />
   <link rel="stylesheet" href="sentinel.css" />
   <!-- PRO REDESIGN — loaded last for full override authority -->
-  <link rel="stylesheet" href="scanner-pro.css" />
+  <link rel="stylesheet" href="scanner-pro.css?v=3" />
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <script src="https://unpkg.com/@solana/web3.js@1.98.0/lib/index.iife.min.js"></script>
@@ -70,6 +71,7 @@
       <div class="rs-scan-pre">CA</div>
       <input
         id="mintInput"
+        aria-label="Token contract address (mint)"
         data-i18n="scan_placeholder"
         placeholder="Paste token contract address (mint)…"
         autocomplete="off"
@@ -82,7 +84,7 @@
       <div class="rs-scan-hint-sep"></div>
       <span class="rs-scan-hint-text">No wallet connection required</span>
       <div class="rs-scan-hint-sep"></div>
-      <span class="rs-scan-hint-text">10 live on-chain signals</span>
+      <span class="rs-scan-hint-text">12 live on-chain signals</span>
     </div>
   </div>
 
@@ -306,6 +308,6 @@
   })();
 </script>
 
-<script type="module" src="script.js"></script>
+<script type="module" src="script.js?v=3"></script>
 </body>
 </html>

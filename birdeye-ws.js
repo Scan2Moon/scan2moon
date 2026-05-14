@@ -127,7 +127,7 @@ class BirdeyeWsManager {
     this._reconnDelay = _MIN_DELAY;
     this.readyState   = "open";
     this._stopPolling();
-    console.log("[BirdeyeWS] Dev WebSocket connected ✓");
+    if (_WS_DEBUG) console.log("[BirdeyeWS] Dev WebSocket connected ✓");
     this._startPing();
     this._resubscribeAll();
   }
@@ -164,7 +164,7 @@ class BirdeyeWsManager {
     this.readyState  = "closed";
     this._stopPing();
     if (!this._destroyed && this._subs.size > 0) {
-      console.log(`[BirdeyeWS] Dev WS closed (${e.code}) — reconnecting in ${this._reconnDelay}ms`);
+      if (_WS_DEBUG) console.log(`[BirdeyeWS] Dev WS closed (${e.code}) — reconnecting in ${this._reconnDelay}ms`);
       this._reconnTimer = setTimeout(() => {
         this._reconnTimer = null;
         this.connect();
@@ -189,7 +189,7 @@ class BirdeyeWsManager {
   _startPolling() {
     if (this._pollTimer) return;
     this.readyState = "polling";
-    console.log("[BirdeyeWS] Secure server-proxy polling active (every", _POLL_MS, "ms)");
+    if (_WS_DEBUG) console.log("[BirdeyeWS] Secure server-proxy polling active (every", _POLL_MS, "ms)");
     this._pollTimer = setInterval(() => this._pollAllMints(), _POLL_MS);
     this._pollAllMints(); // immediate first tick
   }

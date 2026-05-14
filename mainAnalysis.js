@@ -50,6 +50,7 @@ export async function renderMainAnalysis(mint) {
 
   // ── Expose globals for other panels (Dev History, risk scorer, etc.) ──
   window.scanCreator    = creator;
+  window.scanMintAuth   = mintAuth;   // "Renounced" | address | "Unknown"
   window.scanFreezeAuth = freezeAuth;
   window.scanDevPercent = devPct;
   window.scanMint       = mint;

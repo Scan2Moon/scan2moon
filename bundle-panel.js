@@ -11,6 +11,13 @@ function esc(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
+/* ── Score → colour ── */
+function scoreColor(score) {
+  if (score >= 78) return "#2cffc9";
+  if (score >= 50) return "#ffd166";
+  return "#ff4d6d";
+}
+
 /* ── Bundle bar gradient by score ── */
 function bundleBarGradient(score) {
   if (score >= 80) return "linear-gradient(90deg, #2cffc9, #1dd4a5)";
@@ -26,15 +33,61 @@ function bundleScoreClass(score) {
   return "bd-bad";
 }
 
+/* ── SVG donut gauge (270deg arc) ── */
+function scoreGaugeSVG(score, color) {
+  const R = 48, cx = 60, cy = 62;
+  const C = 2 * Math.PI * R;
+  const arcFull = (270 / 360) * C;
+  const arcFill = Math.max(4, (score / 100) * arcFull);
+  const ticks = [25, 50, 75].map(v => {
+    const angle = (135 + (v / 100) * 270) * Math.PI / 180;
+    const x1 = (cx + (R - 7) * Math.cos(angle)).toFixed(1);
+    const y1 = (cy + (R - 7) * Math.sin(angle)).toFixed(1);
+    const x2 = (cx + (R + 1) * Math.cos(angle)).toFixed(1);
+    const y2 = (cy + (R + 1) * Math.sin(angle)).toFixed(1);
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>`;
+  }).join('');
+  return `<svg class="bd-gauge-svg" viewBox="0 0 120 124" width="120" height="124" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="9"
+      stroke-dasharray="${arcFull.toFixed(1)} ${(C - arcFull).toFixed(1)}" stroke-linecap="round" transform="rotate(135 ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${color}" stroke-width="9" opacity="0.22"
+      stroke-dasharray="${arcFill.toFixed(1)} ${(C - arcFill).toFixed(1)}" stroke-linecap="round" transform="rotate(135 ${cx} ${cy})"/>
+    <circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${color}" stroke-width="8"
+      stroke-dasharray="${arcFill.toFixed(1)} ${(C - arcFill).toFixed(1)}" stroke-linecap="round" transform="rotate(135 ${cx} ${cy})"/>
+    ${ticks}
+    <circle cx="${cx}" cy="${cy}" r="34" fill="rgba(0,8,5,0.6)"/>
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" dominant-baseline="middle"
+      font-family="JetBrains Mono,monospace" font-size="22" font-weight="900" fill="${color}">${score}</text>
+    <text x="${cx}" y="${cy + 14}" text-anchor="middle"
+      font-family="JetBrains Mono,monospace" font-size="7.5" font-weight="700"
+      fill="rgba(200,220,210,0.4)" letter-spacing="1">SCORE</text>
+  </svg>`;
+}
+
+/* ── Early buyer supply-% bar chart ── */
+function slotChartSVG(topBuyers) {
+  const buyers = (topBuyers || []).slice(0, 10);
+  if (!buyers.length) return '';
+  const maxPct = Math.max(...buyers.map(b => parseFloat(b.percentage) || 0), 1);
+  const W = 100, barH = 3, gap = 1;
+  const totalH = buyers.length * (barH + gap);
+  const bars = buyers.map(function(b, i) {
+    const pct = parseFloat(b.percentage) || 0;
+    const w   = Math.max(2, (pct / maxPct) * W);
+    const col = pct >= 10 ? '#ff4d6d' : pct >= 5 ? '#ffd166' : '#2cffc9';
+    const y   = i * (barH + gap);
+    return '<rect x="0" y="' + y + '" width="' + w.toFixed(1) + '" height="' + barH + '" fill="' + col + '" rx="1"/>';
+  }).join('');
+  return '<svg viewBox="0 0 ' + W + ' ' + totalH + '" class="bd-chart-svg" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">' + bars + '</svg>';
+}
+
 /* ================================================================
    renderBundlePanel(mint)
-   Called from script.js after the main scan completes.
    ================================================================ */
 export async function renderBundlePanel(mint) {
   const el = document.getElementById("bundlePanel");
   if (!el) return;
 
-  /* Loading state */
   el.innerHTML = `
     <div class="bd-loading">
       <div class="bd-loading-dots"><span></span><span></span><span></span></div>
@@ -45,52 +98,46 @@ export async function renderBundlePanel(mint) {
   try {
     const res = await fetch("/.netlify/functions/bundle", {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "X-Api-Key": window.__s2mKey || "" },
       body:    JSON.stringify({ mint, hasGraduated: !!window.scanHasGraduated }),
     });
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status}`);
     }
-
     data = await res.json();
   } catch (e) {
     el.innerHTML = `
       <div class="bd-error">
-        <span class="bd-error-icon">⚠️</span>
+        <span class="bd-error-icon">&#x26A0;&#xFE0F;</span>
         ${t("bundle_error")} — ${esc(e.message)}
       </div>`;
     window.bundleData = null;
     return;
   }
 
-  /* Cache for risk score integration */
   window.bundleData = data;
 
-  /* ── Pump.fun special case ── */
+  /* Pump.fun special case */
   if (data.verdict === "PUMP_FUN") {
+    const col = "#ffd166";
     el.innerHTML = `
       <div class="bd-card">
-        <div class="bd-score-row">
-          <div class="bd-score-block">
-            <div class="bd-score-num bd-warn">—</div>
-            <div class="bd-score-label">${t("bundle_safety_score")}</div>
-          </div>
-          <div class="bd-verdict-pill bd-verdict-warn">
-            <span class="bd-verdict-icon">🔁</span>
-            <span class="bd-verdict-text">${t("bundle_pump_token")}</span>
+        <div class="bd-top">
+          <div class="bd-gauge-col">${scoreGaugeSVG("—", col)}</div>
+          <div class="bd-info-col">
+            <div class="bd-verdict-pill bd-verdict-warn">
+              <span class="bd-verdict-icon">&#x1F501;</span>
+              <span class="bd-verdict-text">${t("bundle_pump_token")}</span>
+            </div>
+            <div class="bd-explanation bd-warn">${t("bundle_explain_pump")}</div>
           </div>
         </div>
-        <div class="bd-explanation bd-warn">
-          ${t("bundle_explain_pump")}
-        </div>
-        <div class="bd-footer">⛓️ ${t("bundle_pump_footer")}</div>
+        <div class="bd-footer">&#x26D3;&#xFE0F; ${t("bundle_pump_footer")}</div>
       </div>`;
     return;
   }
 
-  /* ── Verdict config ── */
   const verdictMap = {
     CLEAN:      { icon: "✅", cls: "bd-clean", bgCls: "bd-verdict-clean", labelKey: "bundle_no_bundle"  },
     SUSPICIOUS: { icon: "⚠️", cls: "bd-warn",  bgCls: "bd-verdict-warn",  labelKey: "bundle_suspicious" },
@@ -101,7 +148,6 @@ export async function renderBundlePanel(mint) {
   const v = verdictMap[data.verdict] || verdictMap.SUSPICIOUS;
   const verdictLabel = t(v.labelKey);
 
-  /* ── Explanation copy ── */
   const explanations = {
     CLEAN:      t("bundle_explain_clean"),
     SUSPICIOUS: t("bundle_explain_sus"),
@@ -111,58 +157,63 @@ export async function renderBundlePanel(mint) {
   };
   const explanation = explanations[data.verdict] || explanations.SUSPICIOUS;
 
-  /* ── Slot offset colour ── */
-  function slotBadgeClass(offset) {
-    if (offset === 0) return "bd-slot-zero";
-    if (offset <= 2)  return "bd-slot-early";
+  function pctBadgeClass(pct) {
+    if (pct >= 10) return "bd-slot-zero";
+    if (pct >= 3)  return "bd-slot-early";
     return "bd-slot-normal";
   }
 
-  /* ── Common funder alert ── */
+  const color = scoreColor(data.bundleScore);
+
   const funderAlert = data.commonFunderDetected ? `
     <div class="bd-alert">
       🚨 <strong>${esc(String(data.commonFunderCount))} early buyer wallets</strong>
       ${t("bundle_funder_alert")}
     </div>` : "";
 
-  /* ── Top buyers table ── */
-  const buyersHtml = (data.topBuyers && data.topBuyers.length > 0) ? `
-    <div class="bd-buyers">
-      <div class="bd-buyers-title">${t("bundle_earliest_buyers")}  <span class="bd-buyers-sub">(creation slot: ${esc(String(data.creationSlot))})</span></div>
-      <div class="bd-buyers-table">
-        ${data.topBuyers.map(b => `
-          <div class="bd-buyer-row">
-            <a href="https://solscan.io/account/${esc(b.fullWallet)}" target="_blank" rel="noopener noreferrer" class="bd-buyer-addr">${esc(b.wallet)}</a>
-            <span class="bd-buyer-slot ${slotBadgeClass(b.slotOffset)}">Block +${esc(String(b.slotOffset))}</span>
-          </div>`).join("")}
-      </div>
+  const hasTopBuyers = data.topBuyers && data.topBuyers.length > 0;
+
+  const chartHtml = hasTopBuyers ? `
+    <div class="bd-chart-wrap">
+      <div class="bd-section-title">EARLY BUYER CONCENTRATION</div>
+      ${slotChartSVG(data.topBuyers)}
     </div>` : "";
 
-  /* ── Render ── */
+  var buyerRowsHtml = "";
+  if (hasTopBuyers) {
+    data.topBuyers.forEach(function(b) {
+      const pct = parseFloat(b.percentage) || 0;
+      const cls = pctBadgeClass(pct);
+      const row = '<div class="bd-buyer-row">'
+        + '<a href="https://solscan.io/account/' + esc(b.fullWallet) + '" target="_blank" rel="noopener noreferrer" class="bd-buyer-addr">' + esc(b.wallet) + '</a>'
+        + '<span class="bd-buyer-slot ' + cls + '">' + pct.toFixed(2) + '%' + '<' + '/span>'
+        + '<' + '/div>';
+      buyerRowsHtml += row;
+    });
+  }
+
+  const buyersHtml = hasTopBuyers ? `
+    <div class="bd-buyers">
+      <div class="bd-buyers-title">EARLIEST BUYERS <span class="bd-buyers-sub">(supply % held)</span></div>
+      <div class="bd-buyers-table">${buyerRowsHtml}</div>
+    </div>` : "";
+
   el.innerHTML = `
     <div class="bd-card">
 
-      <!-- Score row -->
-      <div class="bd-score-row">
-        <div class="bd-score-block">
-          <div class="bd-score-num ${bundleScoreClass(data.bundleScore)}">${esc(String(data.bundleScore))}</div>
-          <div class="bd-score-label">${t("bundle_safety_score")}</div>
+      <div class="bd-top">
+        <div class="bd-gauge-col">
+          ${scoreGaugeSVG(data.bundleScore, color)}
         </div>
-        <div class="bd-verdict-pill ${v.bgCls}">
-          <span class="bd-verdict-icon">${v.icon}</span>
-          <span class="bd-verdict-text">${verdictLabel}</span>
+        <div class="bd-info-col">
+          <div class="bd-verdict-pill ${v.bgCls}">
+            <span class="bd-verdict-icon">${v.icon}</span>
+            <span class="bd-verdict-text">${verdictLabel}</span>
+          </div>
+          <div class="bd-explanation ${v.cls}">${esc(explanation)}</div>
         </div>
       </div>
 
-      <!-- Progress bar -->
-      <div class="bd-bar-wrap">
-        <div class="bd-bar-fill" style="width:${esc(String(data.bundleScore))}%; background:${bundleBarGradient(data.bundleScore)};"></div>
-      </div>
-
-      <!-- Explanation -->
-      <div class="bd-explanation ${v.cls}">${esc(explanation)}</div>
-
-      <!-- Stats grid -->
       <div class="bd-stats">
         <div class="bd-stat">
           <div class="bd-stat-val ${data.earlyPct > 20 ? "bd-bad" : data.earlyPct > 10 ? "bd-warn" : "bd-clean"}">
@@ -189,6 +240,7 @@ export async function renderBundlePanel(mint) {
       </div>
 
       ${funderAlert}
+      ${chartHtml}
       ${buyersHtml}
 
       <div class="bd-footer">
@@ -196,9 +248,7 @@ export async function renderBundlePanel(mint) {
         <span class="bd-footer-sep">•</span>
         ${esc(String(data.uniqueWallets))} ${data.uniqueWallets !== 1 ? t("bundle_wallets_examined") : t("bundle_wallet_examined")}
         <span class="bd-footer-sep">•</span>
-        <span title="Bundle detection requires raw on-chain transaction data that Birdeye does not yet expose. All market/price data on this platform is powered by Birdeye.">
-          Tx data: Solana RPC
-        </span>
+        <span title="Bundle detection uses Birdeye holder data. Tx data: Solana RPC">Tx data: Solana RPC</span>
       </div>
       ${data.pumpFunOrigin ? `
       <div class="bd-explanation bd-warn" style="margin-top:10px; font-size:0.82em;">
@@ -211,8 +261,6 @@ export async function renderBundlePanel(mint) {
 
 /* ================================================================
    getBundleRiskScore()
-   Returns the bundle safety score for integration into Total Risk Score.
-   Returns 75 (neutral) when no data is available.
    ================================================================ */
 export function getBundleRiskScore() {
   if (!window.bundleData || window.bundleData.verdict === "NO_DATA") return 75;

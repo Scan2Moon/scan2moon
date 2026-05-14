@@ -40,7 +40,12 @@ export default defineConfig(({ command }) => ({
   root:      __dirname,
   // Dev: serve the project root so CSS url("headerweb.png") etc. resolve correctly.
   // Build: false — copy-static.mjs handles all static assets manually.
-  publicDir: command === 'serve' ? __dirname : false,
+  // publicDir intentionally false: setting it to __dirname (project root) caused
+  // node_modules/vite/dist/client/env.mjs to be served as a raw static file,
+  // bypassing Vite's __DEFINES__ substitution → "ReferenceError: __DEFINES__ is not defined".
+  // Vite already serves all project-root files (images, css, js) via its root resolver,
+  // so publicDir: false is safe here and does not break CSS url() asset loading.
+  publicDir: false,
 
   build: {
     outDir:     'dist',

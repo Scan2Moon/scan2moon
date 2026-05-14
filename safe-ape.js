@@ -107,7 +107,7 @@ function birdeyeTokenToPair(t, mint) {
     },
     liquidity:  { usd: parseFloat(t.liquidity  ?? 0) },
     marketCap:  parseFloat(t.marketCap ?? 0) || null,
-    fdv:        parseFloat(t.marketCap ?? 0) || null,
+    fdv:        parseFloat(t.fdv ?? t.marketCap ?? 0) || null,  /* BUG-04: use real FDV field, not marketCap alias */
     txns: {
       h1:  { buys: parseInt(t.buy1h  ?? 0), sells: parseInt(t.sell1h  ?? 0) },
       h24: { buys: parseInt(t.buy24h ?? 0), sells: parseInt(t.sell24h ?? 0) },
@@ -144,7 +144,19 @@ const _TF_MS = {
 
 function _storeTick(mint, price, vol1h) {
   if (!_tickBuffer[mint]) _tickBuffer[mint] = [];
-  _tickBuffer[mint].push({ ts_ms: Date.now(), price, vol1h });
+  /* BUG-05: track elapsed ms since last tick so OHLCV volume is proportional
+     to actual time covered, not a fixed 2400-tick divisor. */
+  const now = Date.now();
+  /* PERF-03: evict buffers for tokens not viewed in the last 10 minutes */
+  for (const m of Object.keys(_tickBuffer)) {
+    if (m !== mint && _tickBuffer[m]._lastAccess && (now - _tickBuffer[m]._lastAccess > 600_000)) {
+      delete _tickBuffer[m];
+    }
+  }
+  const prevTick = _tickBuffer[mint][_tickBuffer[mint].length - 1];
+  const elapsed_ms = prevTick ? Math.min(now - prevTick.ts_ms, 60_000) : 1500;
+  _tickBuffer[mint].push({ ts_ms: now, price, vol1h, elapsed_ms });
+  _tickBuffer[mint]._lastAccess = now;
   if (_tickBuffer[mint].length > TICK_BUFFER_MAX) _tickBuffer[mint].shift();
 }
 
@@ -155,7 +167,7 @@ function _buildOhlcvFromTicks(mint, tf) {
   if (!ticks || ticks.length < 3) return null;
   const tfMs    = _TF_MS[tf] || 300000;
   const candles = {};
-  for (const { ts_ms, price, vol1h } of ticks) {
+  for (const { ts_ms, price, vol1h, elapsed_ms } of ticks) {
     const periodStart = Math.floor(ts_ms / tfMs) * tfMs;
     const ts          = Math.floor(periodStart / 1000); /* seconds — Lightweight Charts format */
     if (!candles[ts]) {
@@ -165,7 +177,8 @@ function _buildOhlcvFromTicks(mint, tf) {
       if (price < candles[ts][3]) candles[ts][3] = price; /* low  */
       candles[ts][4] = price;                              /* close */
     }
-    candles[ts][5] += vol1h / 2400;
+    /* BUG-05: use actual elapsed ms instead of fixed 2400-tick divisor */
+    candles[ts][5] += vol1h * ((elapsed_ms || 1500) / 3_600_000);
   }
   const sorted = Object.values(candles).sort((a, b) => a[0] - b[0]);
   /* Need at least 2 candles — the last one may be still-forming */
@@ -176,9 +189,12 @@ function _buildOhlcvFromTicks(mint, tf) {
 let tokenPollTimer       = null;
 let portfolioPollTimer   = null;
 let pnlTickTimer         = null;
+let solPriceTimer        = null;  /* BUG-01: 60s SOL/USD price refresh — guarded against duplicate timers */
 let _saWsUnsub           = null;  /* cleanup fn returned by birdeyeWs.subscribe() */
 let _saChartSlowInterval = null;  /* 30s Birdeye metadata poll for mc/liq/priceChange */
-let _saChartFastInterval = null;  /* 4s REST poll — belt-and-suspenders alongside WS */
+let _saChartFastInterval = null;  /* 4s REST poll — WS fallback only, activates after 8s WS silence */
+let _lastWsTick          = 0;     /* PERF-04: timestamp of last WS price message for REST fallback logic */
+let _fcmModalOpen        = false; /* UX-06: true while fullscreen chart modal is open */
 
 const TOKEN_POLL_MS = 30000; /* full Birdeye scan poll every 30s */
 
@@ -195,7 +211,7 @@ let riskScore    = 0;
 let currentTab   = "buy";
 let currentTf    = "5m";
 let solPrice     = 0;       // live SOL/USD price (fetched via /solPrice function)
-const SOL_LOGO   = "S2M-Logo.png";
+const SOL_LOGO   = "S2M-Logo.webp";
 /* chartReqId: incremented every time we start a new chart load.
    Each fetch captures its own ID; if it no longer matches when the
    fetch completes it means the user switched TF/token — we discard. */
@@ -237,7 +253,14 @@ document.addEventListener("DOMContentLoaded", () => {
   applyTranslations();
 
   const saved = localStorage.getItem("sa_wallet");
-  if (saved) { wallet = saved; initSimulator(); }
+  /* SEC-01: re-validate saved address before trusting it — prevents poisoned localStorage from
+     reaching the server (e.g. injected by XSS or malicious browser extension). */
+  if (saved && isBase58Address(saved)) {
+    wallet = saved;
+    initSimulator();
+  } else if (saved) {
+    localStorage.removeItem("sa_wallet"); // discard invalid stored value
+  }
 
   document.getElementById("connectWalletBtn").addEventListener("click", connectWallet);
   document.getElementById("disconnectBtn").addEventListener("click", disconnectWallet);
@@ -378,10 +401,12 @@ async function connectWallet() {
   const btn = document.getElementById("connectWalletBtn");
   document.getElementById("connectBtnText").textContent = "⏳ Connecting…";
   btn.disabled = true;
+  let _mobilePathTaken = false; /* UX-07: flag so finally block doesn't reset mobile UI */
   try {
     const ph = window.solana;
     if (!ph || !ph.isPhantom) {
       // No extension — show mobile/manual fallback
+      _mobilePathTaken = true;
       setupMobileConnect();
       return;
     }
@@ -390,7 +415,12 @@ async function connectWallet() {
     localStorage.setItem("sa_wallet", wallet);
     await initSimulator();
   } catch { showToast("⚠️ Wallet connection cancelled or failed."); }
-  finally { document.getElementById("connectBtnText").textContent = "Connect Phantom Wallet"; btn.disabled = false; }
+  finally {
+    if (!_mobilePathTaken) { /* UX-07: don't overwrite text set by setupMobileConnect */
+      document.getElementById("connectBtnText").textContent = "Connect Phantom Wallet";
+      btn.disabled = false;
+    }
+  }
 }
 
 function disconnectWallet() {
@@ -413,6 +443,14 @@ function disconnectWallet() {
    ============================================================ */
 async function saStartFresh() {
   if (!wallet) { disconnectWallet(); return; }
+  /* SEC-04: rate-limit to once per 60 s to prevent accidental rapid resets */
+  try {
+    const lastReset = parseInt(localStorage.getItem("s2m_last_fresh") || "0", 10);
+    if (Date.now() - lastReset < 60_000) {
+      showToast("⚠️ Please wait a moment before resetting again.");
+      return;
+    }
+  } catch {}
   const confirmed = window.confirm(
     "⚠️ Start fresh?\n\nThis will create a brand-new profile with 10 S2M.\n" +
     "Any previous balance or trade history will be gone.\n\nContinue?"
@@ -432,6 +470,14 @@ async function saStartFresh() {
     }
     const data = await resp.json();
     profile = data.profile;
+    try { localStorage.setItem("s2m_last_fresh", String(Date.now())); } catch {} /* SEC-04 */
+    /* Clear guide/quiz completion flags so the guide hub reflects the fresh account */
+    try {
+      localStorage.removeItem("s2m_daily_claimed");
+      for (const key of Object.keys(localStorage)) {
+        if (key.startsWith("s2m_completed_")) localStorage.removeItem(key);
+      }
+    } catch {}
     // Hide reconnect banner and reload the simulator normally
     const reconnectBanner = document.getElementById("saReconnectBanner");
     if (reconnectBanner) reconnectBanner.style.display = "none";
@@ -448,12 +494,17 @@ async function saStartFresh() {
    If Netlify Blobs ever returns null for an existing wallet,
    the client restores the profile from this backup automatically.
    ============================================================ */
+let _lastBackupSave = 0; /* PERF-07: throttle guard */
 function saveProfileBackup(p) {
   if (!p || !wallet) return;
+  /* PERF-07: cap localStorage writes to once every 10 seconds */
+  const now = Date.now();
+  if (now - _lastBackupSave < 10_000) return;
+  _lastBackupSave = now;
   try {
     localStorage.setItem("sa_backup_" + wallet, JSON.stringify({
       profile: p,
-      savedAt: Date.now(),
+      savedAt: now,
     }));
   } catch(e) { _DEBUG && console.warn("Backup save failed:", e); }
 }
@@ -470,10 +521,18 @@ async function tryRestoreFromBackup() {
     if (ageHours > 168) return null; // backup older than 7 days — don't use
     if (bp.balance === 10 && !bp.trades?.length) return null; // fresh/empty backup — skip
     showToast("🔄 Restoring your profile...");
+    /* SEC-02: sanitise backup before sending — reject implausible values that
+       could be injected via DevTools or XSS-modified localStorage */
+    const sanitisedBp = {
+      ...bp,
+      balance:     Math.min(Math.max(0, Number(bp.balance)     || 0), 10_000),
+      tradeXp:     Math.min(Math.max(0, Number(bp.tradeXp)     || 0), 1_000_000),
+      loginStreak: Math.min(Math.max(0, Number(bp.loginStreak) || 0), 365),
+    };
     const resp = await fetch(SIM_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet, action: "restore_backup", backupProfile: bp }),
+      body: JSON.stringify({ wallet, action: "restore_backup", backupProfile: sanitisedBp }),
     });
     const data = await resp.json();
     if (data.error) { _DEBUG && console.warn("Restore failed:", data.error); return null; }
@@ -493,7 +552,8 @@ async function initSimulator() {
 
   /* Fetch SOL price before loading profile so the balance can show "$X" */
   await fetchSolPrice();
-  setInterval(fetchSolPrice, 60_000); // refresh every 60 s
+  /* BUG-01: guard against duplicate timers on re-entry (bgRetry / saStartFresh) */
+  if (!solPriceTimer) solPriceTimer = setInterval(fetchSolPrice, 60_000);
 
   /* ── Resilient profile fetch with client-side retries ───────────────────
      The server already retries Blobs reads internally (up to 3 attempts).
@@ -531,6 +591,7 @@ async function initSimulator() {
             if (r.ok) {
               clearInterval(bgRetry);
               if (reconnectBanner) reconnectBanner.style.display = "none";
+              stopAllTimers(); /* BUG-02: clear existing timers before re-init to prevent accumulation */
               initSimulator(); // reload the full simulator
             }
           } catch {}
@@ -592,11 +653,15 @@ async function initSimulator() {
 
   /* Sync display name to server if set in Dashboard — keeps Leaderboard in sync */
   const savedDisplayName = localStorage.getItem("sa_display_name");
-  if (savedDisplayName && savedDisplayName !== profile.accountName) {
+  /* SEC-06: validate length and content before sending to server */
+  const _dnClean = typeof savedDisplayName === "string"
+    ? savedDisplayName.trim().slice(0, 30).replace(/[^\w\s\-_.]/g, "")
+    : "";
+  if (_dnClean && _dnClean !== profile.accountName) {
     fetch(SIM_API, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ wallet, action: "update_name", accountName: savedDisplayName }),
+      body: JSON.stringify({ wallet, action: "update_name", accountName: _dnClean }),
     }).catch(() => {});
   }
 
@@ -630,6 +695,7 @@ function stopAllTimers() {
   clearInterval(tokenPollTimer);       tokenPollTimer     = null;
   clearInterval(portfolioPollTimer);   portfolioPollTimer = null;
   clearInterval(pnlTickTimer);         pnlTickTimer       = null;
+  clearInterval(solPriceTimer);        solPriceTimer      = null;  /* BUG-01 */
   _saStopChartTicker(); // also unsubscribes from Birdeye WS
 }
 
@@ -718,7 +784,10 @@ async function claimDaily() {
     if (data.newBadges && data.newBadges.length) {
       setTimeout(() => showBadgeShareCards(data.newBadges), 1200);
     }
-  } catch { showToast("⚠️ Could not claim reward."); }
+  } catch {
+    showToast("⚠️ Could not claim reward.");
+    document.getElementById("dailyBanner").style.display = "none"; /* BUG-03: hide on any error, not just "already claimed" */
+  }
   finally { if (btn) { btn.disabled = false; btn.textContent = origText; } }
 }
 
@@ -747,6 +816,9 @@ function _saOnWsTick(data) {
   }
   _priceEmas[mint] = _priceEmas[mint] * 0.75 + price * 0.25;
   livePrices[mint] = price;
+  _lastWsTick = Date.now(); /* PERF-04: track last WS activity for REST fallback logic */
+  /* BUG-06: keep tick buffer in sync with chart so OHLCV reconstruction matches display */
+  _storeTick(mint, price, currentToken?.pair?.volume?.h1 || 0);
 
   // ── Rug detection ──
   if (!_peakPrices[mint] || price > _peakPrices[mint]) _peakPrices[mint] = price;
@@ -759,17 +831,13 @@ function _saOnWsTick(data) {
   }
 
   // ── Tick the chart — data.v is already normalised by birdeye-ws.js ──
-  if (candleChart && currentToken?.mint === mint) {
+  /* PERF-01: only feed chart tick here; all DOM/UI updates are in the 200ms pnlTick loop.
+     UX-06: skip main chart tick while fullscreen modal is open (avoids wasted computation). */
+  if (candleChart && currentToken?.mint === mint && !_fcmModalOpen) {
     const vol = (data.v > 0) ? data.v
              : (currentToken?.pair?.volume?.h1 || 0) / 3600;
     candleChart.tick(price, vol);
-
-    // ── Update price display + trade info ──
-    if (currentToken?.pair) updatePriceHeader(currentToken.pair, price);
-    updateLivePnl(price);
-    updateBuyInfo();
-    updateSellInfo();
-    flashLiveIndicator();
+    flashLiveIndicator();  /* keep timestamp update in WS handler for accuracy */
   }
 }
 
@@ -789,9 +857,9 @@ function _saStartChartTicker(mint) {
   const unsub2 = birdeyeWs.subscribe(mint, null,    _saOnWsTick);
   _saWsUnsub = () => { unsub1(); unsub2(); };
 
-  // ── REST poll — belt-and-suspenders (4 s) ──────────────────────────────
-  // Runs alongside WS — guarantees candle ticks even if WS messages
-  // are delayed or Birdeye isn't sending PRICE_DATA for this token.
+  // ── REST poll — true WS fallback (PERF-04) ───────────────────────────────
+  // Only fires when WS has been silent for more than 8 seconds, avoiding
+  // the previous always-on pattern that generated 15 redundant calls/min.
   const _restPoll = async () => {
     try {
       const res = await fetch(`${PRICE_ONLY_API}?mint=${encodeURIComponent(mint)}`);
@@ -800,8 +868,11 @@ function _saStartChartTicker(mint) {
       if (d?.ok && d.price > 0) _saOnWsTick({ address: mint, price: d.price, v: 0 });
     } catch { /* non-critical */ }
   };
-  _saChartFastInterval = setInterval(_restPoll, 4000);
-  _restPoll(); // immediate first tick — don't wait 4 s
+  _saChartFastInterval = setInterval(() => {
+    /* PERF-04: only poll REST if WS has been silent for 8+ seconds */
+    if (Date.now() - _lastWsTick > 8000) _restPoll();
+  }, 4000);
+  _restPoll(); // immediate first tick for new token — don't wait 4s
 
   // Slow metadata refresh (mc, liq, priceChange) — REST is fine here
   pollActivePair(mint);
@@ -889,8 +960,11 @@ async function pollActivePair(mint) {
     updatePriceHeader(pair, price);
     updateRiskPanel(pair);
     updateMarketSignals(pair);
-    updateBuyInfo();
-    updateSellInfo();
+    /* BUG-10: only update trade panels when trading content is visible (not behind risk gate) */
+    if (document.getElementById("saTradingContent")?.style.display !== "none") {
+      updateBuyInfo();
+      updateSellInfo();
+    }
 
   } catch (e) { _DEBUG && console.warn("Token poll failed:", e); }
 }
@@ -898,13 +972,17 @@ async function pollActivePair(mint) {
 function startPortfolioPoll() {
   clearInterval(portfolioPollTimer);
   pollPortfolioPrices();
-  portfolioPollTimer = setInterval(pollPortfolioPrices, 5000);
+  /* PERF-02: 20s is sufficient for background holdings — active token gets real-time WS prices */
+  portfolioPollTimer = setInterval(pollPortfolioPrices, 20000);
 }
 
 async function pollPortfolioPrices() {
   if (!profile) return;
   const mints = Object.keys(profile.holdings || {}).filter(m => profile.holdings[m].amount > 0);
   if (!mints.length) return;
+  /* UX-08: signal that portfolio prices are refreshing */
+  const _pbEl = document.getElementById("saPortfolioBody");
+  if (_pbEl) _pbEl.dataset.saRefreshing = "1";
   for (let i = 0; i < mints.length; i += 25) {
     const slice = mints.slice(i, i + 25);
     try {
@@ -931,17 +1009,27 @@ async function pollPortfolioPrices() {
       }
     } catch {}
   }
+  if (_pbEl) delete _pbEl.dataset.saRefreshing; /* UX-08: clear loading state */
   updatePortfolioPnlCards();
 }
 
 function startPnlTick() {
   clearInterval(pnlTickTimer);
   pnlTickTimer = setInterval(() => {
+    if (!profile) return;
+    /* PERF-01: single 200ms render loop owns all price-driven DOM updates.
+       Replaces the previous pattern where _saOnWsTick also called these
+       functions, creating two overlapping update paths at 5Hz+. */
     if (currentToken) {
-      const price = livePrices[currentToken.mint];
-      if (price) updateLivePnl(price);
+      const price = livePrices[currentToken.mint] || 0;
+      if (price > 0) {
+        if (currentToken.pair) updatePriceHeader(currentToken.pair, price);
+        updateLivePnl(price);
+        updateBuyInfo();
+        updateSellInfo();
+      }
     }
-    /* Always update portfolio P/L cards for all holdings */
+    /* Portfolio P/L cards — updated for all open positions */
     updatePortfolioPnlCards();
   }, 200); /* 200ms = 5 ticks/second — smooth P/L updates */
 }
@@ -1278,6 +1366,9 @@ function calcRiskScore(pair, top10Pct = 0) {
    SEARCH TOKEN
    ============================================================ */
 window.searchToken = async function() {
+  /* UX-03: guard — wallet must be connected before searching */
+  if (!wallet || !profile) { showToast("Connect your wallet first!"); return; }
+
   const mint = document.getElementById("saTokenInput").value.trim();
   if (!mint) { showToast("Paste a token mint address first!"); return; }
 
@@ -1290,6 +1381,9 @@ window.searchToken = async function() {
   const btn = document.getElementById("saSearchBtn");
   btn.disabled = true; btn.textContent = "⏳ Scanning…";
   clearTerminal();
+  /* UX-09: show a loading skeleton in the terminal while APIs fetch — prevents blank gap */
+  { const _tEl = document.getElementById("saTerminal");
+    if (_tEl) { _tEl.style.display = "block"; _tEl.dataset.saLoading = "1"; } }
   try {
     const isPumpFunCheck = String(mint).toLowerCase().endsWith("pump");
 
@@ -1340,7 +1434,8 @@ window.searchToken = async function() {
     currentToken = { mint, name: tokenName, symbol: tokenSymbol, logo: tokenLogo,
                      pair, riskScore, holderData: { pct: 0 }, bundleScore: 50 };
 
-    document.getElementById("saTerminal").style.display = "block";
+    { const _tEl = document.getElementById("saTerminal");
+      if (_tEl) { _tEl.style.display = "block"; delete _tEl.dataset.saLoading; } } /* UX-09: clear loading state */
     renderTokenHeader(currentToken);
     const initiallyGated = riskScore < 45;
     if (initiallyGated) showRiskGate(currentToken);
@@ -1374,8 +1469,15 @@ window.searchToken = async function() {
     }
     // If real data reveals a dangerous token — flip to risk gate now
     if (!initiallyGated && refinedScore < 45) showRiskGate(currentToken);
-    // If gate was shown on neutral data but real data says it's actually safe — open it
-    if (initiallyGated && refinedScore >= 45) showTradingContent(currentToken);
+    // UX-01: if gate was shown on neutral data but real data says it's safe,
+    // update the gate message in-place — do NOT auto-open (let the user decide).
+    if (initiallyGated && refinedScore >= 45) {
+      document.getElementById("saRiskGateMsg").innerHTML = `
+        Risk score updated to <strong style="color:#ffd166">${refinedScore}/100</strong>
+        — this token is now rated <strong style="color:#ffd166">MODERATE RISK</strong>.<br/><br/>
+        Click <em>I understand the risk — proceed anyway</em> below to open the trading terminal.
+      `;
+    }
 
   } catch (e) {
     _DEBUG && console.error("searchToken error:", e);
@@ -1414,6 +1516,7 @@ window.openChartModal = async function() {
   if (!modal) return;
 
   /* Reset and show overlay */
+  _fcmModalOpen = true; /* UX-06: suppress main chart ticks while modal is visible */
   modal.style.display = "flex";
   document.body.style.overflow = "hidden";  /* prevent page scroll behind modal */
 
@@ -1453,6 +1556,7 @@ window.openChartModal = async function() {
 };
 
 window.closeChartModal = function() {
+  _fcmModalOpen = false; /* UX-06: resume main chart ticks */
   const modal = document.getElementById("saChartModal");
   if (modal) modal.style.display = "none";
   document.body.style.overflow = "";
@@ -1689,9 +1793,10 @@ function showTradingContent(tok) {
   /* Clear any rug overlay/banner from the previous token */
   document.getElementById("saRugOverlay")?.remove();
   document.getElementById("saRugBanner")?.remove();
-  /* Reset rug state for the new token so detection starts fresh */
-  delete _peakPrices[tok.mint];
-  delete _rugTriggered[tok.mint];
+  /* BUG-09: preserve rug state across re-visits — do NOT reset _peakPrices or
+     _rugTriggered here. The peak price keeps accumulating and the overlay won't
+     spam the user again once it has fired. Both objects are keyed by mint so
+     state for one token never bleeds into another. */
   initChart(tok);
 }
 
@@ -1721,20 +1826,28 @@ function renderHoldersPanel(tok) {
     isEstimated = false;
   } else {
     /* ── Fallback: estimated distribution based on liquidity ── */
-    const liq  = tok.pair.liquidity?.usd ?? 0;
-    const base = liq < 10000 ? 70 : liq < 50000 ? 50 : 30;
-    const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-    const ra    = () => { const f = Array.from({length:44}, () => chars[Math.floor(Math.random()*chars.length)]).join(""); return f.slice(0,4)+"…"+f.slice(-4); };
-    holders = [];
-    let rem = Math.min(base, 85);
-    holders.push({ pct: Math.min(rem * 0.38, 32).toFixed(1), label: "LP / Dev", addr: ra() });
-    rem -= parseFloat(holders[0].pct);
-    for (let i = 1; i < 7 && rem > 1; i++) {
-      const pct = Math.max(1, rem*(0.45-i*0.04)*(0.85+Math.random()*0.3));
-      holders.push({ pct: Math.min(pct, rem*0.65).toFixed(1), label: i<3?"Whale":"Holder", addr: ra() });
-      rem -= parseFloat(holders[holders.length-1].pct);
+    /* BUG-08: cache on tok so addresses don't re-randomise on every render call.
+       BUG-13: use optional chaining (tok.pair?.liquidity) to guard against null tok.pair. */
+    if (tok.estimatedHolders) {
+      holders = tok.estimatedHolders.holders;
+      total   = tok.estimatedHolders.total;
+    } else {
+      const liq  = tok.pair?.liquidity?.usd ?? 0;
+      const base = liq < 10000 ? 70 : liq < 50000 ? 50 : 30;
+      const chars = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
+      const ra    = () => { const f = Array.from({length:44}, () => chars[Math.floor(Math.random()*chars.length)]).join(""); return f.slice(0,4)+"…"+f.slice(-4); };
+      holders = [];
+      let rem = Math.min(base, 85);
+      holders.push({ pct: Math.min(rem * 0.38, 32).toFixed(1), label: "LP / Dev", addr: ra() });
+      rem -= parseFloat(holders[0].pct);
+      for (let i = 1; i < 7 && rem > 1; i++) {
+        const pct = Math.max(1, rem*(0.45-i*0.04)*(0.85+Math.random()*0.3));
+        holders.push({ pct: Math.min(pct, rem*0.65).toFixed(1), label: i<3?"Whale":"Holder", addr: ra() });
+        rem -= parseFloat(holders[holders.length-1].pct);
+      }
+      total = holders.reduce((a, h) => a + parseFloat(h.pct), 0);
+      tok.estimatedHolders = { holders, total }; /* cache for subsequent renders */
     }
-    total       = holders.reduce((a, h) => a + parseFloat(h.pct), 0);
     isEstimated = true;
   }
 
@@ -1745,7 +1858,7 @@ function renderHoldersPanel(tok) {
       <span style="font-size:12px;opacity:0.6;">Top ${holders.length} ${t("sa_concentration")}</span>
       <span style="font-weight:700;color:${cl}">${typeof total === "number" ? total.toFixed(1) : total}%</span>
     </div>
-    ${holders.map((h,i)=>`<div class="sa-holder-row"><span class="sa-holder-rank">#${i+1}</span><span class="sa-holder-addr">${h.addr}</span><span class="sa-holder-pct" style="color:${i<2?cl:'#cffff4'}">${h.pct}%</span></div>`).join("")}
+    ${holders.map((h,i)=>`<div class="sa-holder-row"><span class="sa-holder-rank">#${i+1}</span><span class="sa-holder-addr">${esc(h.addr)}</span><span class="sa-holder-pct" style="color:${i<2?cl:'#cffff4'}">${esc(String(h.pct))}%</span></div>`).join("")}
     <div style="font-size:10px;opacity:0.3;margin-top:8px;text-align:center;">${isEstimated ? t("sa_est_dist") : t("sa_onchain_rpc")}</div>
   `;
 }
@@ -1830,9 +1943,8 @@ function updatePortfolioPnlCards() {
 
     if (!price) { totalVal += costSol; pending++; continue; }
 
-    const curValSol = (solPrice>0)
-      ? (h.amount * price / solPrice)
-      : (h.avgPrice>0&&costSol>0 ? costSol*(price/h.avgPrice) : costSol);
+    /* BUG-11: use calcPositionValue so formula matches renderPortfolioSummary exactly */
+    const curValSol = calcPositionValue(h, price, solPrice);
     const curValUsd = solPrice>0 ? curValSol*solPrice : price*h.amount;
     const pnlSol    = curValSol - costSol;
     const pnlPct    = costSol>0?(pnlSol/costSol)*100:0;
@@ -1858,6 +1970,17 @@ function updatePortfolioPnlCards() {
     totalPnlEl.innerHTML = `${sign}${formatSol(pnlSol)}${pnlUsd !== null ? ` <span style="opacity:0.6;font-size:11px;">≈ ${sign}${formatUsd(Math.abs(pnlUsd))}</span>` : ""}
       <span style="opacity:0.7;font-size:11px;margin-left:4px;">(${sign}${pnlPct.toFixed(2)}%)</span>`;
   }
+}
+
+/* ── Unified position value helper (BUG-11) ─────────────────────────────────
+   Single source of truth for "current value in SOL" so renderPortfolioSummary
+   and updatePortfolioPnlCards always use the same formula and can never diverge. */
+function calcPositionValue(h, price, _solPrice) {
+  if (!h || !(h.amount > 0)) return 0;
+  const costSol = h.totalCostSol || 0;
+  if (price > 0 && _solPrice > 0) return h.amount * price / _solPrice;
+  if (price > 0 && h.avgPrice > 0 && costSol > 0) return costSol * (price / h.avgPrice);
+  return costSol; // neutral — price not yet loaded
 }
 
 /* ============================================================
@@ -1898,9 +2021,11 @@ function updateSellInfo() {
     receivedUsd = solPrice > 0 ? receivedSol * solPrice : amt * price * (1 - slippage);
   }
 
-  document.getElementById("sellInfo").innerHTML = amt>0
-    ?`You sell: ${formatAmount(amt)} ${currentToken.symbol}<br/>Receive: ${formatSol(receivedSol)}${solPrice>0?` ≈ ${formatUsd(receivedUsd)}`:''} (${(slippage*100).toFixed(1)}% slip)`
-    :"Enter token amount to sell.";
+  /* UX-04: show explicit "no holdings" hint instead of generic "enter amount" when there's nothing to sell */
+  const _hasHolding = h && h.amount > 0;
+  document.getElementById("sellInfo").innerHTML = amt > 0
+    ? `You sell: ${formatAmount(amt)} ${currentToken.symbol}<br/>Receive: ${formatSol(receivedSol)}${solPrice>0?` ≈ ${formatUsd(receivedUsd)}`:''} (${(slippage*100).toFixed(1)}% slip)`
+    : _hasHolding ? "Enter token amount to sell." : `No ${currentToken.symbol} holdings — buy first.`;
 }
 
 window.setQuickBuy  = (pct) => { if (!profile) return; document.getElementById("buyAmount").value=(profile.balance*pct/100).toFixed(4); updateBuyInfo(); };
@@ -1985,12 +2110,11 @@ window.executeSell = async function() {
     /* Use setTradeMarkers (server timestamps) instead of addTradeMarker
        (Date.now) so the S marker lands on the correct historical candle. */
     if (candleChart) candleChart.setTradeMarkers(profile.trades, currentToken.mint);
-    // Use price-ratio formula (same as Current Value) for toast
+    /* BUG-07: use calcPositionValue() so sell toast matches Current Value display */
     let _receivedSol = 0;
-    const _costSol   = h?.totalCostSol || 0;
     const _totalHeld = h?.amount || 0;
-    if (price > 0 && h?.avgPrice > 0 && _costSol > 0 && _totalHeld > 0) {
-      const _curValSol = _costSol * (price / h.avgPrice);
+    if (_totalHeld > 0) {
+      const _curValSol = calcPositionValue(h, price, solPrice);
       const _fraction  = Math.min(actualAmount / _totalHeld, 1);
       _receivedSol = _curValSol * _fraction * (1 - slippage);
     }
@@ -2007,8 +2131,12 @@ window.executeSell = async function() {
 /* ============================================================
    DEBRIEF
    ============================================================ */
+/* SEC-05: window.* exports below are intentional — this file is loaded as an ES module
+   (type="module") so top-level declarations are NOT global by default. Explicit window
+   assignments are required so that inline onclick="…" handlers in safe-ape.html can
+   reach these functions. This is NOT a namespace pollution issue. */
 window.closeDebrief    = () => { document.getElementById("debriefModal").style.display="none"; };
-window.disconnectWallet = disconnectWallet;
+window.disconnectWallet = disconnectWallet; /* UX-10: needed — ES module functions don't auto-expose to global scope */
 window.saStartFresh     = saStartFresh;
 
 /* ============================================================
@@ -2062,15 +2190,17 @@ function showDebrief(trade,type,score) {
     const lesson=score<45?`⚠️ HIGH RISK token (${score}/100).`:pnl>=0?`✅ Good trade! Score ${score}/100.`:`▼ Loss on ${score>=65?"low":"moderate"}-risk token. Consider stop-losses.`;
     const lCls=score<45?"sa-lesson-risk":pnl>=0?"sa-lesson-win":"sa-lesson-loss";
     const xpLine = trade.xpEarned > 0 ? `<div style="font-size:13px;color:#ab9ff2;margin-top:6px;font-weight:700">⚡ +${trade.xpEarned} XP earned</div>` : "";
-    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">${emoji}</div><div class="sa-debrief-verdict" style="color:${isWin?'#2cffc9':'#ff4d6d'}">${verdict}</div><div class="sa-debrief-pnl ${isWin?'win':'loss'}">${pnl>=0?'+':''}${formatSol(pnl)}</div><div style="opacity:0.6;font-size:13px">${pnl>=0?'+':''}${trade.pnlPct}% return</div>${xpLine}</div>
-    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_sold_at")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_avg_buy")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.amount>0?trade.costBasis/trade.amount:0)}</div></div></div>
+    /* SEC-03: escape all third-party data before injecting into innerHTML */
+    html=`<div class="sa-debrief-result"><div class="sa-debrief-emoji">${emoji}</div><div class="sa-debrief-verdict" style="color:${isWin?'#2cffc9':'#ff4d6d'}">${verdict}</div><div class="sa-debrief-pnl ${isWin?'win':'loss'}">${pnl>=0?'+':''}${formatSol(pnl)}</div><div style="opacity:0.6;font-size:13px">${pnl>=0?'+':''}${esc(String(trade.pnlPct))}% return</div>${xpLine}</div>
+    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${esc(trade.symbol)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_sold_at")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_avg_buy")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.amount>0?trade.costBasis/trade.amount:0)}</div></div></div>
     <div class="sa-debrief-lesson ${lCls}">${t("sa_lesson")} ${lesson}</div>`;
   } else {
     const totalCostSol=trade.totalCostSol||(solPrice>0?trade.totalCost/solPrice:0);
     const lesson=score<45?`🚨 HIGH RISK (${score}/100).`:score>=65?`✅ Smart entry! Set a target and stop-loss.`:`⚠️ Moderate risk (${score}/100). Have an exit plan.`;
     const lCls=score<45?"sa-lesson-risk":score>=65?"sa-lesson-win":"sa-lesson-loss";
-    html=`<div class="sa-debrief-result"><div class="sa-debrief-diamond"></div><div class="sa-debrief-verdict" style="color:#ffb432">${t("sa_verdict_opened")}</div><div style="font-size:28px;font-weight:700;color:#ffb432;margin:8px 0">${formatSol(totalCostSol)}</div><div style="opacity:0.6;font-size:13px">invested in ${trade.symbol}</div></div>
-    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${trade.symbol}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_entry")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_tokens")}</div><div class="sa-debrief-stat-val">${formatAmount(trade.amount)}</div></div></div>
+    /* SEC-03: escape all third-party data before injecting into innerHTML */
+    html=`<div class="sa-debrief-result"><div class="sa-debrief-diamond"></div><div class="sa-debrief-verdict" style="color:#ffb432">${t("sa_verdict_opened")}</div><div style="font-size:28px;font-weight:700;color:#ffb432;margin:8px 0">${formatSol(totalCostSol)}</div><div style="opacity:0.6;font-size:13px">invested in ${esc(trade.symbol)}</div></div>
+    <div class="sa-debrief-stats"><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_token")}</div><div class="sa-debrief-stat-val">${esc(trade.symbol)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_risk")}</div><div class="sa-debrief-stat-val" style="color:${score>=65?'#2cffc9':score>=45?'#ffd166':'#ff4d6d'}">${score}/100</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_entry")}</div><div class="sa-debrief-stat-val">${formatPrice(trade.priceUsd)}</div></div><div class="sa-debrief-stat"><div class="sa-debrief-stat-label">${t("sa_debrief_tokens")}</div><div class="sa-debrief-stat-val">${formatAmount(trade.amount)}</div></div></div>
     <div class="sa-debrief-lesson ${lCls}">${t("sa_lesson")} ${lesson}</div>`;
   }
   document.getElementById("debriefContent").innerHTML=html;
@@ -2098,8 +2228,9 @@ function renderPortfolioSummary(keys, holdings) {
     const price = livePrices[mint];
     const costSol = h.totalCostSol || 0;
     totalCost += costSol;
-    if (price && h.avgPrice > 0) {
-      const curVal = costSol * (price / h.avgPrice);
+    /* BUG-11: use calcPositionValue so formula matches updatePortfolioPnlCards exactly */
+    if (price) {
+      const curVal = calcPositionValue(h, price, solPrice);
       totalVal += curVal;
       if (curVal >= costSol) wins++; else losses++;
     } else {
@@ -2136,6 +2267,8 @@ function renderPortfolioSummary(keys, holdings) {
 }
 
 function renderPortfolio() {
+  /* PERF-05: full grid rebuild is intentional — called only on profile load and after
+     trades (infrequent). Live P/L updates use updatePortfolioPnlCards() at 200ms. */
   const body=document.getElementById("saPortfolioBody");
   const holdings=profile?.holdings||{};
   const keys=Object.keys(holdings).filter(k=>holdings[k].amount>0);
@@ -2402,11 +2535,19 @@ function showBadgeShareCard(id, name, imgSrc, reward) {
   overlay.addEventListener("click", e => { if (e.target === overlay) overlay.remove(); });
 
   const card = document.getElementById(`badgeShareCard_${id}`);
-  const shareText = `Just earned the "" badge on @Scan2Moon!\n\nTrade smart. Collect badges. Earn S2M.\nhttps://scan2moon.com`;
+  const shareText = `Just earned the "${name}" badge on @Scan2Moon!\n\nTrade smart. Collect badges. Earn S2M.\nhttps://scan2moon.com`; /* UX-05 */
+
+  /* PERF-06: cache the rendered canvas so Save and Share both reuse it */
+  let _cachedBadgeCanvas = null;
+  async function _renderBadgeCanvas() {
+    if (_cachedBadgeCanvas) return _cachedBadgeCanvas;
+    _cachedBadgeCanvas = await html2canvas(card, { backgroundColor: "#0d1310", scale: 2, useCORS: true });
+    return _cachedBadgeCanvas;
+  }
 
   overlay.querySelector(".badge-save-btn").onclick = async () => {
     try {
-      const canvas = await html2canvas(card, { backgroundColor: "#0d1310", scale: 2, useCORS: true });
+      const canvas = await _renderBadgeCanvas();
       const link = document.createElement("a");
       link.download = `Scan2Moon-Badge-${name.replace(/\s+/g,"-")}.png`;
       link.href = canvas.toDataURL("image/png");
@@ -2414,13 +2555,7 @@ function showBadgeShareCard(id, name, imgSrc, reward) {
     } catch(e) { showToast("⚠️ Could not save image."); }
   };
   overlay.querySelector(".badge-share-btn").onclick = async () => {
-    try {
-      const canvas = await html2canvas(card, { backgroundColor: "#0d1310", scale: 2, useCORS: true });
-      const link = document.createElement("a");
-      link.download = `Scan2Moon-Badge-${name.replace(/\s+/g,"-")}.png`;
-      link.href = canvas.toDataURL("image/png");
-      link.click();
-    } catch(e) {}
+    /* PERF-06: share button opens Twitter — no auto-download */
     window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}`, "_blank");
   };
 }
@@ -2451,22 +2586,44 @@ function showBadgeToast(imgSrc, name, reward = 1000) {
 }
 
 /* ============================================================
-   TOAST
+   TOAST — UX-02: queue so rapid messages don't overwrite each other
    ============================================================ */
-function showToast(msg, isBadge=false) {
-  let t=document.getElementById("saToast");
-  if (!t) { t=document.createElement("div"); t.id="saToast"; t.style.cssText="position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(6,32,26,0.97);border:1px solid rgba(44,255,201,0.4);border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;color:#cffff4;z-index:9999;box-shadow:0 0 30px rgba(44,255,201,0.2);transition:opacity 0.3s;white-space:nowrap;max-width:90vw;"; document.body.appendChild(t); }
-  if (isBadge) {
-    t.style.background="linear-gradient(135deg,rgba(255,180,50,0.18),rgba(6,32,26,0.97))";
-    t.style.borderColor="rgba(255,180,50,0.65)";
-    t.style.boxShadow="0 0 30px rgba(255,180,50,0.35)";
-  } else {
-    t.style.background="rgba(6,32,26,0.97)";
-    t.style.borderColor="rgba(44,255,201,0.4)";
-    t.style.boxShadow="0 0 30px rgba(44,255,201,0.2)";
+const _toastQueue = [];
+let   _toastBusy  = false;
+
+function _drainToastQueue() {
+  if (_toastBusy || !_toastQueue.length) return;
+  const { msg, isBadge } = _toastQueue.shift();
+  _toastBusy = true;
+  let t = document.getElementById("saToast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "saToast";
+    t.style.cssText = "position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:rgba(6,32,26,0.97);border:1px solid rgba(44,255,201,0.4);border-radius:10px;padding:12px 24px;font-size:14px;font-weight:600;color:#cffff4;z-index:9999;box-shadow:0 0 30px rgba(44,255,201,0.2);transition:opacity 0.3s;white-space:nowrap;max-width:90vw;";
+    document.body.appendChild(t);
   }
-  t.textContent=msg; t.style.opacity="1";
-  clearTimeout(t._timer); t._timer=setTimeout(()=>{t.style.opacity="0";},isBadge?5000:3500);
+  if (isBadge) {
+    t.style.background   = "linear-gradient(135deg,rgba(255,180,50,0.18),rgba(6,32,26,0.97))";
+    t.style.borderColor  = "rgba(255,180,50,0.65)";
+    t.style.boxShadow    = "0 0 30px rgba(255,180,50,0.35)";
+  } else {
+    t.style.background   = "rgba(6,32,26,0.97)";
+    t.style.borderColor  = "rgba(44,255,201,0.4)";
+    t.style.boxShadow    = "0 0 30px rgba(44,255,201,0.2)";
+  }
+  t.textContent = msg;
+  t.style.opacity = "1";
+  const duration = isBadge ? 5000 : 3500;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => {
+    t.style.opacity = "0";
+    setTimeout(() => { _toastBusy = false; _drainToastQueue(); }, 350);
+  }, duration);
+}
+
+function showToast(msg, isBadge=false) {
+  _toastQueue.push({ msg, isBadge });
+  _drainToastQueue();
 }
 
 /* ============================================================
@@ -2478,11 +2635,15 @@ function formatUsd(v) {
   return v<0?"-"+s:s;
 }
 function formatPrice(v) {
-  if (!v||isNaN(v)) return "$0";
-  if (v<0.000001) return "$"+v.toFixed(10);
-  if (v<0.001)    return "$"+v.toFixed(7);
-  if (v<1)        return "$"+v.toFixed(5);
-  return "$"+v.toFixed(4);
+  if (v == null || isNaN(v) || v <= 0) return "$0"; /* BUG-12: `!v` wrongly blocked valid near-zero prices */
+  if (v >= 1)      return "$" + v.toFixed(4);
+  if (v >= 0.01)   return "$" + v.toFixed(5);
+  if (v >= 0.001)  return "$" + v.toFixed(6);
+  // For tiny prices: auto-scale to always show 3 meaningful significant figures
+  // e.g. $0.00000158 → 8 decimals, $0.000000027 → 10 decimals
+  const mag      = Math.floor(Math.log10(v));   // e.g. 1.58e-6 → mag = -6
+  const decimals = Math.min(-mag + 2, 12);       // -(-6)+2 = 8 decimal places
+  return "$" + v.toFixed(decimals);
 }
 function formatAmount(n) {
   if (!n||isNaN(n)) return "0";

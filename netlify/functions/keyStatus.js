@@ -21,11 +21,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "GET")
     return { statusCode: 405, headers: CORS_API, body: JSON.stringify({ error: "Method not allowed" }) };
 
-  /* Accept key via header or query param */
+  /* Accept key via X-Api-Key header ONLY.
+     Query-string keys are intentionally not supported: URL query params appear
+     in Netlify access logs, browser history, and HTTP Referer headers — all of
+     which would leak the key to unintended parties. */
   const keyId = (
-    (event.headers && (event.headers["x-api-key"] || event.headers["X-Api-Key"])) ||
-    (event.queryStringParameters && event.queryStringParameters.apiKey) ||
-    ""
+    (event.headers && (event.headers["x-api-key"] || event.headers["X-Api-Key"])) || ""
   ).trim();
 
   if (!keyId || !KEY_RE.test(keyId))

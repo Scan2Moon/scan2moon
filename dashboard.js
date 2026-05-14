@@ -10,7 +10,7 @@ import { applyTranslations }   from "./i18n.js";
 
 const SIM_API          = "/.netlify/functions/simulator";
 const TOKEN_BATCH_API  = "/.netlify/functions/batchTokenData"; // Birdeye batch token data
-const SOL_LOGO         = "S2M-Logo.png";
+const SOL_LOGO         = "S2M-Logo.webp";
 const TREASURY_WALLET  = "6zbVz412Yn7kHeuy8pBX8crfAa53jDLTqoNfHJmmTBVs";
 const SOL_MINT         = "So11111111111111111111111111111111111111112";
 
@@ -1990,14 +1990,16 @@ function renderActivityFeed() {
   const streak       = profile.loginStreak || 0;
   const now          = Date.now();
 
-  /* ── XP calc helpers ── */
-  // XP only for wins — losses do not award XP
-  const totalXp = ((profile.winCount || 0) * 25)
+  /* ── XP calc helpers — must match renderStatsRow() formula exactly ── */
+  const wins_af    = profile.winCount  || 0;
+  const losses_af  = profile.lossCount || 0;
+  const missionXp_af = _getMissionData().filter(m => m.current >= m.target).reduce((s, m) => s + m.xp, 0);
+  const totalXp = ((wins_af + losses_af) * 25)
     + (streak * 10)
     + (profile.badgeXp   || 0)
     + (profile.socialXp  || 0)
     + (profile.academyXp || 0)
-    + (profile.missionXp || 0);
+    + missionXp_af;
   const currentLevel = calcLevel(totalXp);
   const acadXp       = profile.academyXp || 0;
   const acadLevel    = calcAcadLevel(acadXp);
@@ -2894,7 +2896,7 @@ window.disconnectDashWallet = function() {
 };
 
 window.resetDashAccount = async function() {
-  if (!confirm("RESET ACCOUNT?\n\nThis will permanently clear:\n• All trades & holdings\n• All badges & XP\n• Login streak\n• Balance resets to 10 S2M\n\nThis cannot be undone. Continue?")) return;
+  if (!confirm("RESET ACCOUNT?\n\nThis will permanently clear:\n• All trades & holdings\n• All badges & XP\n• Login streak\n• Academy & Guide progress\n• Balance resets to 10 S2M\n\nThis cannot be undone. Continue?")) return;
   try {
     showToast("Resetting account…");
     const resp = await fetch(`${SIM_API}?wallet=${encodeURIComponent(wallet)}&action=reset`, {
@@ -2910,6 +2912,11 @@ window.resetDashAccount = async function() {
     localStorage.removeItem("sa_avatar_id");
     localStorage.removeItem("sa_frame_id");
     localStorage.removeItem("sa_card_design");
+    localStorage.removeItem("s2m_daily_claimed");
+    /* clear all guide completions — keys follow pattern s2m_completed_* */
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith("s2m_completed_")) localStorage.removeItem(key);
+    }
     document.getElementById("accountSettingsOverlay")?.remove();
     showToast("Account reset! Starting fresh with 10 S2M.");
     location.reload();
@@ -3885,7 +3892,7 @@ function _buildAssetsPane(bal, balUsd, holdingKeys, holdings) {
 
     <!-- SOL row -->
     <div class="mw-sol-row">
-      <img class="mw-sol-logo" src="S2M-Logo.png" alt="S2M" />
+      <img class="mw-sol-logo" src="S2M-Logo.webp" alt="S2M" />
       <div class="mw-sol-info">
         <div class="mw-sol-name">Sol2Moon [S2M]</div>
         <div class="mw-sol-network">S2M · Simulator Balance</div>

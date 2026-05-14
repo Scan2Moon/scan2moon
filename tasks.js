@@ -31,11 +31,19 @@ function showToast(msg) {
   clearTimeout(t._timer);
   t._timer = setTimeout(() => { t.style.opacity = "0"; }, 3500);
 }
+/* ── Level formula — must match dashboard.js exactly ──
+   xp(n) = round(100 * (n-1)^2.3), 100 levels
+   LVL2=100  LVL5=2,425  LVL10=18,800  LVL50=771,600  LVL100=3,887,300 */
+const XP_THRESHOLDS_T = Array.from({ length: 100 }, (_, i) =>
+  i === 0 ? 0 : Math.round(100 * Math.pow(i, 2.3))
+);
 function calcLevel(xp) {
-  const T = [0,100,250,450,700,1000,1400,1900,2500,3200,4000];
-  let l = 1;
-  for (let i = 1; i < T.length; i++) { if (xp >= T[i]) l = i + 1; else break; }
-  return l;
+  if (!xp || xp <= 0) return 1;
+  const approx = Math.max(1, Math.min(100, Math.floor(Math.pow(xp / 100, 1 / 2.3)) + 1));
+  let lvl = approx;
+  while (lvl < 100 && xp >= XP_THRESHOLDS_T[lvl]) lvl++;
+  while (lvl > 1  && xp <  XP_THRESHOLDS_T[lvl - 1]) lvl--;
+  return lvl;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -452,7 +460,14 @@ function getMissions() {
   const total  = wins + losses;
   const socialXp  = profile.socialXp  || 0;
   const academyXp = profile.academyXp || 0;
-  const xp = (total * 25) + (badges.length * 50) + (streak * 5) + socialXp + academyXp;
+  // XP formula — must match dashboard.js renderStatsRow() exactly:
+  // trades×25 + streak×10 + badgeXp (server-assigned) + socialXp + academyXp
+  // Note: missionXp excluded here to avoid circular dependency (missions depend on level)
+  const xp = ((wins + losses) * 25)
+           + (streak * 10)
+           + (profile.badgeXp || 0)
+           + socialXp
+           + academyXp;
   const lvl    = calcLevel(xp);
   const sells  = trades.filter(t => t.type === "sell").length;
 
