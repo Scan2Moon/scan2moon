@@ -80,7 +80,7 @@ exports.handler = async function(event) {
     "unknown"
   ).split(",")[0].trim();
 
-  if (await isRateLimitedRedis(ip, 20, 10)) {
+  if (await isRateLimitedRedis(ip, 20, 10, "newp")) {
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ ok: false, error: "Too many requests" }) };
   }
 

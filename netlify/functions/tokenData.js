@@ -113,7 +113,7 @@ exports.handler = async (event) => {
 
   // Rate limit: 30 requests per 10 s per IP
   const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (await isRateLimitedRedis(ip, 30, 10)) {
+  if (await isRateLimitedRedis(ip, 30, 10, "tokd")) {
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "Too many requests — slow down." }) };
   }
 

@@ -98,7 +98,7 @@ exports.handler = async (event) => {
 
   const ip = event.headers["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
   // 5 requests per 60 seconds per IP — stateful across all Lambda instances via Redis
-  if (await isRateLimitedRedis(ip, 5, 60)) {
+  if (await isRateLimitedRedis(ip, 5, 60, "snt")) {
     return { statusCode: 429, headers: { ...headers, "Retry-After": "60" }, body: JSON.stringify({ error: "Too many requests. Please wait a moment." }) };
   }
 

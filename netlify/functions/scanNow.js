@@ -280,7 +280,7 @@ exports.handler = async (event) => {
   }
 
   const ip = event.headers?.["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
-  if (await isRateLimitedRedis(ip, 5, 60)) {
+  if (await isRateLimitedRedis(ip, 5, 60, "scannow")) {
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "rate_limited" }) };
   }
 

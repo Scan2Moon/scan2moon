@@ -301,7 +301,7 @@ exports.handler = async (event) => {
 
   /* 10 batch calls per minute per IP — each batch costs up to 45 Birdeye calls,
      so this caps one IP at ~450 Birdeye calls/min (well within safe limits). */
-  if (await isRateLimitedRedis(ip, 10, 60)) {
+  if (await isRateLimitedRedis(ip, 10, 60, "batch")) {
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "Too many requests. Max 10 batch calls per minute." }) };
   }
 

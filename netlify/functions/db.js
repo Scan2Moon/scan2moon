@@ -105,7 +105,7 @@ function isRateLimited(ip, maxRequests = 30, windowMs = 10000) {
      const limited = await isRateLimitedRedis(ip, 20, 10);
      if (limited) return { statusCode: 429, ... };
    ──────────────────────────────────────────────────────────────────────────── */
-async function isRateLimitedRedis(ip, maxRequests = 30, windowSec = 10) {
+async function isRateLimitedRedis(ip, maxRequests = 30, windowSec = 10, fn = "") {
   // Never rate-limit localhost or private networks — dev requests share one IP and would self-block.
   // "unknown" is NOT exempted: all unknown-IP traffic shares one bucket so it still gets throttled.
   if (ip === "127.0.0.1" || ip === "::1" || ip.startsWith("192.168.") || ip.startsWith("10.")) return false;
@@ -114,7 +114,8 @@ async function isRateLimitedRedis(ip, maxRequests = 30, windowSec = 10) {
   const KEY_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
   if (!KEY_URL || !KEY_TOKEN) return false; // fail open if Redis not configured
 
-  const key = `rl2:${ip}`;
+  // Each function gets its own bucket so priceOnly calls don't eat into batchRisk's quota.
+  const key = fn ? `rl2:${fn}:${ip}` : `rl2:${ip}`;
   try {
     const incrRes = await fetch(`${KEY_URL}/incr/${encodeURIComponent(key)}`, {
       headers: { Authorization: `Bearer ${KEY_TOKEN}` },

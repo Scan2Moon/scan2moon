@@ -239,7 +239,7 @@ exports.handler = async (event) => {
 
   // C5: Rate limiting — 20 requests per 10 seconds per IP
   const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (await isRateLimitedRedis(ip, 20, 10)) {
+  if (await isRateLimitedRedis(ip, 20, 10, "scan")) {
     return { statusCode: 429, headers: { ...CORS_429, "Retry-After": "10" },
              body: JSON.stringify({ error: "Too many requests — slow down." }) };
   }

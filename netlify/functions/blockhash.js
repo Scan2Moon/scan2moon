@@ -55,7 +55,7 @@ exports.handler = async (event) => {
     return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: "GET only" }) };
 
   const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (await isRateLimitedRedis(ip, 30, 10))
+  if (await isRateLimitedRedis(ip, 30, 10, "blk"))
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "Too many requests" }) };
 
   // Serve in-process cache (warm lambda invocations only — not shared across instances)

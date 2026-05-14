@@ -62,7 +62,7 @@ exports.handler = async (event) => {
     "unknown"
   ).split(",")[0].trim();
 
-  if (await isRateLimitedRedis(ip, 30, 60))
+  if (await isRateLimitedRedis(ip, 30, 60, "wp"))
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "Too many requests" }) };
 
   const sql = getDb();

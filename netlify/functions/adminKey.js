@@ -59,7 +59,7 @@ exports.handler = async (event) => {
     "unknown"
   ).split(",")[0].trim();
 
-  if (await isRateLimitedRedis(ip, 10, 60)) {
+  if (await isRateLimitedRedis(ip, 10, 60, "admin")) {
     return {
       statusCode: 429,
       headers: { ...CORS, "Retry-After": "60" },

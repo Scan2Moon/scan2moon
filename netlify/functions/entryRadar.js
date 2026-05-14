@@ -85,7 +85,7 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "GET")     return { statusCode: 405, headers: CORS, body: JSON.stringify({ error: "Method not allowed" }) };
 
   const ip = (event.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
-  if (await isRateLimitedRedis(ip, 15, 10)) {
+  if (await isRateLimitedRedis(ip, 15, 10, "radar")) {
     return { statusCode: 429, headers: CORS_429, body: JSON.stringify({ error: "Too many requests" }) };
   }
 
