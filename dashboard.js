@@ -2790,7 +2790,7 @@ window.buyMarketItem = async function(itemType, itemId, priceUsd) {
     window.openMoonMarket(tabMap[itemType] || "cosmetics");
 
     /* 6. Confirm silently in background (non-blocking) */
-    _confirmTxBackground(sig, usedRpc);
+    _confirmTxBackground(sig, "https://api.mainnet-beta.solana.com");
 
   } catch (err) {
     _DEBUG && console.error("[BuyMarketItem]", err);

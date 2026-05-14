@@ -197,9 +197,14 @@ async function renderDevHistory() {
     // Apply history penalty to trust score
     const finalTrust = Math.max(0, trustScore - (data.historyPenalty ?? 0));
     if (data.historyPenalty > 0) {
-      // Re-render the trust block with updated score
-      el.querySelector(".dh-trust-block").outerHTML = buildStaticHTML(finalTrust)
-        .match(/<div class="dh-trust-block">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/)?.[0] ?? "";
+      // Re-render the trust block with updated score using safe DOM replacement
+      const trustEl = el.querySelector(".dh-trust-block");
+      if (trustEl) {
+        const tmp = document.createElement("div");
+        tmp.innerHTML = buildStaticHTML(finalTrust);
+        const newBlock = tmp.querySelector(".dh-trust-block");
+        if (newBlock) trustEl.replaceWith(newBlock);
+      }
     }
 
     // Token status badge helper
@@ -265,12 +270,12 @@ function renderTokenLinks(mint) {
   const risk   = window.scanResult?.riskLevel  ?? "";
 
   const links = [
-    { icon: "📊", label: "Birdeye",       sub: "Charts & liquidity",   url: `https://birdeye.so/token/${mint}?chain=solana`,                                                        cls: "tl-dex"  },
-    { icon: "🔎", label: "Solscan",      sub: "On-chain explorer",     url: `https://solscan.io/token/${mint}`,                                                              cls: "tl-sol"  },
-    { icon: "🦅", label: "Birdeye",      sub: "Advanced analytics",    url: `https://birdeye.so/token/${mint}?chain=solana`,                                                 cls: "tl-bird" },
-    { icon: "🪐", label: "Jupiter",      sub: "Swap token",            url: `https://jup.ag/swap/SOL-${mint}`,                                                              cls: "tl-jup"  },
-    { icon: "🌊", label: "Raydium",      sub: "DEX pool",              url: `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${mint}`,                             cls: "tl-ray"  },
-    { icon: "🐦", label: "Post to X",    sub: "Share your scan",       url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Scanned ${name} ($${symbol}) on @Scan2Moon 🔍\nScore: ${score}/100 — ${risk}\nhttps://scan2moon.com`)}`, cls: "tl-x" },
+    { icon: "📊", label: "Birdeye",      sub: "Charts & liquidity",   url: `https://birdeye.so/token/${mint}?chain=solana`,                                                       cls: "tl-dex"  },
+    { icon: "🔎", label: "Solscan",      sub: "On-chain explorer",    url: `https://solscan.io/token/${mint}`,                                                             cls: "tl-sol"  },
+    { icon: "📈", label: "DexScreener",  sub: "DEX pair analytics",   url: `https://dexscreener.com/solana/${mint}`,                                                        cls: "tl-bird" },
+    { icon: "🪐", label: "Jupiter",      sub: "Swap token",           url: `https://jup.ag/swap/SOL-${mint}`,                                                             cls: "tl-jup"  },
+    { icon: "🌊", label: "Raydium",      sub: "DEX pool",             url: `https://raydium.io/swap/?inputCurrency=sol&outputCurrency=${mint}`,                            cls: "tl-ray"  },
+    { icon: "🐦", label: "Post to X",   sub: "Share your scan",      url: `https://twitter.com/intent/tweet?text=${encodeURIComponent(`Scanned ${name} ($${symbol}) on @Scan2Moon 🔍\nScore: ${score}/100 — ${risk}\nhttps://scan2moon.com`)}`, cls: "tl-x" },
   ];
 
   el.innerHTML = `
@@ -372,6 +377,19 @@ if (_scanBtn) _scanBtn.onclick = async () => {
     await renderSignals(mint);
     await renderTokenStats(mint);
     await renderFinalScore();
+
+    // Cache exact scanner score in localStorage so other pages (gainers, new-pairs,
+    // watchlist) can show the identical score for tokens you've just scanned.
+    if (window.scanResult?.totalScore != null) {
+      try {
+        const scoreCache = {
+          score: window.scanResult.totalScore,
+          level: window.scanResult.riskLevel,
+          ts: Date.now(),
+        };
+        localStorage.setItem(`s2m_score_cache:${mint}`, JSON.stringify(scoreCache));
+      } catch { /* non-fatal */ }
+    }
 
     renderDevHistory();
     renderTokenLinks(mint);

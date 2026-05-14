@@ -4,6 +4,7 @@ import "./community.js";
 import { CandleChart } from "./candleChart.js";
 import { birdeyeWs }   from "./birdeye-ws.js";
 import "./bubbleMap.js";
+import { esc }         from "./utils.js";
 
 /* ══════════════════════════════════════════════
    PAGE DETECTION
@@ -249,12 +250,30 @@ function updateNpSortHeaders() {
    Runs TWO parallel requests so gainers (15) and
    NP (15) each get their own full batchRisk slot.
 ══════════════════════════════════════════════ */
+/* Read the exact scanner score cached by script.js after a full scan (< 5 min old).
+   Returns null when no fresh cache exists for this mint. */
+function _readScannerScore(mint) {
+  try {
+    const raw = localStorage.getItem(`s2m_score_cache:${mint}`);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (!entry || !entry.score || !entry.level) return null;
+    // Discard after 5 minutes so batchRisk takes over with live market data
+    if (Date.now() - entry.ts > 5 * 60 * 1000) return null;
+    return entry; // { score, level, ts }
+  } catch { return null; }
+}
+
 function _applyRiskScores(scores) {
   let _tgFilterDirty = false; // gainers filter active + a visible token just scored HIGH
   let _npFilterDirty = false; // new pairs filter active + a visible NP token scored HIGH
   const _npSafeActive = !_npShowHighRisk;
 
-  for (const [mint, { score, level }] of Object.entries(scores)) {
+  for (const [mint, batchEntry] of Object.entries(scores)) {
+    // Prefer exact scanner score if user scanned this token within the last 5 minutes
+    const scannerHit = _readScannerScore(mint);
+    const { score, level } = scannerHit ?? batchEntry;
+
     // Persist in cache so re-renders after API refresh use the corrected score
     _riskCache.set(mint, { score, level });
 
@@ -379,10 +398,10 @@ function renderTable() {
         <div class="tg-token-cell">
           <img class="tg-logo" src="${logoSrc(tok.logo)}"
             onerror="this.src='https://placehold.co/36x36/0a2a1e/2cffc9?text=?'"
-            referrerpolicy="no-referrer" alt="${tok.symbol}" />
+            referrerpolicy="no-referrer" alt="${esc(tok.symbol)}" />
           <div class="tg-token-info">
-            <div class="tg-token-name">${tok.name || "Unknown"}</div>
-            <div class="tg-token-sym">${tok.symbol || ""}</div>
+            <div class="tg-token-name">${esc(tok.name) || "Unknown"}</div>
+            <div class="tg-token-sym">${esc(tok.symbol)}</div>
           </div>
         </div>
       </td>
@@ -563,10 +582,10 @@ function renderNewPairs() {
         <div class="tg-token-cell">
           <img class="tg-logo" src="${logoSrc(tok.logo)}"
             onerror="this.src='https://placehold.co/36x36/0a2a1e/2cffc9?text=?'"
-            referrerpolicy="no-referrer" alt="${tok.symbol}" />
+            referrerpolicy="no-referrer" alt="${esc(tok.symbol)}" />
           <div class="tg-token-info">
-            <div class="tg-token-name">${tok.name || "Unknown"}</div>
-            <div class="tg-token-sym">${tok.symbol || ""}</div>
+            <div class="tg-token-name">${esc(tok.name) || "Unknown"}</div>
+            <div class="tg-token-sym">${esc(tok.symbol)}</div>
           </div>
         </div>
       </td>
