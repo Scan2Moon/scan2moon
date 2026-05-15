@@ -179,7 +179,20 @@ async function getStore() {
 
   try {
     const { getStore } = require("@netlify/blobs");
-    const store = getStore("simulator");
+    // NETLIFY_BLOBS_CONTEXT is auto-injected in normal Netlify deployments.
+    // If it's missing (e.g. new Projects format), fall back to explicit config
+    // using NETLIFY_SITE_ID (always available) + NETLIFY_ACCESS_TOKEN (PAT).
+    const storeArg = process.env.NETLIFY_BLOBS_CONTEXT
+      ? "simulator"
+      : {
+          name:   "simulator",
+          siteID: process.env.NETLIFY_SITE_ID,
+          token:  process.env.NETLIFY_ACCESS_TOKEN,
+        };
+    if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY_ACCESS_TOKEN) {
+      throw new Error("Blobs: NETLIFY_BLOBS_CONTEXT and NETLIFY_ACCESS_TOKEN both missing");
+    }
+    const store = getStore(storeArg);
     return {
       // consistency:"strong" ensures we always read the latest write,
       // even if the previous Lambda invocation just wrote it milliseconds ago.
