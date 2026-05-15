@@ -181,16 +181,16 @@ async function getStore() {
     const { getStore } = require("@netlify/blobs");
     // NETLIFY_BLOBS_CONTEXT is auto-injected in normal Netlify deployments.
     // If it's missing (e.g. new Projects format), fall back to explicit config
-    // using NETLIFY_SITE_ID (always available) + NETLIFY_ACCESS_TOKEN (PAT).
+    // using NETLIFY_SITE_ID (always available) + S2M_BLOBS_TOKEN (PAT).
     const storeArg = process.env.NETLIFY_BLOBS_CONTEXT
       ? "simulator"
       : {
           name:   "simulator",
           siteID: process.env.NETLIFY_SITE_ID,
-          token:  process.env.NETLIFY_ACCESS_TOKEN,
+          token:  process.env.S2M_BLOBS_TOKEN,
         };
-    if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.NETLIFY_ACCESS_TOKEN) {
-      throw new Error("Blobs: NETLIFY_BLOBS_CONTEXT and NETLIFY_ACCESS_TOKEN both missing");
+    if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.S2M_BLOBS_TOKEN) {
+      throw new Error("Blobs: NETLIFY_BLOBS_CONTEXT and S2M_BLOBS_TOKEN both missing");
     }
     const store = getStore(storeArg);
     return {
