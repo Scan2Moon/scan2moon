@@ -645,6 +645,7 @@ function badgeProgress(id) {
 
 /* ── State ────────────────────────────────────────────────── */
 let wallet         = null;
+let walletProvider = null; // active wallet object (Phantom or Solflare)
 let profile        = null;
 let dashPrices     = {};      /* mint → USD price (live)   */
 let dashPriceTimer = null;    /* setInterval handle        */
@@ -731,6 +732,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const saved = localStorage.getItem("sa_wallet");
   if (saved && isValidSolanaAddress(saved)) {
     wallet = saved;
+    walletProvider = _getWalletProvider(localStorage.getItem("sa_wallet_provider") || "phantom");
     loadDashboard();
   }
 
@@ -744,26 +746,71 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ═══════════════════════════════════════════════════════
-   WALLET CONNECT
+   WALLET CONNECT  (Phantom + Solflare)
 ═══════════════════════════════════════════════════════ */
+
+function _getWalletProvider(name) {
+  if (name === "solflare") return window.solflare?.isSolflare ? window.solflare : null;
+  /* phantom — prefer window.phantom.solana, fall back to window.solana */
+  return window.phantom?.solana ?? (window.solana?.isPhantom ? window.solana : null);
+}
+
+function _walletPickerModal() {
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center";
+    overlay.innerHTML = `
+      <div style="background:#1a1a2e;border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:32px 28px;max-width:320px;width:90%;text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#fff">Choose Wallet</div>
+        <div style="color:#aaa;font-size:.85rem;margin-bottom:24px">Select your Solana wallet to connect</div>
+        <button id="_wp_phantom" style="width:100%;padding:12px;border-radius:10px;border:1px solid rgba(120,80,255,.5);background:rgba(120,80,255,.15);color:#fff;font-size:.95rem;cursor:pointer;margin-bottom:10px;display:flex;align-items:center;gap:10px;justify-content:center">
+          <img src="https://phantom.app/img/phantom-logo.svg" style="width:20px;height:20px;border-radius:4px" onerror="this.style.display='none'"> Phantom
+        </button>
+        <button id="_wp_solflare" style="width:100%;padding:12px;border-radius:10px;border:1px solid rgba(255,140,0,.4);background:rgba(255,140,0,.1);color:#fff;font-size:.95rem;cursor:pointer;display:flex;align-items:center;gap:10px;justify-content:center">
+          <img src="https://solflare.com/favicon.ico" style="width:20px;height:20px;border-radius:4px" onerror="this.style.display='none'"> Solflare
+        </button>
+        <button id="_wp_cancel" style="margin-top:14px;background:none;border:none;color:#888;font-size:.8rem;cursor:pointer">Cancel</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#_wp_phantom").onclick  = () => { overlay.remove(); resolve("phantom"); };
+    overlay.querySelector("#_wp_solflare").onclick = () => { overlay.remove(); resolve("solflare"); };
+    overlay.querySelector("#_wp_cancel").onclick   = () => { overlay.remove(); resolve(null); };
+    overlay.addEventListener("click", e => { if (e.target === overlay) { overlay.remove(); resolve(null); } });
+  });
+}
+
 async function connectWallet() {
   const btn = document.getElementById("dashConnectBtn");
   document.getElementById("dashConnectText").textContent = "Connecting…";
   btn.disabled = true;
   try {
-    const phantom = window.solana;
-    if (!phantom?.isPhantom) {
-      alert("Phantom wallet not found!\n\nPlease install Phantom from phantom.app and refresh.");
+    const hasPhantom  = !!_getWalletProvider("phantom");
+    const hasSolflare = !!(window.solflare?.isSolflare);
+
+    if (!hasPhantom && !hasSolflare) {
+      alert("No Solana wallet found!\n\nInstall Phantom (phantom.app) or Solflare (solflare.com), then refresh.");
       return;
     }
-    const resp = await phantom.connect();
+
+    let chosen;
+    if (hasPhantom && hasSolflare) {
+      chosen = await _walletPickerModal();
+      if (!chosen) return;
+    } else {
+      chosen = hasPhantom ? "phantom" : "solflare";
+    }
+
+    const provider = _getWalletProvider(chosen);
+    const resp = await provider.connect();
     wallet = resp.publicKey.toString();
+    walletProvider = provider;
     localStorage.setItem("sa_wallet", wallet);
+    localStorage.setItem("sa_wallet_provider", chosen);
     await loadDashboard();
   } catch (e) {
     alert("Wallet connection cancelled or failed.");
   } finally {
-    document.getElementById("dashConnectText").textContent = "Connect Phantom Wallet";
+    document.getElementById("dashConnectText").textContent = "Connect Wallet";
     btn.disabled = false;
   }
 }
@@ -2671,7 +2718,7 @@ window.openMoonMarket = function(startTab = "frames") {
       </div>
       <div class="mm-footer-note">
         Payments go directly to fund Scan2Moon development. Thank you for the support!<br>
-        Purchases are stored to your wallet session. Keep your Phantom connected to access them.
+        Purchases are stored to your wallet session. Keep your wallet connected to access them.
       </div>
     </div>`;
 
@@ -2733,7 +2780,7 @@ window.equipCardDesign = function(designId) {
    MOON MARKET — SOL PAYMENT FLOW
 ═══════════════════════════════════════════════════════ */
 window.buyMarketItem = async function(itemType, itemId, priceUsd) {
-  if (!wallet) { showToast("Connect your Phantom wallet first!"); return; }
+  if (!wallet) { showToast("Connect your wallet first!"); return; }
 
   const btn = document.querySelector(`[data-buy="${itemId}"]`);
   const origText = btn?.textContent;
@@ -2759,7 +2806,6 @@ window.buyMarketItem = async function(itemType, itemId, priceUsd) {
 
     const solAmount = priceUsd / solPrice;
     const lamports  = Math.ceil(solAmount * 1_000_000_000);
-    if (btn) btn.textContent = `Confirm in Phantom…`;
     if (!priceIsEstimate) showToast(`Approve: ${solAmount.toFixed(4)} SOL ($${priceUsd})`);
 
     /* 2. Get latest blockhash via server-side proxy (no public RPC in browser) */
@@ -2781,10 +2827,12 @@ window.buyMarketItem = async function(itemType, itemId, priceUsd) {
       feePayer: fromPubkey,
     }).add(solanaWeb3.SystemProgram.transfer({ fromPubkey, toPubkey, lamports }));
 
-    const provider = window.phantom?.solana || window.solana;
-    if (!provider?.isPhantom) throw new Error("Phantom wallet not detected.");
+    const provider = walletProvider
+      || _getWalletProvider(localStorage.getItem("sa_wallet_provider") || "phantom");
+    if (!provider) throw new Error("Wallet not connected. Please reconnect your wallet.");
 
-    if (btn) btn.textContent = "Confirm in Phantom…";
+    const walletName = localStorage.getItem("sa_wallet_provider") === "solflare" ? "Solflare" : "Phantom";
+    if (btn) btn.textContent = `Confirm in ${walletName}…`;
     const result = await provider.signAndSendTransaction(transaction);
     const sig    = result?.signature || result;
 
@@ -2837,7 +2885,7 @@ async function _confirmTxBackground(sig, rpcUrl) {
       }
       if (status?.err) {
         _DEBUG && console.warn(`[S2M] TX failed on-chain ⚠️`, status.err);
-        showToast("Transaction may have failed — check Phantom history.");
+        showToast("Transaction may have failed — check your wallet history.");
         return;
       }
     } catch { /* keep polling */ }
@@ -2894,8 +2942,10 @@ window.selectAvatar = function(badgeId) {
 window.disconnectDashWallet = function() {
   if (!confirm("Disconnect wallet? Your simulator data stays safe — this just ends your session.")) return;
   localStorage.removeItem("sa_wallet");
+  localStorage.removeItem("sa_wallet_provider");
   localStorage.removeItem("sa_display_name");
   localStorage.removeItem("sa_avatar_id");
+  walletProvider = null;
   if (dashPriceTimer) clearInterval(dashPriceTimer);
   document.getElementById("accountSettingsOverlay")?.remove();
   location.reload();
