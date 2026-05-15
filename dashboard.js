@@ -846,6 +846,11 @@ async function loadDashboard() {
   }
 
   profile = data.profile;
+  if (profile._recovering) {
+    showDashboard(false);
+    showToast("⚠️ Storage reconnecting — your real profile will load on next refresh");
+    return;
+  }
   showDashboard(false);
 }
 

@@ -1059,8 +1059,29 @@ exports.handler = async function(event, context) {
         }
 
         // Case A: getRaw threw twice → Blobs is genuinely unavailable.
-        console.warn("GET: registered wallet, Blobs unavailable (getRaw threw) — returning 503");
-        return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable — reconnecting…" }) };
+        // Return a temporary recovery profile so the user isn't kicked to Demo Mode.
+        // _recovering:true is checked by Redis cache logic (won't be cached) and by
+        // POST handler (which still returns 503 to protect real writes).
+        console.warn("GET: registered wallet, Blobs unavailable (getRaw threw) — serving recovery profile");
+        return { statusCode: 200, headers, body: JSON.stringify({
+          ok: true,
+          profile: {
+            wallet,
+            accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
+            createdAt:   new Date().toISOString(),
+            balance:         STARTING_BALANCE_SOL,
+            balanceCurrency: "sol",
+            holdings:    {},
+            trades:      [],
+            totalPnL:    0,
+            winCount:    0,
+            lossCount:   0,
+            lastLogin:   null,
+            loginStreak: 0,
+            _recovering: true,
+          },
+          isNew: false,
+        }) };
       }
 
       // ── Step 4: Genuinely new wallet — return default profile ──
