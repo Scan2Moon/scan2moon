@@ -12,7 +12,11 @@
   position: sticky;
   top: 56px;
   z-index: 200;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.s2m-page-tabs::-webkit-scrollbar { display: none; }
 .s2m-tab {
   padding: 10px 18px 11px;
   font-size: 12px;
@@ -1046,4 +1050,11 @@
   color: rgba(207,255,244,0.45);
   margin: 0 0 24px;
   font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .s2m-tab { padding: 8px 12px 9px; font-size: 11px; }
+  .acad-hero { padding: 24px 14px 20px; }
+  .acad-hero-title { font-size: clamp(20px, 6vw, 28px); }
+  .acad-section-title { font-size: 14px; }
 }

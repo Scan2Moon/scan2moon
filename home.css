@@ -2246,23 +2246,39 @@
   .hm-cards-grid { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 700px) {
-  .hm-hero { padding: 28px 16px 24px; }
-  .hm-hero-title { font-size: 32px; }
+  .hm-hero { padding: 20px 14px 20px; }
+  .hm-hero-title { font-size: 30px; letter-spacing: -1px; }
+  .hm-hero-subtitle { font-size: 13px; }
   .hm-market-bar { border-radius: 10px; }
-  .hm-market-stat { padding: 10px 14px; min-width: 80px; }
+  .hm-market-stat { padding: 10px 14px; }
   .hm-ms-val { font-size: 16px; }
   .hm-market-divider { display: none; }
-  .hm-cards-section { padding: 20px 16px 16px; }
+  .hm-cards-section { padding: 16px 14px 14px; }
   .hm-cards-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .hm-card { padding: 16px 14px 14px; }
-  .hm-card-title { font-size: 15px; }
+  .hm-card { padding: 14px 12px 12px; }
+  .hm-card-title { font-size: 14px; }
   .hm-card-desc { display: none; }
-  .hm-tools-row { gap: 8px; }
-  .hm-tool-chip { min-width: calc(50% - 4px); }
-  .pg-header-inner { padding: 14px 16px; }
+  .hm-tools-row { gap: 6px; }
+  .hm-tool-chip { min-width: calc(50% - 3px); padding: 10px 12px; }
+  .pg-header-inner { padding: 12px 14px; flex-wrap: wrap; gap: 8px; }
   .pg-header-icon { display: none; }
+  .pg-header-title { font-size: 13px; }
+  .pg-header-sub { font-size: 11px; }
+}
+@media (max-width: 360px) {
+  .hm-hero-title { font-size: 26px; }
+  .hm-tool-chip { min-width: 100%; }
+  .hm-cards-grid { grid-template-columns: 1fr; }
 }
 @media (max-width: 480px) {
   .hm-cards-grid { grid-template-columns: 1fr; }
-  .hm-market-stat { min-width: 50%; }
+  .hm-market-bar  { grid-template-columns: repeat(2, 1fr); }
+  .hm-market-stat { padding: 9px 12px; }
+  /* re-apply border rules for 2-col layout */
+  .hm-market-stat:nth-child(3n)  { border-right: 1px solid rgba(44,255,201,0.08); }
+  .hm-market-stat:nth-child(2n)  { border-right: none; }
+  .hm-market-stat:nth-child(n+5) { border-bottom: none; }
+  .hm-market-stat:nth-child(n+4) { border-bottom: 1px solid rgba(44,255,201,0.08); }
+  .hm-market-stat:nth-child(5),
+  .hm-market-stat:nth-child(6)   { border-bottom: none; }
 }

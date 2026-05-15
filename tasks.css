@@ -723,3 +723,14 @@
   font-size: 11px;
   color: rgba(207,255,244,0.35);
 }
+
+@media (max-width: 600px) {
+  .tasks-hero { padding: 20px 14px 16px; }
+  .tasks-hero-icon { font-size: 36px; }
+  .tasks-overview-card { flex-wrap: wrap; gap: 12px; justify-content: center; padding: 16px 12px; }
+  .tasks-ov-stat { min-width: calc(50% - 6px); }
+  .tasks-ov-val { font-size: 22px; }
+  .tasks-acc-header { padding: 13px 14px; gap: 10px; }
+  .tasks-acc-icon { font-size: 20px; }
+  .stc-icon { font-size: 28px; }
+}
