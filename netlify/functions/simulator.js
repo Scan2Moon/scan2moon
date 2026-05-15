@@ -995,38 +995,71 @@ exports.handler = async function(event, context) {
       const registered = await isWalletRegistered(store, wallet);
       if (registered) {
         // Wallet is in the leaderboard but profile Blob is null after 4 retries.
-        // Distinguish two cases using getRaw (throws on Blobs error, null on "not found"):
-        //   A) Blobs outage → getRaw throws → keep 503 (real data is safe in Blobs)
-        //   B) Orphaned Redis entry → getRaw returns null → SREM + serve fresh profile
+        // Distinguish three cases using getRaw (throws on Blobs error, null on "not found"):
+        //   A) Blobs outage  → getRaw throws         → retry getRaw once, then 503
+        //   B) Orphaned Redis → getRaw returns null   → SREM + serve fresh profile
+        //   C) Lost profile  → regKey non-null, no profile → extra retries, then reset
+        let regKey = null;
+        let getRawThrew = false;
         try {
-          const regKey = await store.getRaw(REG_PREFIX + wallet);
+          regKey = await store.getRaw(REG_PREFIX + wallet);
+        } catch {
+          // getRaw threw — retry once before concluding Blobs is unavailable
+          await new Promise(r => setTimeout(r, 900));
+          try {
+            regKey = await store.getRaw(REG_PREFIX + wallet);
+          } catch {
+            getRawThrew = true;
+          }
+        }
+
+        if (!getRawThrew) {
           if (regKey === null) {
-            // Blobs is responding but the __reg_ key doesn't exist — orphaned Redis entry.
+            // Case B: Blobs is responding but the __reg_ key doesn't exist — orphaned Redis entry.
             // Remove from Redis so future requests don't loop, then serve fresh profile.
             console.warn("GET: orphaned Redis entry for", wallet.slice(0, 8), "— SREM + serving fresh profile");
             try { await _redisCmd("SREM", LB_REDIS_SET_KEY, wallet); } catch {}
-            const freshProfile = {
-              wallet,
-              accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
-              createdAt:   new Date().toISOString(),
-              balance:         STARTING_BALANCE_SOL,
-              balanceCurrency: "sol",
-              holdings:    {},
-              trades:      [],
-              totalPnL:    0,
-              winCount:    0,
-              lossCount:   0,
-              lastLogin:   null,
-              loginStreak: 0,
-            };
-            return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile: freshProfile, isNew: true }) };
+          } else {
+            // Case C: __reg_ key exists but profile blob is missing after 4 retries.
+            // Give Blobs two more chances with longer delays before treating as lost.
+            await new Promise(r => setTimeout(r, 1200));
+            raw = await store.get(wallet);
+            if (!raw) { await new Promise(r => setTimeout(r, 2000)); raw = await store.get(wallet); }
+            if (raw) {
+              // Found it — was a propagation lag. Serve it normally.
+              const profile = JSON.parse(raw);
+              if (!profile._recovering) redisCacheProfile(wallet, profile);
+              return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile, isNew: false }) };
+            }
+            // Still gone after 6 total retries — profile is permanently lost.
+            // Clean up both the leaderboard entry and the dangling __reg_ key so
+            // this wallet never lands here again, then issue a fresh profile.
+            console.warn("GET: reg key exists but profile permanently gone for", wallet.slice(0, 8), "— resetting");
+            try { await _redisCmd("SREM", LB_REDIS_SET_KEY, wallet); } catch {}
+            try { await store.set(REG_PREFIX + wallet, ""); } catch {}
           }
-          // regKey !== null — wallet has a __reg_ key but no profile. Very unusual.
-          // Fall through to 503 to be safe (shouldn't normally happen).
-        } catch {
-          // getRaw threw → Blobs is genuinely unavailable. Keep 503.
+          // Both Case B and Case C end here — create and save a fresh profile.
+          const freshProfile = {
+            wallet,
+            accountName: "Ape #" + wallet.slice(0, 4).toUpperCase(),
+            createdAt:   new Date().toISOString(),
+            balance:         STARTING_BALANCE_SOL,
+            balanceCurrency: "sol",
+            holdings:    {},
+            trades:      [],
+            totalPnL:    0,
+            winCount:    0,
+            lossCount:   0,
+            lastLogin:   null,
+            loginStreak: 0,
+          };
+          // Save the fresh profile to Blobs so future GETs skip this whole path.
+          try { await store.set(wallet, JSON.stringify(freshProfile)); } catch {}
+          return { statusCode: 200, headers, body: JSON.stringify({ ok: true, profile: freshProfile, isNew: true }) };
         }
-        console.warn("GET: registered wallet, Blobs+Redis both unavailable — returning 503");
+
+        // Case A: getRaw threw twice → Blobs is genuinely unavailable.
+        console.warn("GET: registered wallet, Blobs unavailable (getRaw threw) — returning 503");
         return { statusCode: 503, headers, body: JSON.stringify({ error: "Profile temporarily unavailable — reconnecting…" }) };
       }
 
