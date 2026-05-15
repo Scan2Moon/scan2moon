@@ -469,13 +469,13 @@ const BADGE_DEFS = [
 
   /* ── Cosmetics — Moon Krakens (animated MP4) ── */
   { id: "kraken_skeleton",    cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
-    type: "video", video: "/badges/Moon_Krakens_Bages/%23006.mp4", icon: "💀", name: "Skeleton",
+    type: "video", video: "/badges/Moon_Krakens_Bages/006.mp4", icon: "💀", name: "Skeleton",
     desc: "Moon Krakens #006 — Skeleton. Fully animated avatar badge.", reward: 0 },
   { id: "kraken_badboy",      cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
-    type: "video", video: "/badges/Moon_Krakens_Bages/%23005.mp4", icon: "😈", name: "Bad Boy",
+    type: "video", video: "/badges/Moon_Krakens_Bages/005.mp4", icon: "😈", name: "Bad Boy",
     desc: "Moon Krakens #005 — Bad Boy. Fully animated avatar badge.", reward: 0 },
   { id: "kraken_pirate",      cat: "cosmetics", subcat: "moon_krakens", market: true, priceUsd: 4.99,
-    type: "video", video: "/badges/Moon_Krakens_Bages/%23004.mp4", icon: "🏴‍☠️", name: "Pirate",
+    type: "video", video: "/badges/Moon_Krakens_Bages/004.mp4", icon: "🏴‍☠️", name: "Pirate",
     desc: "Moon Krakens #004 — Pirate. Fully animated avatar badge.", reward: 0 },
 
   /* ── Account Levels ── */

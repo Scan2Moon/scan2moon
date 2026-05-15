@@ -42,9 +42,9 @@ const LOCAL_BADGE_MEDIA = {
   cosm_love_solana:     { img: "/badges/Love_Solana.png",              icon: "❤️" },
   cosm_love_s2m:        { img: "/badges/Love_S2M.png",                 icon: "🌙" },
   // Moon Krakens (animated video)
-  kraken_skeleton:      { type: "video", video: "/badges/Moon_Krakens_Bages/%23006.mp4", icon: "💀" },
-  kraken_badboy:        { type: "video", video: "/badges/Moon_Krakens_Bages/%23005.mp4", icon: "😈" },
-  kraken_pirate:        { type: "video", video: "/badges/Moon_Krakens_Bages/%23004.mp4", icon: "🏴‍☠️" },
+  kraken_skeleton:      { type: "video", video: "/badges/Moon_Krakens_Bages/006.mp4", icon: "💀" },
+  kraken_badboy:        { type: "video", video: "/badges/Moon_Krakens_Bages/005.mp4", icon: "😈" },
+  kraken_pirate:        { type: "video", video: "/badges/Moon_Krakens_Bages/004.mp4", icon: "🏴‍☠️" },
   // Level badges
   lvl_1:   { img: "/badges/level_badges/LVL_1.png",   icon: "🌱" },
   lvl_5:   { img: "/badges/level_badges/LVL_5.png",   icon: "🔥" },
