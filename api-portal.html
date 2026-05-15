@@ -1145,6 +1145,57 @@ claude mcp add scan2moon -- npx scan2moon-mcp</pre>
     </div>
   </div>
 
+  <!-- ELIZAOS PLUGIN -->
+  <div class="s-title"><span class="s-dot"></span>ElizaOS Plugin <span style="margin-left:8px;font-size:9px;font-weight:800;letter-spacing:1.5px;padding:2px 8px;border-radius:4px;background:rgba(44,255,201,0.1);color:#2cffc9;border:1px solid rgba(44,255,201,0.25);vertical-align:middle;">NEW</span></div>
+
+  <div class="auth-note" style="margin-bottom:20px;">
+    The <strong style="color:#cffff4;">@scan2moon/eliza-plugin</strong> adds all five Scan2Moon tools to any
+    <a href="https://elizaos.ai" target="_blank" rel="noopener" style="color:var(--accent);">ElizaOS</a> agent.
+    Actions are triggered automatically from natural language &mdash; no manual API calls needed.
+  </div>
+
+  <div class="code-label">Install</div>
+  <pre class="code">npm install @scan2moon/eliza-plugin</pre>
+
+  <div class="code-label">Add to your ElizaOS character config</div>
+  <pre class="code">import { scan2moonPlugin } from "@scan2moon/eliza-plugin";
+
+export const character = {
+  name: "MyAgent",
+  plugins: [scan2moonPlugin],
+  settings: {
+    secrets: {
+      SCAN2MOON_API_KEY: "s2m_your_key_here"  // free at scan2moon.com/api-portal.html
+    }
+  }
+};</pre>
+
+  <div style="margin-bottom:28px;">
+    <div class="code-label" style="margin-bottom:10px;">Actions included</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">ANALYZE_WALLET</div>
+        <div style="font-size:10px;color:var(--text-3);">Dev rug history &amp; penalty score</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">PREDICT_LP_PULL</div>
+        <div style="font-size:10px;color:var(--text-3);">LP pull probability score 0–100</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">DETECT_BUNDLE</div>
+        <div style="font-size:10px;color:var(--text-3);">Coordinated sniper attack detection</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">GET_SMART_MONEY</div>
+        <div style="font-size:10px;color:var(--text-3);">Top traders leaderboard</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">GET_NEW_PAIRS</div>
+        <div style="font-size:10px;color:var(--text-3);">Latest newly launched tokens</div>
+      </div>
+    </div>
+  </div>
+
   <!-- API KEY DESCRIPTION -->
   <div class="s-title"><span class="s-dot"></span>API Key Usage</div>
   <div class="auth-note">

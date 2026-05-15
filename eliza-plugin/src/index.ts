@@ -76,11 +76,11 @@ const analyzeWalletAction: Action = {
   examples: [
     [
       {
-        user: "{{user1}}",
+        name: "{{user1}}",
         content: { text: "Check the dev wallet 9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM for rugs" },
       },
       {
-        user: "{{agentName}}",
+        name: "{{agentName}}",
         content: { text: "Analyzing that wallet's deployment history on Scan2Moon..." },
       },
     ],
@@ -89,10 +89,10 @@ const analyzeWalletAction: Action = {
     const t = String(msg.content.text || "");
     return SOL_RE.test(t) && /wallet|deployer|dev\s|rug.check|launched|history/i.test(t);
   },
-  handler: async (runtime, msg, _state, _opts, cb: HandlerCallback) => {
+  handler: async (runtime, msg, _state, _opts, cb?: HandlerCallback) => {
     const t = String(msg.content.text || "");
     const wallet = t.match(SOL_RE)?.[0];
-    if (!wallet) { cb({ text: "Please provide a Solana wallet address to analyze." }); return; }
+    if (!wallet) { cb && await cb({ text: "Please provide a Solana wallet address to analyze." }); return; }
 
     try {
       const data = await api(`/devWallet?wallet=${wallet}`, key(runtime)) as Record<string, unknown>;
@@ -118,9 +118,9 @@ const analyzeWalletAction: Action = {
         }
       }
 
-      cb({ text: lines.join("\n") });
+      cb && await cb({ text: lines.join("\n") });
     } catch (e: unknown) {
-      cb({ text: `Wallet analysis failed: ${(e as Error).message}` });
+      cb && await cb({ text: `Wallet analysis failed: ${(e as Error).message}` });
     }
   },
 };
@@ -140,11 +140,11 @@ const predictLpPullAction: Action = {
   examples: [
     [
       {
-        user: "{{user1}}",
+        name: "{{user1}}",
         content: { text: "Is token EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v safe from rug?" },
       },
       {
-        user: "{{agentName}}",
+        name: "{{agentName}}",
         content: { text: "Running LP pull predictor on that token..." },
       },
     ],
@@ -153,10 +153,10 @@ const predictLpPullAction: Action = {
     const t = String(msg.content.text || "");
     return SOL_RE.test(t) && /rug|lp.pull|safe|liquidity.risk|lp.risk|predict/i.test(t);
   },
-  handler: async (runtime, msg, _state, _opts, cb: HandlerCallback) => {
+  handler: async (runtime, msg, _state, _opts, cb?: HandlerCallback) => {
     const t = String(msg.content.text || "");
     const mint = t.match(SOL_RE)?.[0];
-    if (!mint) { cb({ text: "Please provide a Solana token mint address." }); return; }
+    if (!mint) { cb && await cb({ text: "Please provide a Solana token mint address." }); return; }
 
     try {
       const data = await api("/lpPredictor", key(runtime), {
@@ -181,9 +181,9 @@ const predictLpPullAction: Action = {
         lines.push(`${arrow} ${s.label}: ${s.value} (${d > 0 ? "+" : ""}${d} pts)`);
       }
 
-      cb({ text: lines.join("\n") });
+      cb && await cb({ text: lines.join("\n") });
     } catch (e: unknown) {
-      cb({ text: `LP prediction failed: ${(e as Error).message}` });
+      cb && await cb({ text: `LP prediction failed: ${(e as Error).message}` });
     }
   },
 };
@@ -203,11 +203,11 @@ const detectBundleAction: Action = {
   examples: [
     [
       {
-        user: "{{user1}}",
+        name: "{{user1}}",
         content: { text: "Check for bundle attack on EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
       },
       {
-        user: "{{agentName}}",
+        name: "{{agentName}}",
         content: { text: "Running bundle attack detector on that token..." },
       },
     ],
@@ -216,10 +216,10 @@ const detectBundleAction: Action = {
     const t = String(msg.content.text || "");
     return SOL_RE.test(t) && /bundle|sniper|coordinated|sniped|launch.attack/i.test(t);
   },
-  handler: async (runtime, msg, _state, _opts, cb: HandlerCallback) => {
+  handler: async (runtime, msg, _state, _opts, cb?: HandlerCallback) => {
     const t = String(msg.content.text || "");
     const mint = t.match(SOL_RE)?.[0];
-    if (!mint) { cb({ text: "Please provide a Solana token mint address." }); return; }
+    if (!mint) { cb && await cb({ text: "Please provide a Solana token mint address." }); return; }
 
     try {
       const data = await api("/bundle", key(runtime), {
@@ -233,7 +233,7 @@ const detectBundleAction: Action = {
         ? "⚠️ **YES — coordinated attack confirmed!**"
         : "✅ None detected";
 
-      cb({
+      cb && await cb({
         text: [
           `**Bundle Check: \`${mint.slice(0,8)}…${mint.slice(-4)}\`**`,
           "",
@@ -244,7 +244,7 @@ const detectBundleAction: Action = {
         ].join("\n"),
       });
     } catch (e: unknown) {
-      cb({ text: `Bundle detection failed: ${(e as Error).message}` });
+      cb && await cb({ text: `Bundle detection failed: ${(e as Error).message}` });
     }
   },
 };
@@ -263,11 +263,11 @@ const getSmartMoneyAction: Action = {
   examples: [
     [
       {
-        user: "{{user1}}",
+        name: "{{user1}}",
         content: { text: "Show me the top 5 Solana smart money wallets" },
       },
       {
-        user: "{{agentName}}",
+        name: "{{agentName}}",
         content: { text: "Fetching the smart money leaderboard from Scan2Moon..." },
       },
     ],
@@ -276,7 +276,7 @@ const getSmartMoneyAction: Action = {
     const t = String(msg.content.text || "");
     return /smart.money|top.trader|whale.leaderboard|best.wallet|copy.trad|top.wallet|profitable.wallet/i.test(t);
   },
-  handler: async (runtime, msg, _state, _opts, cb: HandlerCallback) => {
+  handler: async (runtime, msg, _state, _opts, cb?: HandlerCallback) => {
     const t = String(msg.content.text || "");
     const num = t.match(/\b([1-9][0-9]?)\b/)?.[1];
     const limit = Math.min(10, Math.max(1, parseInt(num || "5")));
@@ -299,9 +299,9 @@ const getSmartMoneyAction: Action = {
         );
       }
 
-      cb({ text: lines.join("\n") });
+      cb && await cb({ text: lines.join("\n") });
     } catch (e: unknown) {
-      cb({ text: `Smart money fetch failed: ${(e as Error).message}` });
+      cb && await cb({ text: `Smart money fetch failed: ${(e as Error).message}` });
     }
   },
 };
@@ -321,11 +321,11 @@ const getNewPairsAction: Action = {
   examples: [
     [
       {
-        user: "{{user1}}",
+        name: "{{user1}}",
         content: { text: "Show me new Solana token launches" },
       },
       {
-        user: "{{agentName}}",
+        name: "{{agentName}}",
         content: { text: "Fetching the latest new pairs from Scan2Moon..." },
       },
     ],
@@ -334,7 +334,7 @@ const getNewPairsAction: Action = {
     const t = String(msg.content.text || "");
     return /new.*(pair|token|launch|coin)|latest.*token|fresh.*token|just.*launched/i.test(t);
   },
-  handler: async (runtime, _msg, _state, _opts, cb: HandlerCallback) => {
+  handler: async (runtime, _msg, _state, _opts, cb?: HandlerCallback) => {
     try {
       const data = await api("/newPairs", key(runtime)) as Record<string, unknown>;
       const tokens = Array.isArray(data.tokens)
@@ -342,7 +342,7 @@ const getNewPairsAction: Action = {
         : [];
 
       if (!tokens.length) {
-        cb({ text: "No new pairs found right now — try again in a moment." });
+        cb && await cb({ text: "No new pairs found right now — try again in a moment." });
         return;
       }
 
@@ -356,9 +356,9 @@ const getNewPairsAction: Action = {
         );
       }
 
-      cb({ text: lines.join("\n") });
+      cb && await cb({ text: lines.join("\n") });
     } catch (e: unknown) {
-      cb({ text: `Failed to fetch new pairs: ${(e as Error).message}` });
+      cb && await cb({ text: `Failed to fetch new pairs: ${(e as Error).message}` });
     }
   },
 };
