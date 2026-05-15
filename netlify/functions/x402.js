@@ -282,7 +282,7 @@ async function resolveAccess(event, endpointKey) {
   var keyId = extractKey(event);
   if (keyId) {
     var auth = await validateApiKey(keyId);
-    if (auth.valid) return { access: "key", plan: auth.plan, email: auth.email };
+    if (auth.valid) return { access: "key", plan: auth.plan, email: auth.email, keyId };
     return { access: "denied", status: auth.status, error: auth.error };
   }
 

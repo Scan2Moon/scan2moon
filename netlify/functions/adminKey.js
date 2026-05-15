@@ -221,7 +221,92 @@ exports.handler = async (event) => {
       }
     }
 
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Unknown action. Valid: list, get, stats" }) };
+    /* ── AGENT STATS ── */
+    if (action === "agent-stats") {
+      try {
+        // Last 7 days endpoint breakdown
+        var byEndpoint = await sql(
+          `SELECT endpoint,
+                  COUNT(*)::int                                                  AS total,
+                  COUNT(*) FILTER (WHERE called_at > NOW() - INTERVAL '24 hours')::int AS last_24h,
+                  COUNT(*) FILTER (WHERE access_method LIKE 'x402%')::int       AS x402_calls,
+                  COUNT(*) FILTER (WHERE access_method = 'key')::int            AS key_calls
+           FROM request_log
+           WHERE called_at > NOW() - INTERVAL '7 days'
+           GROUP BY endpoint
+           ORDER BY total DESC`
+        );
+
+        // Payment method breakdown (last 7 days)
+        var byMethod = await sql(
+          `SELECT access_method,
+                  COUNT(*)::int AS total
+           FROM request_log
+           WHERE called_at > NOW() - INTERVAL '7 days'
+           GROUP BY access_method
+           ORDER BY total DESC`
+        );
+
+        // Top API keys by calls (last 7 days), skip null/site-key
+        var topKeys = await sql(
+          `SELECT key_id, plan, email_domain,
+                  COUNT(*)::int AS total
+           FROM request_log
+           WHERE called_at > NOW() - INTERVAL '7 days'
+             AND key_id IS NOT NULL
+           GROUP BY key_id, plan, email_domain
+           ORDER BY total DESC
+           LIMIT 10`
+        );
+
+        // Hourly call volume for the last 48 hours (sparkline data)
+        var hourly = await sql(
+          `SELECT DATE_TRUNC('hour', called_at) AS hour,
+                  COUNT(*)::int                  AS calls
+           FROM request_log
+           WHERE called_at > NOW() - INTERVAL '48 hours'
+           GROUP BY 1
+           ORDER BY 1`
+        );
+
+        // Recent 25 calls
+        var recent = await sql(
+          `SELECT endpoint, access_method, key_id, plan, email_domain, payer, ip, called_at
+           FROM request_log
+           ORDER BY called_at DESC
+           LIMIT 25`
+        );
+
+        // Grand totals
+        var totals = await sql(
+          `SELECT
+             COUNT(*)::int                                                          AS total_all_time,
+             COUNT(*) FILTER (WHERE called_at > NOW() - INTERVAL '24 hours')::int  AS total_24h,
+             COUNT(*) FILTER (WHERE called_at > NOW() - INTERVAL '7 days')::int    AS total_7d,
+             COUNT(*) FILTER (WHERE access_method LIKE 'x402%')::int               AS x402_all_time,
+             COUNT(*) FILTER (WHERE access_method = 'key')::int                    AS key_all_time
+           FROM request_log`
+        );
+
+        return {
+          statusCode: 200,
+          headers: CORS,
+          body: JSON.stringify({
+            ok: true,
+            totals:     totals[0] || {},
+            byEndpoint: byEndpoint,
+            byMethod:   byMethod,
+            topKeys:    topKeys,
+            hourly:     hourly,
+            recent:     recent,
+          }),
+        };
+      } catch (e) {
+        return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: "DB error: " + e.message }) };
+      }
+    }
+
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Unknown action. Valid: list, get, stats, agent-stats" }) };
   }
 
   /* ════════════════════════════════════════════════════════════

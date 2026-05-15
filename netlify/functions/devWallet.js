@@ -12,8 +12,8 @@
    Cache: Redis 15 min (wallet level) + 30 min (per token)
    ================================================================ */
 
-const { redisGet, redisSet, CORS, CORS_API } = require("./db");
-const { resolveAccess, respond402 }           = require("./x402");
+const { redisGet, redisSet, CORS, CORS_API, logRequest } = require("./db");
+const { resolveAccess, respond402 }                      = require("./x402");
 const { fetchDevWalletData, WALLET_RE, SKIP_SET } = require("./devWalletHelper");
 
 exports.handler = async (event) => {
@@ -37,6 +37,9 @@ exports.handler = async (event) => {
   if (access.access === "paywall") return respond402("devWallet");
   if (access.access === "denied")
     return { statusCode: access.status, headers: CORS_API, body: JSON.stringify({ error: access.error }) };
+
+  const ip = ((event.headers["x-nf-client-connection-ip"] || event.headers["x-forwarded-for"] || "unknown").split(",")[0].trim());
+  logRequest("devWallet", access, ip);
 
   const HELIUS_KEY  = process.env.HELIUS_KEY;
   const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY;

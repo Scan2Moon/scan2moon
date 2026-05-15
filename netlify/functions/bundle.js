@@ -15,7 +15,7 @@
    Bundle Score: 0-100, higher = safer.
    ================================================================ */
 
-const { redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis } = require("./db");
+const { redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis, logRequest } = require("./db");
 const { resolveAccess, respond402, CORS_API } = require("./x402");
 
 const EARLY_WINDOW_SECS  = 300;   // 5 minutes after first trade = "launch window"
@@ -279,6 +279,8 @@ exports.handler = async (event) => {
   if (access.access === "paywall") return respond402("bundle");
   if (access.access === "denied")
     return { statusCode: access.status, headers: CORS_API, body: JSON.stringify({ error: access.error }) };
+
+  logRequest("bundle", access, ip);
 
   const BIRDEYE_KEY = process.env.BIRDEYE_API_KEY;
   const HELIUS_KEY  = process.env.HELIUS_KEY;
