@@ -24,6 +24,7 @@ function savePurchase(id, type, priceUsd, txSig) {
   if (!list.some(p => p.id === id)) {
     list.push({ id, type, priceUsd, txSig, ts: new Date().toISOString() });
     localStorage.setItem("sa_purchased", JSON.stringify(list));
+    _syncCosmetics(); /* persist to Blobs immediately after purchase */
   }
 }
 
@@ -427,6 +428,7 @@ function applySkin(id) {
 window.equipSkin = function(id) {
   try { localStorage.setItem("s2m_dash_skin", id); } catch {}
   applySkin(id);
+  _syncCosmetics();
   /* Refresh equip buttons in Moon Market if open */
   document.querySelectorAll(".mm-skin-card").forEach(card => {
     const equipped = card.dataset.skinId === id;
@@ -864,6 +866,51 @@ const DEMO_PROFILE = {
 };
 
 /* ═══════════════════════════════════════════════════════
+   COSMETICS PERSISTENCE  (sync to / restore from Blobs)
+═══════════════════════════════════════════════════════ */
+
+/* Called after profile loads — pull server cosmetics into localStorage */
+function _restoreCosmetics(p) {
+  if (!p) return;
+  if (p.avatarId)   localStorage.setItem("sa_avatar_id",    p.avatarId);
+  if (p.frameId)    localStorage.setItem("sa_frame_id",     p.frameId);
+  if (p.cardDesign) localStorage.setItem("sa_card_design",  p.cardDesign);
+  if (p.skinId)     localStorage.setItem("s2m_dash_skin",   p.skinId);
+  /* Restore display name from server accountName if cleared locally */
+  if (!localStorage.getItem("sa_display_name") && p.accountName) {
+    localStorage.setItem("sa_display_name", p.accountName);
+  }
+  /* Merge server-side purchases with local ones (deduplicate by id) */
+  if (Array.isArray(p.purchased) && p.purchased.length) {
+    const local  = getPurchased();
+    const merged = [...local];
+    for (const sp of p.purchased) {
+      if (!merged.some(lp => lp.id === sp.id)) merged.push(sp);
+    }
+    localStorage.setItem("sa_purchased", JSON.stringify(merged));
+  }
+}
+
+/* Fire-and-forget — push current cosmetics state to server */
+function _syncCosmetics() {
+  if (!wallet || !profile || profile._recovering) return;
+  const body = {
+    wallet,
+    action:     "update_cosmetics",
+    avatarId:   localStorage.getItem("sa_avatar_id")    || null,
+    frameId:    localStorage.getItem("sa_frame_id")     || null,
+    cardDesign: localStorage.getItem("sa_card_design")  || null,
+    skinId:     localStorage.getItem("s2m_dash_skin")   || null,
+    purchased:  getPurchased(),
+  };
+  fetch(SIM_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  }).catch(() => { /* non-fatal */ });
+}
+
+/* ═══════════════════════════════════════════════════════
    LOAD DASHBOARD  (with 503 retry + demo fallback)
 ═══════════════════════════════════════════════════════ */
 async function loadDashboard() {
@@ -912,6 +959,7 @@ async function loadDashboard() {
     showToast("⚠️ Storage reconnecting — your real profile will load on next refresh");
     return;
   }
+  _restoreCosmetics(profile);
   showDashboard(false);
 }
 
@@ -2766,6 +2814,7 @@ window.mmSwitchTab = function(tab) {
 
 window.equipFrame = function(frameId) {
   localStorage.setItem("sa_frame_id", frameId);
+  _syncCosmetics();
   /* Update hero */
   const frameEl = document.getElementById("dashAvatarFrame");
   if (frameEl) {
@@ -2788,6 +2837,7 @@ window.equipFrame = function(frameId) {
 
 window.equipCardDesign = function(designId) {
   localStorage.setItem("sa_card_design", designId);
+  _syncCosmetics();
   /* Update buttons */
   document.querySelectorAll("[data-card]").forEach(btn => {
     const did = btn.dataset.card;
@@ -2965,6 +3015,7 @@ window.selectAvatar = function(badgeId) {
     localStorage.removeItem("sa_avatar_id");
     if (avEl) avEl.textContent = "◆";
   }
+  _syncCosmetics();
   showToast("Avatar updated!");
 };
 
@@ -2972,8 +3023,6 @@ window.disconnectDashWallet = function() {
   if (!confirm("Disconnect wallet? Your simulator data stays safe — this just ends your session.")) return;
   localStorage.removeItem("sa_wallet");
   localStorage.removeItem("sa_wallet_provider");
-  localStorage.removeItem("sa_display_name");
-  localStorage.removeItem("sa_avatar_id");
   walletProvider = null;
   if (dashPriceTimer) clearInterval(dashPriceTimer);
   document.getElementById("accountSettingsOverlay")?.remove();

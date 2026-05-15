@@ -1496,6 +1496,28 @@ exports.handler = async function(event, context) {
       return { statusCode: 200, headers, body: JSON.stringify({ profile }) };
     }
 
+    // ── UPDATE COSMETICS ──
+    // Saves avatar, frame, card, skin, and purchased items to the Blobs profile
+    // so they survive logout/login and work across devices.
+    if (action === "update_cosmetics") {
+      const VALID_ID = /^[a-zA-Z0-9_-]{1,60}$/;
+      if (body.avatarId   !== undefined) profile.avatarId   = (typeof body.avatarId   === "string" && VALID_ID.test(body.avatarId))   ? body.avatarId   : null;
+      if (body.frameId    !== undefined) profile.frameId    = (typeof body.frameId    === "string" && VALID_ID.test(body.frameId))    ? body.frameId    : null;
+      if (body.cardDesign !== undefined) profile.cardDesign = (typeof body.cardDesign === "string" && VALID_ID.test(body.cardDesign)) ? body.cardDesign : null;
+      if (body.skinId     !== undefined) profile.skinId     = (typeof body.skinId     === "string" && VALID_ID.test(body.skinId))     ? body.skinId     : null;
+      if (Array.isArray(body.purchased)) {
+        profile.purchased = body.purchased.slice(0, 200).map(p => ({
+          id:       String(p.id       || "").slice(0, 60),
+          type:     String(p.type     || "").slice(0, 20),
+          priceUsd: parseFloat(p.priceUsd) || 0,
+          txSig:    String(p.txSig    || "").slice(0, 100),
+          ts:       typeof p.ts === "string" ? p.ts : new Date().toISOString(),
+        })).filter(p => p.id && VALID_ID.test(p.id));
+      }
+      try { await store.set(wallet, JSON.stringify(profile)); } catch(blobsErr) { console.error("Blobs write failed:", blobsErr.message); } redisCacheProfile(wallet, profile);
+      return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
+    }
+
     // ── MIGRATE TO SOL ──
     // Converts a legacy USD-denominated profile to SOL denomination.
     // The client sends the current SOL price so we don't need another fetch.
