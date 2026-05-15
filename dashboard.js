@@ -795,6 +795,37 @@ function _walletPickerModal() {
   });
 }
 
+function _isMobileBrowser() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function _mobileWalletModal() {
+  const url = encodeURIComponent(window.location.href);
+  const ref = encodeURIComponent(window.location.origin);
+  const phantomLink  = `https://phantom.app/ul/browse/${url}?ref=${ref}`;
+  const solflareLink = `https://solflare.com/ul/v1/browse/${url}?ref=${ref}`;
+
+  return new Promise(resolve => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+    overlay.innerHTML = `
+      <div style="background:#0d1a14;border:1px solid rgba(44,255,201,0.2);border-radius:16px;padding:28px 24px;max-width:320px;width:100%;text-align:center">
+        <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px;color:#fff">Open in Wallet App</div>
+        <div style="color:rgba(207,255,244,0.45);font-size:.8rem;margin-bottom:24px;line-height:1.5">Mobile browsers can't inject wallets.<br>Open this page inside your wallet's browser.</div>
+        <a href="${phantomLink}" style="display:flex;align-items:center;gap:10px;justify-content:center;width:100%;padding:13px;border-radius:10px;border:1px solid rgba(120,80,255,.5);background:rgba(120,80,255,.15);color:#fff;font-size:.95rem;text-decoration:none;margin-bottom:10px;box-sizing:border-box">
+          <img src="https://phantom.app/img/phantom-logo.svg" style="width:20px;height:20px;border-radius:4px" onerror="this.style.display='none'"> Open in Phantom
+        </a>
+        <a href="${solflareLink}" style="display:flex;align-items:center;gap:10px;justify-content:center;width:100%;padding:13px;border-radius:10px;border:1px solid rgba(255,140,0,.4);background:rgba(255,140,0,.1);color:#fff;font-size:.95rem;text-decoration:none;box-sizing:border-box">
+          <img src="https://solflare.com/favicon.ico" style="width:20px;height:20px;border-radius:4px" onerror="this.style.display='none'"> Open in Solflare
+        </a>
+        <button id="_mwm_cancel" style="margin-top:16px;background:none;border:none;color:rgba(207,255,244,0.35);font-size:.8rem;cursor:pointer">Cancel</button>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.querySelector("#_mwm_cancel").onclick = () => { overlay.remove(); resolve(); };
+    overlay.addEventListener("click", e => { if (e.target === overlay) { overlay.remove(); resolve(); } });
+  });
+}
+
 async function connectWallet() {
   const btn = document.getElementById("dashConnectBtn");
   document.getElementById("dashConnectText").textContent = "Connecting…";
@@ -804,7 +835,12 @@ async function connectWallet() {
     const hasSolflare = !!(window.solflare?.isSolflare);
 
     if (!hasPhantom && !hasSolflare) {
-      alert("No Solana wallet found!\n\nInstall Phantom (phantom.app) or Solflare (solflare.com), then refresh.");
+      if (_isMobileBrowser()) {
+        /* Mobile: wallets only inject inside their own in-app browser */
+        await _mobileWalletModal();
+      } else {
+        alert("No Solana wallet found!\n\nInstall Phantom (phantom.app) or Solflare (solflare.com), then refresh.");
+      }
       return;
     }
 
