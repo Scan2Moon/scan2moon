@@ -752,7 +752,6 @@ function _hasOpenModal() {
   for (const child of document.body.children) {
     for (const cls of OVERLAY_CLASSES_SET) { if (child.classList.contains(cls)) return true; }
     if (child.id === 'moonMarketOverlay' || child.id === 'mwOverlay') return true;
-    if (child.style?.position === 'fixed' && String(child.style?.zIndex) === '9999') return true;
   }
   return false;
 }
