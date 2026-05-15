@@ -1071,6 +1071,7 @@ window._dashGoToApe = function(mint) {
 ═══════════════════════════════════════════════════════ */
 function checkDashDailyReward() {
   if (!profile || !wallet) return;
+  if (profile._recovering) return; /* storage reconnecting — don't attempt POST */
   const today = new Date().toISOString().slice(0, 10);
   const lastLogin = (profile.lastLogin || '').slice(0, 10); /* normalise full ISO or date-only */
 
