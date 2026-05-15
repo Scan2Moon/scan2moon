@@ -182,14 +182,13 @@ async function getStore() {
     // NETLIFY_BLOBS_CONTEXT is auto-injected in normal Netlify deployments.
     // If it's missing (e.g. new Projects format), fall back to explicit config
     // using NETLIFY_SITE_ID (always available) + S2M_BLOBS_TOKEN (PAT).
+    const _siteId = process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
+    const _token  = process.env.S2M_BLOBS_TOKEN;
+    console.log("Blobs init: context=", !!process.env.NETLIFY_BLOBS_CONTEXT, "siteID=", _siteId || "MISSING", "token=", _token ? "SET" : "MISSING");
     const storeArg = process.env.NETLIFY_BLOBS_CONTEXT
       ? "simulator"
-      : {
-          name:   "simulator",
-          siteID: process.env.NETLIFY_SITE_ID,
-          token:  process.env.S2M_BLOBS_TOKEN,
-        };
-    if (!process.env.NETLIFY_BLOBS_CONTEXT && !process.env.S2M_BLOBS_TOKEN) {
+      : { name: "simulator", siteID: _siteId, token: _token };
+    if (!process.env.NETLIFY_BLOBS_CONTEXT && !_token) {
       throw new Error("Blobs: NETLIFY_BLOBS_CONTEXT and S2M_BLOBS_TOKEN both missing");
     }
     const store = getStore(storeArg);
