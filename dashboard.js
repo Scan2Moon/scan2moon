@@ -741,6 +741,30 @@ function refreshHoldingsPnL() {
 /* ═══════════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════════ */
+/* Lock body scroll while any modal overlay is in the DOM (prevents page moving behind modal on mobile) */
+(function _watchModalOverlays() {
+  const OVERLAY_CLASSES = new Set([
+    'accs-overlay','mm-overlay','th-modal-overlay',
+    'badge-modal-overlay','mw-overlay',
+  ]);
+  function _hasOpenModal() {
+    for (const child of document.body.children) {
+      for (const cls of OVERLAY_CLASSES) { if (child.classList.contains(cls)) return true; }
+      if (child.id === 'moonMarketOverlay' || child.id === 'mwOverlay') return true;
+      /* wallet picker / mobile wallet modals use inline fixed style + z-index 9999 */
+      if (child.style?.position === 'fixed' && String(child.style?.zIndex) === '9999') return true;
+    }
+    return false;
+  }
+  const startObserver = () => {
+    new MutationObserver(() => {
+      document.body.style.overflow = _hasOpenModal() ? 'hidden' : '';
+    }).observe(document.body, { childList: true });
+  };
+  if (document.body) startObserver();
+  else document.addEventListener('DOMContentLoaded', startObserver, { once: true });
+})();
+
 document.addEventListener("DOMContentLoaded", () => {
   renderNav();
   applyTranslations();
@@ -774,7 +798,7 @@ function _getWalletProvider(name) {
 function _walletPickerModal() {
   return new Promise(resolve => {
     const overlay = document.createElement("div");
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center";
+    overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;overscroll-behavior:contain;touch-action:none;";
     overlay.innerHTML = `
       <div style="background:#1a1a2e;border:1px solid rgba(255,255,255,.15);border-radius:16px;padding:32px 28px;max-width:320px;width:90%;text-align:center">
         <div style="font-size:1.1rem;font-weight:700;margin-bottom:8px;color:#fff">Choose Wallet</div>
@@ -807,7 +831,7 @@ function _mobileWalletModal() {
 
   return new Promise(resolve => {
     const overlay = document.createElement("div");
-    overlay.style.cssText = "position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px";
+    overlay.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;overscroll-behavior:contain;touch-action:none;";
     overlay.innerHTML = `
       <div style="background:#0d1a14;border:1px solid rgba(44,255,201,0.2);border-radius:16px;padding:28px 24px;max-width:320px;width:100%;text-align:center">
         <div style="font-size:1.1rem;font-weight:700;margin-bottom:6px;color:#fff">Open in Wallet App</div>
