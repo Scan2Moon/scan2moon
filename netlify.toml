@@ -76,6 +76,19 @@
   [headers.values]
     Cache-Control = "no-cache"
 
+# ── AI agent discovery endpoints ────────────────────────────────────────────
+[[redirects]]
+  from = "/.well-known/x402.json"
+  to = "/.netlify/functions/wellknown-x402"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/llms.txt"
+  to = "/.netlify/functions/llmstxt"
+  status = 200
+  force = true
+
 # ── Block direct access to .env (safety net) ────────────────────────────────
 [[redirects]]
   from = "/.env"

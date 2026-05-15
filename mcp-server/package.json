@@ -1,0 +1,16 @@
+{
+  "name": "scan2moon-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Scan2Moon — Solana on-chain intelligence tools for Claude agents",
+  "type": "module",
+  "bin": {
+    "scan2moon-mcp": "./index.js"
+  },
+  "files": ["index.js"],
+  "engines": { "node": ">=18" },
+  "keywords": ["mcp", "solana", "crypto", "defi", "claude", "ai-agent", "x402"],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}
