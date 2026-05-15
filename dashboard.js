@@ -99,6 +99,20 @@ const CARD_THEMES = {
     wallet: "rgba(200,100,255,0.4)", footer: "rgba(200,100,255,0.25)",
     hdrBorder: "rgba(200,100,255,0.15)", tag: "DEGEN PROFILE",
   },
+  card_galaxy: {
+    bg: "linear-gradient(160deg,#020614 0%,#070d28 55%,#020510 100%)",
+    border: "rgba(100,160,255,0.35)", logo: "#7eb8ff", accent: "#5090ff",
+    statHi: "#60aaff", name: "#c0d8ff", level: "#8ab8ff",
+    wallet: "rgba(80,130,255,0.4)", footer: "rgba(80,130,255,0.25)",
+    hdrBorder: "rgba(80,130,255,0.15)", tag: "SPACE TRADER",
+  },
+  card_gold: {
+    bg: "linear-gradient(160deg,#120800 0%,#221200 55%,#120800 100%)",
+    border: "rgba(255,185,30,0.48)", logo: "#ffb432", accent: "#ffcc00",
+    statHi: "#ffd700", name: "#ffe8a0", level: "#ffcc55",
+    wallet: "rgba(255,185,50,0.45)", footer: "rgba(255,185,50,0.25)",
+    hdrBorder: "rgba(255,185,50,0.18)", tag: "CHAMPION",
+  },
 };
 
 /* ── Dashboard Skin Definitions ──────────────────────────── */
@@ -2605,9 +2619,12 @@ window.openMoonMarket = function(startTab = "frames") {
     const isOwned    = f.freebie || isPurchased(f.id);
     const isEquipped = f.id === savedFrameId;
     const previewCls = `mm-frame-preview${f.cssClass ? " " + f.cssClass : ""}`;
+    const previewHtml = isOwned
+      ? `<div class="${previewCls}"><div class="mm-frame-avatar">◆</div></div>`
+      : `<div class="mm-preview-wrap"><div class="${previewCls}"><div class="mm-frame-avatar">◆</div></div><div class="mm-lock-veil">🔒</div></div>`;
     return `
-      <div class="mm-item${isEquipped ? " mm-item-active" : ""}">
-        <div class="${previewCls}"><div class="mm-frame-avatar">◆</div></div>
+      <div class="mm-item${isEquipped ? " mm-item-active" : ""}${!isOwned ? " mm-item-locked" : ""}">
+        ${previewHtml}
         <div class="mm-item-name">${esc(f.name)}</div>
         <div class="mm-item-desc">${esc(f.desc)}</div>
         <div class="mm-item-price${f.freebie ? " mm-price-free" : ""}">${f.freebie ? "FREE" : `$${f.price}`}</div>
@@ -2615,9 +2632,9 @@ window.openMoonMarket = function(startTab = "frames") {
           ? `<button class="mm-equip-btn${isEquipped ? " mm-equipped" : ""}"
                data-frame="${f.id}" onclick="window.equipFrame('${f.id}')">
                ${isEquipped ? "◆ EQUIPPED" : "Equip"}</button>`
-          : `<button class="mm-buy-btn" data-buy="${f.id}"
+          : `<button class="mm-buy-btn mm-lock-btn" data-buy="${f.id}"
                onclick="window.buyMarketItem('frame','${f.id}',${f.price})">
-               Buy $${f.price}</button>`}
+               🔒 Unlock $${f.price}</button>`}
       </div>`;
   }
 
@@ -2626,14 +2643,19 @@ window.openMoonMarket = function(startTab = "frames") {
     const isOwned    = c.freebie || isPurchased(c.id);
     const isEquipped = c.id === savedCardId;
     const th = CARD_THEMES[c.id] || CARD_THEMES.card_classic;
+    const cardPreview = `
+      <div class="mm-card-preview" style="background:${th.bg};border-color:${th.border};">
+        <div class="mm-card-prev-logo" style="color:${th.logo};">◆ S2M</div>
+        <div class="mm-card-prev-tag"  style="color:${th.logo};opacity:.6;">${esc(c.icon)} ${esc(c.name)}</div>
+        <div class="mm-card-prev-stats" style="color:${th.logo};">
+          <span>P/L</span><span>WIN%</span><span>LVL</span></div>
+      </div>`;
+    const previewHtml = isOwned
+      ? cardPreview
+      : `<div class="mm-preview-wrap">${cardPreview}<div class="mm-lock-veil">🔒</div></div>`;
     return `
-      <div class="mm-item${isEquipped ? " mm-item-active" : ""}">
-        <div class="mm-card-preview" style="background:${th.bg};border-color:${th.border};">
-          <div class="mm-card-prev-logo" style="color:${th.logo};">◆ S2M</div>
-          <div class="mm-card-prev-tag"  style="color:${th.logo};opacity:.6;">${esc(c.icon)} ${esc(c.name)}</div>
-          <div class="mm-card-prev-stats" style="color:${th.logo};">
-            <span>P/L</span><span>WIN%</span><span>LVL</span></div>
-        </div>
+      <div class="mm-item${isEquipped ? " mm-item-active" : ""}${!isOwned ? " mm-item-locked" : ""}">
+        ${previewHtml}
         <div class="mm-item-name">${esc(c.name)}</div>
         <div class="mm-item-desc">${esc(c.desc)}</div>
         <div class="mm-item-price${c.freebie ? " mm-price-free" : ""}">${c.freebie ? "FREE" : `$${c.price}`}</div>
@@ -2641,34 +2663,37 @@ window.openMoonMarket = function(startTab = "frames") {
           ? `<button class="mm-equip-btn${isEquipped ? " mm-equipped" : ""}"
                data-card="${c.id}" onclick="window.equipCardDesign('${c.id}')">
                ${isEquipped ? "◆ EQUIPPED" : "Equip"}</button>`
-          : `<button class="mm-buy-btn" data-buy="${c.id}"
+          : `<button class="mm-buy-btn mm-lock-btn" data-buy="${c.id}"
                onclick="window.buyMarketItem('card','${c.id}',${c.price})">
-               Buy $${c.price}</button>`}
+               🔒 Unlock $${c.price}</button>`}
       </div>`;
   }
 
   /* ── Cosmetic badge item ── */
   function cosmeticItemHtml(b) {
     const isOwned = b.freebie || owned.has(b.id);
-    const previewHtml = b.type === "video" && b.video
+    const mediaHtml = b.type === "video" && b.video
       ? `<video src="${b.video || ''}" class="mm-badge-video" autoplay loop muted playsinline></video>`
       : b.img
         ? `<img src="${b.img || ''}" style="width:72px;height:72px;object-fit:cover;border-radius:12px;"
              onerror="this.style.display='none';this.nextElementSibling.style.display='block'">
            <span style="display:none;font-size:44px;">${b.icon}</span>`
         : `<span style="font-size:52px;line-height:1;">${b.icon}</span>`;
+    const previewHtml = isOwned
+      ? `<div class="mm-badge-preview">${mediaHtml}</div>`
+      : `<div class="mm-preview-wrap"><div class="mm-badge-preview">${mediaHtml}</div><div class="mm-lock-veil">🔒</div></div>`;
     return `
-      <div class="mm-item">
-        <div class="mm-badge-preview">${previewHtml}</div>
+      <div class="mm-item${!isOwned ? " mm-item-locked" : ""}">
+        ${previewHtml}
         <div class="mm-item-name">${esc(b.name)}</div>
         <div class="mm-item-desc">${esc(b.desc)}</div>
         <div class="mm-item-price${b.freebie ? " mm-price-free" : ""}">${b.freebie ? "FREE" : `$${b.priceUsd}`}</div>
         ${isOwned
           ? `<button class="mm-equip-btn" onclick="window.selectAvatar('${b.id}');showToast('Avatar set to ${esc(b.name)}!')">
                Use as Avatar</button>`
-          : `<button class="mm-buy-btn" data-buy="${b.id}"
+          : `<button class="mm-buy-btn mm-lock-btn" data-buy="${b.id}"
                onclick="window.buyMarketItem('badge','${b.id}',${b.priceUsd})">
-               Buy $${b.priceUsd}</button>`}
+               🔒 Unlock $${b.priceUsd}</button>`}
       </div>`;
   }
 
@@ -2836,14 +2861,18 @@ window.buyMarketItem = async function(itemType, itemId, priceUsd) {
     const result = await provider.signAndSendTransaction(transaction);
     const sig    = result?.signature || result;
 
-    /* 4. Unlock immediately — Phantom already submitted the TX */
+    /* 4. Unlock immediately — wallet already submitted the TX */
     savePurchase(itemId, itemType, priceUsd, sig);
-    showToast(`Payment sent! Unlocking now…`);
+    showToast(`✅ Unlocked! Enjoy your new item.`);
     if (btn) { btn.disabled = false; btn.textContent = origText; }
 
-    /* 5. Re-open market on the right tab */
+    /* 5. Re-open market on the right tab, then flash the unlocked item */
     const tabMap = { frame: "frames", card: "cards", badge: "cosmetics" };
     window.openMoonMarket(tabMap[itemType] || "cosmetics");
+    setTimeout(() => {
+      const el = document.querySelector(`[data-buy="${itemId}"]`)?.closest(".mm-item");
+      if (el) el.classList.add("mm-item-unlocked");
+    }, 80);
 
     /* 6. Confirm silently in background (non-blocking) */
     _confirmTxBackground(sig, "https://api.mainnet-beta.solana.com");
