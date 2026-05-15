@@ -741,24 +741,41 @@ function refreshHoldingsPnL() {
 /* ═══════════════════════════════════════════════════════
    INIT
 ═══════════════════════════════════════════════════════ */
-/* Lock body scroll while any modal overlay is in the DOM (prevents page moving behind modal on mobile) */
-(function _watchModalOverlays() {
-  const OVERLAY_CLASSES = new Set([
-    'accs-overlay','mm-overlay','th-modal-overlay',
-    'badge-modal-overlay','mw-overlay',
-  ]);
-  function _hasOpenModal() {
-    for (const child of document.body.children) {
-      for (const cls of OVERLAY_CLASSES) { if (child.classList.contains(cls)) return true; }
-      if (child.id === 'moonMarketOverlay' || child.id === 'mwOverlay') return true;
-      /* wallet picker / mobile wallet modals use inline fixed style + z-index 9999 */
-      if (child.style?.position === 'fixed' && String(child.style?.zIndex) === '9999') return true;
-    }
-    return false;
+/* iOS-compatible scroll lock — overflow:hidden alone doesn't stop iOS Safari scroll.
+   body:fixed technique: saves scroll position, fixes body, restores on close. */
+let _bodyScrollLockY = 0;
+const OVERLAY_CLASSES_SET = new Set([
+  'accs-overlay','mm-overlay','th-modal-overlay',
+  'badge-modal-overlay','mw-overlay',
+]);
+function _hasOpenModal() {
+  for (const child of document.body.children) {
+    for (const cls of OVERLAY_CLASSES_SET) { if (child.classList.contains(cls)) return true; }
+    if (child.id === 'moonMarketOverlay' || child.id === 'mwOverlay') return true;
+    if (child.style?.position === 'fixed' && String(child.style?.zIndex) === '9999') return true;
   }
+  return false;
+}
+function _lockBodyScroll() {
+  if (document.body.dataset.scrollLocked) return;
+  _bodyScrollLockY = window.scrollY || window.pageYOffset || 0;
+  document.body.style.cssText += `;position:fixed;top:-${_bodyScrollLockY}px;left:0;right:0;overflow:hidden;`;
+  document.body.dataset.scrollLocked = '1';
+}
+function _unlockBodyScroll() {
+  if (!document.body.dataset.scrollLocked) return;
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.left = '';
+  document.body.style.right = '';
+  document.body.style.overflow = '';
+  delete document.body.dataset.scrollLocked;
+  window.scrollTo(0, _bodyScrollLockY);
+}
+(function _watchModalOverlays() {
   const startObserver = () => {
     new MutationObserver(() => {
-      document.body.style.overflow = _hasOpenModal() ? 'hidden' : '';
+      _hasOpenModal() ? _lockBodyScroll() : _unlockBodyScroll();
     }).observe(document.body, { childList: true });
   };
   if (document.body) startObserver();

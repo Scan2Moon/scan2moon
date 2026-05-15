@@ -62,6 +62,7 @@
   position: absolute; inset: 0; border-radius: 50%;
   background: conic-gradient(from 0deg,transparent 0deg,rgba(44,255,201,0.4) 25deg,rgba(44,255,201,0.07) 60deg,transparent 61deg);
   animation: scanRotate 1.8s linear infinite;
+  will-change: transform;
 }
 .scan-dot {
   position: absolute; width: 5px; height: 5px;
@@ -1804,3 +1805,38 @@
 
 /* Scrollbar */
 #dashApp[data-skin="neon_degen"]::-webkit-scrollbar-thumb { background: rgba(200,64,255,0.2) !important; }
+
+/* ══════════════════════════════════════════════════
+   MOBILE PERFORMANCE — reduce GPU/CPU load on phones
+══════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* Slow down login-gate scan animation */
+  .scan-ring-1, .scan-ring-2, .scan-ring-3 { animation-duration: 3s; }
+  .scan-sweep  { animation-duration: 2.5s; }
+  .scan-dot    { animation: none; opacity: 0.6; }
+
+  /* Frame glow effects — keep but slow down */
+  .dash-avatar-frame[class*="frame-moon"]  { animation-duration: 4s !important; }
+  .dash-avatar-frame[class*="frame-solar"] { animation-duration: 3.5s !important; }
+  .dash-avatar-frame[class*="frame-neon"]  { animation-duration: 3s !important; }
+
+  /* Overlays — explicit height for iOS dynamic viewport */
+  .accs-overlay,
+  #moonMarketOverlay,
+  .mm-overlay,
+  .th-modal-overlay,
+  #badgeModalOverlay,
+  .mw-overlay {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  /* Modal cards — tighter max-height on small screens */
+  .accs-card                  { max-height: 82vh; }
+  .mm-overlay-card, .mm-modal { max-height: 82vh; }
+  .th-modal-card              { max-height: 82vh; }
+
+  /* Wallet slide-in — slide up from bottom on mobile instead of right */
+  .mw-overlay { align-items: flex-end; }
+  .mw-modal   { max-width: 100%; border-left: none; border-top: 1px solid rgba(44,255,201,0.12); height: auto; max-height: 90vh; }
+}
