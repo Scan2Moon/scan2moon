@@ -759,9 +759,10 @@
    23 · TRADE HISTORY MODAL
 ══════════════════════════════════════════════════ */
 .th-modal-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75);
   display: flex; align-items: center; justify-content: center;
   z-index: 9000; padding: 20px;
+  overscroll-behavior: contain; touch-action: none;
 }
 .th-modal-card {
   background: #060f0b; border: 1px solid rgba(44,255,201,0.15); border-radius: 14px;
@@ -775,7 +776,7 @@
 .th-modal-title { font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: rgba(207,255,244,0.5); font-family: "JetBrains Mono",monospace; }
 .th-modal-close { background: none; border: none; color: rgba(207,255,244,0.35); font-size: 16px; cursor: pointer; padding: 0 4px; transition: color 0.15s; }
 .th-modal-close:hover { color: #ff4d6d; }
-.th-modal-body { overflow-y: auto; flex: 1; padding: 14px 18px; }
+.th-modal-body { overflow-y: auto; flex: 1; padding: 14px 18px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .th-modal-count { font-size: 10px; color: rgba(207,255,244,0.3); font-family: "JetBrains Mono",monospace; margin-bottom: 10px; }
 .th-modal-pagination { padding: 12px 18px; border-top: 1px solid rgba(44,255,201,0.07); display: flex; gap: 5px; justify-content: center; flex-wrap: wrap; }
 .th-pg-btn {
@@ -791,9 +792,10 @@
    24 · BADGE MODAL
 ══════════════════════════════════════════════════ */
 #badgeModalOverlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.78);
   display: flex; align-items: center; justify-content: center;
   z-index: 9100; padding: 20px;
+  overscroll-behavior: contain; touch-action: none;
 }
 .badge-modal-card {
   background: #060f0b; border: 1px solid rgba(44,255,201,0.15); border-radius: 16px;
@@ -856,13 +858,15 @@
    25 · ACCOUNT SETTINGS MODAL
 ══════════════════════════════════════════════════ */
 .accs-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.75);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.75);
   display: flex; align-items: center; justify-content: center;
   z-index: 9200; padding: 20px;
+  overscroll-behavior: contain; touch-action: none;
 }
 .accs-card {
   background: #060f0b; border: 1px solid rgba(44,255,201,0.15); border-radius: 16px;
   width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto;
+  -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
 }
 .accs-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -923,9 +927,10 @@
    26 · MOON MARKET MODAL  (mm-*)
 ══════════════════════════════════════════════════ */
 #moonMarketOverlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.78);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.78);
   display: flex; align-items: center; justify-content: center;
   z-index: 9300; padding: 20px;
+  overscroll-behavior: contain; touch-action: none;
 }
 .mm-overlay-card {
   background: #060f0b; border: 1px solid rgba(255,110,180,0.15); border-radius: 16px;
@@ -947,7 +952,7 @@
 }
 .mm-tab.active { color: #ff6eb4; border-bottom-color: #ff6eb4; }
 .mm-tab:hover:not(.active) { color: rgba(207,255,244,0.65); }
-.mm-body { overflow-y: auto; flex: 1; padding: 14px 17px; }
+.mm-body { overflow-y: auto; flex: 1; padding: 14px 17px; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .mm-grid { display: flex; flex-wrap: wrap; gap: 10px; }
 .mm-item {
   width: 145px; display: flex; flex-direction: column; gap: 6px;
@@ -1052,9 +1057,10 @@
    JS creates .mm-overlay / .mm-modal (not #moonMarketOverlay / .mm-overlay-card)
 ══════════════════════════════════════════════════ */
 .mm-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8);
   display: flex; align-items: center; justify-content: center;
   z-index: 9300; padding: 20px;
+  overscroll-behavior: contain; touch-action: none;
 }
 .mm-modal {
   background: #060f0b; border: 1px solid rgba(255,110,180,0.15); border-radius: 16px;
@@ -1167,9 +1173,10 @@
    Slides in from right — Phantom/Solflare style
 ══════════════════════════════════════════════════ */
 .mw-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.65);
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.65);
   display: flex; align-items: stretch; justify-content: flex-end;
   z-index: 9400;
+  overscroll-behavior: contain; touch-action: none;
 }
 .mw-modal {
   background: #060f0b; border-left: 1px solid rgba(44,255,201,0.12);
@@ -1260,7 +1267,7 @@
 .mw-tab:hover:not(.active) { color: rgba(207,255,244,0.6); }
 
 /* Content area */
-.mw-content      { flex: 1; overflow-y: auto; }
+.mw-content      { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .mw-pane         { display: none; }
 .mw-pane.active  { display: block; }
 
