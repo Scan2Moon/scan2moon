@@ -16,7 +16,7 @@
 
 [functions]
   node_bundler = "esbuild"
-  external_node_modules = ["@netlify/blobs", "@neondatabase/serverless"]
+  external_node_modules = ["@neondatabase/serverless"]
 
 # ── Scheduled cache warmer: keeps hot tokens fresh every 2 minutes ──
 [functions."warmCache"]
