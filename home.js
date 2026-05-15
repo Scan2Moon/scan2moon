@@ -17,7 +17,6 @@ const _curPage = window.location.pathname.split("/").pop().replace(/\?.*$/, "") 
 const SM_API         = "/.netlify/functions/smartMoney";
 const GAINERS_API    = "/.netlify/functions/topGainers";
 const NEW_PAIRS_API  = "/.netlify/functions/newPairs";
-const DETECT_API     = "/.netlify/functions/detectOnchain";
 const SOL_PRICE_API  = "/.netlify/functions/solPrice";
 const PRICE_API      = "/.netlify/functions/priceOnly";
 const BATCH_RISK_API = "/.netlify/functions/batchRisk";
@@ -47,7 +46,6 @@ let _npShowHighRisk = true;
 let _npRawTokens    = [];
 let _npTokens       = [];
 let _npRefreshTimer = null;
-let _npDetectTimer  = null;
 let _npCurrentPage  = 0;
 let _npSortBy       = "newest";   // "newest" | "liq" | "vol" | "hotness"
 
@@ -914,34 +912,14 @@ function startSolTicker() {
   _solPriceTicker = setInterval(_updateSolPriceChip, 6_000);
 }
 
-// Fire-and-forget: triggers the on-chain detector to populate the DB.
-// Netlify CLI never runs scheduled functions locally, so we call it manually
-// whenever the NEW PAIRS tab is active. On production this is harmless extra coverage.
-async function _npTriggerDetect() {
-  try {
-    await fetch(DETECT_API, { signal: AbortSignal.timeout(28000) });
-  } catch { /* ignore — best-effort background call */ }
-}
-
-const NP_DETECT_INTERVAL = 60_000; // match the Netlify cron schedule (every 1 min)
-
 function _npScheduleRefresh() {
   if (_npRefreshTimer) clearInterval(_npRefreshTimer);
   _npRefreshTimer = setInterval(() => { if (_mode === "newpairs") loadNewPairs(); }, NP_AUTO_REFRESH);
-
-  // Drive detectOnchain on a 60s cycle so the DB stays populated locally and on prod
-  if (_npDetectTimer) clearInterval(_npDetectTimer);
-  _npTriggerDetect(); // immediate first call when tab opens
-  _npDetectTimer = setInterval(() => {
-    if (_mode === "newpairs") _npTriggerDetect();
-  }, NP_DETECT_INTERVAL);
-
   // Start age counter (no API — pure JS)
   startAgeTick();
 }
 function _npStopRefresh() {
   if (_npRefreshTimer) { clearInterval(_npRefreshTimer); _npRefreshTimer = null; }
-  if (_npDetectTimer)  { clearInterval(_npDetectTimer);  _npDetectTimer  = null; }
   stopAgeTick();
 }
 

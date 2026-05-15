@@ -11,7 +11,7 @@
      - Token = USDC-SPL mint
      - Amount >= 49 USDC
      - Tx not already used (Redis double-spend check)
-     - Tx age <= 48 hours (generous window for subscription payments)
+     - Tx age <= 2 hours (claim window for subscription payments)
 
    If existingKeyId provided -> upgrade that key to "pro"
    Otherwise -> create a new pro key for the email
@@ -30,7 +30,7 @@ const CORS = {
 const SOL_RECIPIENT     = "2NYUevD2m8eRvHFsT3JvDy8poxiWNVEKXqnDvXWrZpyC";
 const SOL_USDC_MINT     = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 const MIN_PRICE_USDC    = 15.0;          /* minimum accepted payment */
-const MAX_TX_AGE_SECS   = 48 * 3600;    /* 48-hour claim window */
+const MAX_TX_AGE_SECS   = 2 * 3600;     /* 2-hour claim window */
 const PLAN_BY_AMOUNT    = [
   { minUsd: 99 - 0.01,  plan: "power", dailyLimit: 100000, label: "Power" },
   { minUsd: 49 - 0.01,  plan: "pro",   dailyLimit: 25000,  label: "Pro"   },
@@ -122,10 +122,10 @@ exports.handler = async (event) => {
   if (!txData)
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Transaction not found on Solana. Make sure it is confirmed on mainnet." }) };
 
-  /* -- Age check: <= 48 hours -- */
+  /* -- Age check: <= 2 hours -- */
   var ageSecs = Math.floor(Date.now() / 1000) - (txData.timestamp || 0);
   if (ageSecs > MAX_TX_AGE_SECS)
-    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Transaction is too old (must be within 48 hours). Please make a fresh payment." }) };
+    return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Transaction is too old (must be within 2 hours). Please make a fresh payment." }) };
   if (ageSecs < 0)
     return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: "Transaction timestamp is in the future." }) };
 
