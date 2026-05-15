@@ -1496,6 +1496,10 @@ a {
   .nav-links { display: none; } /* replaced by drawer on mobile */
   .nav-hamburger { display: flex; }
   .nav-brand-sub { display: none; }
+
+  /* Disable decorative nav animations on mobile to reduce jank */
+  .nav-sweep { animation: none; }
+  .nav-status-dot { animation: none; }
 }
 /* ── Dropdown wrapper ── */
 .nav-dropdown { position: relative; }

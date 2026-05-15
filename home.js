@@ -23,7 +23,7 @@ const BATCH_RISK_API = "/.netlify/functions/batchRisk";
 const JUP_REF       = "49h527zlp56g";
 const PER_PAGE      = 10;
 const AUTO_REFRESH  = 90_000;
-const NP_AUTO_REFRESH = 10_000;
+const NP_AUTO_REFRESH = 45_000;
 
 /* ══════════════════════════════════════════════
    STATE
@@ -652,7 +652,7 @@ window._npGoPage = function(page) {
 /* ══════════════════════════════════════════════
    NEW PAIRS — FETCH + FILTER
 ══════════════════════════════════════════════ */
-async function loadNewPairs(win, minLiq) {
+async function loadNewPairs(win, minLiq, silent = false) {
   win    = win    || _npWindow;
   minLiq = minLiq !== undefined ? minLiq : _npMinLiq;
   const loadEl = document.getElementById("npLoading");
@@ -666,7 +666,7 @@ async function loadNewPairs(win, minLiq) {
     const data = await res.json();
     if (!data.ok) throw new Error(data.error || "Unknown error");
     _npRawTokens = data.tokens || [];
-    _npApplyAllClientFilters();
+    _npApplyAllClientFilters(silent);
   } catch (err) {
     if (loadEl) loadEl.style.display = "none";
     if (errEl) {
@@ -677,7 +677,7 @@ async function loadNewPairs(win, minLiq) {
   }
 }
 
-function _npApplyAllClientFilters() {
+function _npApplyAllClientFilters(silent = false) {
   let tokens = [..._npRawTokens];
 
   // ── Time window filter (based on lastTradeUnixTime stored as createdAt ISO) ──
@@ -761,7 +761,7 @@ function _npApplyAllClientFilters() {
     });
   }
 
-  _npCurrentPage = 0; // reset to page 1 whenever filters change
+  if (!silent) _npCurrentPage = 0; // only reset to page 1 on user-initiated filter change
   _npTokens = tokens;
   renderNewPairs();
   _npUpdateFilterBadge();
@@ -914,7 +914,7 @@ function startSolTicker() {
 
 function _npScheduleRefresh() {
   if (_npRefreshTimer) clearInterval(_npRefreshTimer);
-  _npRefreshTimer = setInterval(() => { if (_mode === "newpairs") loadNewPairs(); }, NP_AUTO_REFRESH);
+  _npRefreshTimer = setInterval(() => { if (_mode === "newpairs") loadNewPairs(_npWindow, _npMinLiq, true); }, NP_AUTO_REFRESH);
   // Start age counter (no API — pure JS)
   startAgeTick();
 }
