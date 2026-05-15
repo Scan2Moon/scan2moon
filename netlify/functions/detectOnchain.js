@@ -262,10 +262,16 @@ exports.handler = async (event) => {
       const bInfo = birdeyeMap[mint];
       const dInfo = dasMap[mint];
 
-      // Birdeye result: must pass liquidity gate
+      // Birdeye result: must pass liquidity gate + not be an established token
       if (bInfo) {
         if (bInfo.liq < MIN_LIQ) {
           console.log(`[detectOnchain] skip ${bInfo.symbol} liq=$${bInfo.liq.toFixed(0)} (below min)`);
+          continue;
+        }
+        // If Helius has no creation time, extra gate: reject established tokens
+        // (old tokens sometimes trigger new LP events on Raydium)
+        if (!creationTimes[mint] && (bInfo.mc > 5_000_000 || bInfo.holders > 500)) {
+          console.log(`[detectOnchain] skip ${bInfo.symbol} — established token, no creation time (mc=$${bInfo.mc.toFixed(0)}, holders=${bInfo.holders})`);
           continue;
         }
       } else if (dInfo) {
