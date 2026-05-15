@@ -667,13 +667,13 @@
   <!-- HERO -->
   <div class="ap-hero">
     <div class="ap-eyebrow">Developer API &mdash; Solana Analytics</div>
-    <h1 class="ap-title">Proprietary On-Chain Data.<br><span>Two ways to pay.</span></h1>
-    <p class="ap-sub">Access Scan2Moon's on-chain intelligence programmatically. Subscribe with an API key or pay per call &mdash; no account required for AI agents.</p>
+    <h1 class="ap-title">Proprietary On-Chain Data.<br><span>Built for AI Agents.</span></h1>
+    <p class="ap-sub">Access Scan2Moon's on-chain intelligence programmatically. Subscribe with an API key, pay per call with crypto, or add as a native Claude tool via MCP &mdash; no account required for AI agents.</p>
     <div class="ap-tags">
       <span class="ap-tag">API Key plans</span>
       <span class="ap-tag">x402 on Base</span>
       <span class="ap-tag">Solana USDC-SPL</span>
-      <span class="ap-tag">Agent-compatible</span>
+      <span class="ap-tag" style="background:rgba(44,255,201,0.08);border-color:rgba(44,255,201,0.3);color:#2cffc9;">&#9670; Claude MCP</span>
       <span class="ap-tag">No sign-up for pay-per-call</span>
     </div>
     <a href="#get-key" class="ap-cta">&#9670; Get API Key</a>
@@ -1051,6 +1051,99 @@ await connection.confirmTransaction(signature, "confirmed");</pre>
   { headers: { "X-Solana-Payment": signature } }
 );
 const data = await res.json();</pre>
+
+  <!-- CLAUDE MCP SERVER -->
+  <div class="s-title"><span class="s-dot"></span>Claude MCP Integration <span style="margin-left:8px;font-size:9px;font-weight:800;letter-spacing:1.5px;padding:2px 8px;border-radius:4px;background:rgba(44,255,201,0.1);color:#2cffc9;border:1px solid rgba(44,255,201,0.25);vertical-align:middle;">NEW</span></div>
+
+  <div class="auth-note" style="margin-bottom:20px;">
+    The <strong style="color:#cffff4;">scan2moon-mcp</strong> package turns Scan2Moon into a native Claude tool.
+    Once installed, Claude can call <code>analyze_wallet</code>, <code>get_new_pairs</code>, <code>get_smart_money</code>,
+    <code>predict_lp_pull</code>, <code>detect_bundle_attack</code>, and <code>batch_risk_score</code>
+    autonomously — no copy-pasting addresses or API responses needed.
+  </div>
+
+  <div class="rails" style="margin-bottom:20px;">
+    <div class="rail-card" style="border-color:rgba(44,255,201,0.2);">
+      <div class="rail-header">
+        <span style="font-size:20px;">🤖</span>
+        <div class="rail-name">Claude Code</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);line-height:1.6;">
+        Installs as a persistent tool in your Claude Code session. Works with any project.
+      </div>
+    </div>
+    <div class="rail-card" style="border-color:rgba(44,255,201,0.2);">
+      <div class="rail-header">
+        <span style="font-size:20px;">🖥️</span>
+        <div class="rail-name">Claude Desktop</div>
+      </div>
+      <div style="font-size:11px;color:var(--text-3);line-height:1.6;">
+        Add to <code style="font-size:10px;color:var(--accent);">claude_desktop_config.json</code> for always-on Solana intelligence in your desktop app.
+      </div>
+    </div>
+  </div>
+
+  <div class="code-label">Step 1 &mdash; Get a free API key above, then add to Claude Code</div>
+  <pre class="code">export SCAN2MOON_API_KEY=s2m_your_key_here
+claude mcp add scan2moon -- npx scan2moon-mcp</pre>
+
+  <div class="code-label">Step 2 &mdash; Ask Claude anything about Solana</div>
+  <pre class="code"># Claude now has direct access — just ask in plain English:
+
+"Analyze this wallet and tell me if the dev is a serial rugger: 9WzDXwBb..."
+"Show me new Solana pairs from the last hour with low risk"
+"Check if this token has a bundle attack: EPjFWdd5..."
+"Who are the top 10 smart money wallets on Solana right now?"</pre>
+
+  <div class="code-label">Claude Desktop &mdash; claude_desktop_config.json</div>
+  <pre class="code">{
+  "mcpServers": {
+    "scan2moon": {
+      "command": "npx",
+      "args": ["scan2moon-mcp"],
+      "env": {
+        "SCAN2MOON_API_KEY": "s2m_your_key_here"
+      }
+    }
+  }
+}</pre>
+
+  <div class="code-label">Advanced &mdash; x402 auto-pay (no API key, agents pay per call)</div>
+  <pre class="code"># Uses your Base/EVM wallet to pay $0.001–$0.01 USDC per call automatically
+# Requires: npm install x402-fetch viem  (in the same environment)
+
+export SCAN2MOON_PRIVATE_KEY=0x_your_base_private_key
+claude mcp add scan2moon -- npx scan2moon-mcp</pre>
+
+  <div style="margin-bottom:28px;">
+    <div class="code-label" style="margin-bottom:10px;">Available Claude tools</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">analyze_wallet</div>
+        <div style="font-size:10px;color:var(--text-3);">Dev history · rug rate · token statuses</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">get_new_pairs</div>
+        <div style="font-size:10px;color:var(--text-3);">Latest Pump.fun &amp; Raydium launches</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">predict_lp_pull</div>
+        <div style="font-size:10px;color:var(--text-3);">Rug pull probability score</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">detect_bundle_attack</div>
+        <div style="font-size:10px;color:var(--text-3);">Coordinated sniper wallet detection</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">get_smart_money</div>
+        <div style="font-size:10px;color:var(--text-3);">Top traders ranked by on-chain PnL</div>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px;">
+        <div style="font-size:11px;font-weight:700;color:#2cffc9;font-family:var(--mono);margin-bottom:3px;">batch_risk_score</div>
+        <div style="font-size:10px;color:var(--text-3);">Bulk risk scoring up to 15 tokens</div>
+      </div>
+    </div>
+  </div>
 
   <!-- API KEY DESCRIPTION -->
   <div class="s-title"><span class="s-dot"></span>API Key Usage</div>
