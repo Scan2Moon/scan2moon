@@ -18,8 +18,8 @@
    Cache: Redis 3 min
    ================================================================ */
 
-const { redisGet, redisSet, CORS, CORS_API } = require("./db");
-const { resolveAccess, respond402 }           = require("./x402");
+const { redisGet, redisSet, CORS, CORS_API, logRequest } = require("./db");
+const { resolveAccess, respond402 }                      = require("./x402");
 const { fetchDevWalletData, WALLET_RE: CREATOR_RE, SKIP_SET: SKIP_CREATORS } = require("./devWalletHelper");
 
 const REDIS_TTL = 180;    // 3 min
@@ -216,6 +216,9 @@ exports.handler = async function(event) {
   if (access.access === "paywall") return respond402("lpPredictor");
   if (access.access === "denied")
     return { statusCode: access.status, headers: CORS_API, body: JSON.stringify({ error: access.error }) };
+
+  const ip = ((event.headers["x-nf-client-connection-ip"] || event.headers["x-forwarded-for"] || "unknown").split(",")[0].trim());
+  logRequest("lpPredictor", access, ip);
 
   let body;
   try { body = JSON.parse(event.body || "{}"); }

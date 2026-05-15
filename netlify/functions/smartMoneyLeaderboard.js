@@ -14,7 +14,7 @@
    Cache: Redis 5 min
    ================================================================ */
 
-const { getDb, redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis } = require("./db");
+const { getDb, redisGet, redisSet, CORS, CORS_429, isRateLimitedRedis, logRequest } = require("./db");
 const { resolveAccess, respond402, CORS_API } = require("./x402");
 
 const REDIS_TTL = 300; // 5 min
@@ -58,6 +58,8 @@ exports.handler = async (event) => {
   if (access.access === "paywall") return respond402("smartMoneyLeaderboard");
   if (access.access === "denied")
     return { statusCode: access.status, headers: CORS_API, body: JSON.stringify({ error: access.error }) };
+
+  logRequest("smartMoneyLeaderboard", access, ip);
 
   const params    = event.queryStringParameters || {};
   const archetype = VALID_ARCHETYPES.has(params.archetype) ? params.archetype : "all";

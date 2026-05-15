@@ -238,6 +238,9 @@ tr:hover td { background: rgba(255,255,255,.02); }
       <div class="nav-item" onclick="showPage('create')" id="nav-create">
         <span class="nav-icon">➕</span> Create Key
       </div>
+      <div class="nav-item" onclick="showPage('agents')" id="nav-agents">
+        <span class="nav-icon">🤖</span> Agent Activity
+      </div>
     </div>
 
     <!-- Content -->
@@ -347,6 +350,91 @@ tr:hover td { background: rgba(255,255,255,.02); }
         </div>
       </div>
 
+      <!-- ── AGENT ACTIVITY PAGE ── -->
+      <div class="page" id="page-agents">
+        <div class="page-title">Agent Activity</div>
+        <div class="page-sub">Per-call log for paywalled API endpoints — API key + x402 calls</div>
+
+        <!-- Totals row -->
+        <div class="stats-row" id="agTotalsRow">
+          <div class="stat-card"><div class="stat-label">All-Time Calls</div><div class="stat-value" id="agTotal">—</div></div>
+          <div class="stat-card"><div class="stat-label">Last 24h</div><div class="stat-value" id="ag24h">—</div></div>
+          <div class="stat-card"><div class="stat-label">Last 7 Days</div><div class="stat-value" id="ag7d">—</div></div>
+          <div class="stat-card"><div class="stat-label">x402 Payments</div><div class="stat-value" id="agX402" style="color:var(--purple)">—</div></div>
+        </div>
+
+        <!-- Endpoint breakdown (last 7 days) -->
+        <div style="margin-top:24px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);margin-bottom:10px;">ENDPOINT BREAKDOWN — LAST 7 DAYS</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Endpoint</th>
+                  <th style="text-align:right;">Total</th>
+                  <th style="text-align:right;">Last 24h</th>
+                  <th style="text-align:right;">API Key</th>
+                  <th style="text-align:right;">x402</th>
+                </tr>
+              </thead>
+              <tbody id="agEndpointBody">
+                <tr><td colspan="5" class="loading">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Payment method + Top keys side by side -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:24px;">
+
+          <!-- Payment method breakdown -->
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);margin-bottom:10px;">ACCESS METHOD — LAST 7 DAYS</div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Method</th><th style="text-align:right;">Calls</th></tr></thead>
+                <tbody id="agMethodBody"><tr><td colspan="2" class="loading">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Top API keys -->
+          <div>
+            <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);margin-bottom:10px;">TOP CALLERS — LAST 7 DAYS</div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Key</th><th>Plan</th><th>Domain</th><th style="text-align:right;">Calls</th></tr></thead>
+                <tbody id="agTopKeysBody"><tr><td colspan="4" class="loading">Loading…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Recent calls -->
+        <div style="margin-top:24px;">
+          <div style="font-size:11px;font-weight:700;letter-spacing:1px;color:var(--text-3);margin-bottom:10px;">RECENT CALLS</div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Endpoint</th>
+                  <th>Method</th>
+                  <th>Key / Payer</th>
+                  <th>Plan</th>
+                  <th>Domain</th>
+                </tr>
+              </thead>
+              <tbody id="agRecentBody">
+                <tr><td colspan="6" class="loading">Loading…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <button class="btn btn-ghost" style="margin-top:16px;" onclick="loadAgentStats()">Refresh</button>
+      </div>
+
     </div><!-- /content -->
   </div><!-- /main -->
 </div><!-- /app -->
@@ -445,7 +533,8 @@ function showPage(id) {
   document.querySelectorAll(".nav-item").forEach(function(n) { n.classList.remove("active"); });
   document.getElementById("page-" + id).classList.add("active");
   document.getElementById("nav-" + id).classList.add("active");
-  if (id === "stats") loadStats();
+  if (id === "stats")  loadStats();
+  if (id === "agents") loadAgentStats();
 }
 
 /* ── Load keys list ── */
@@ -686,6 +775,96 @@ function showCreateAlert(msg, type) {
   el.textContent = msg;
   el.className   = "alert alert-" + (type || "error");
   el.style.display = msg ? "block" : "none";
+}
+
+/* ── Agent Activity ── */
+async function loadAgentStats() {
+  try {
+    var res  = await fetch(API + "?action=agent-stats", { headers: { "X-Admin-Secret": _secret } });
+    var data = await res.json();
+    if (!res.ok) return;
+
+    var t = data.totals || {};
+    setText("agTotal", (t.total_all_time || 0).toLocaleString());
+    setText("ag24h",   (t.total_24h      || 0).toLocaleString());
+    setText("ag7d",    (t.total_7d       || 0).toLocaleString());
+    setText("agX402",  (t.x402_all_time  || 0).toLocaleString());
+
+    /* Endpoint breakdown */
+    var epBody = document.getElementById("agEndpointBody");
+    var eps = data.byEndpoint || [];
+    if (!eps.length) {
+      epBody.innerHTML = '<tr><td colspan="5" class="empty">No data yet — calls will appear after first API request</td></tr>';
+    } else {
+      epBody.innerHTML = eps.map(function(r) {
+        return '<tr>'
+          + '<td><code style="font-size:12px;color:var(--green);">' + escHtml(r.endpoint) + '</code></td>'
+          + '<td style="text-align:right;font-weight:600;">' + (r.total    || 0).toLocaleString() + '</td>'
+          + '<td style="text-align:right;">'                 + (r.last_24h || 0).toLocaleString() + '</td>'
+          + '<td style="text-align:right;color:var(--green);">'  + (r.key_calls  || 0).toLocaleString() + '</td>'
+          + '<td style="text-align:right;color:var(--purple);">' + (r.x402_calls || 0).toLocaleString() + '</td>'
+          + '</tr>';
+      }).join("");
+    }
+
+    /* Payment method breakdown */
+    var mBody = document.getElementById("agMethodBody");
+    var methods = data.byMethod || [];
+    var methodLabel = { "key": "🔑 API Key", "x402-base": "⚡ x402 Base USDC", "x402-solana": "◎ Solana USDC-SPL" };
+    if (!methods.length) {
+      mBody.innerHTML = '<tr><td colspan="2" class="empty">No data yet</td></tr>';
+    } else {
+      mBody.innerHTML = methods.map(function(r) {
+        var lbl = methodLabel[r.access_method] || escHtml(r.access_method);
+        return '<tr><td>' + lbl + '</td><td style="text-align:right;font-weight:600;">' + (r.total || 0).toLocaleString() + '</td></tr>';
+      }).join("");
+    }
+
+    /* Top keys */
+    var tkBody = document.getElementById("agTopKeysBody");
+    var topKeys = data.topKeys || [];
+    if (!topKeys.length) {
+      tkBody.innerHTML = '<tr><td colspan="4" class="empty">No key-based calls yet</td></tr>';
+    } else {
+      tkBody.innerHTML = topKeys.map(function(r) {
+        var masked = r.key_id ? (r.key_id.slice(0,8) + "…" + r.key_id.slice(-4)) : "—";
+        var planClass = "plan-" + (r.plan || "starter");
+        return '<tr>'
+          + '<td><span class="key-code" style="font-size:11px;">' + masked + '</span></td>'
+          + '<td><span class="plan-badge ' + planClass + '">' + escHtml(r.plan || "—") + '</span></td>'
+          + '<td style="font-size:12px;color:var(--text-2);">@' + escHtml(r.email_domain || "—") + '</td>'
+          + '<td style="text-align:right;font-weight:600;">' + (r.total || 0).toLocaleString() + '</td>'
+          + '</tr>';
+      }).join("");
+    }
+
+    /* Recent calls */
+    var rcBody = document.getElementById("agRecentBody");
+    var recent = data.recent || [];
+    if (!recent.length) {
+      rcBody.innerHTML = '<tr><td colspan="6" class="empty">No calls logged yet</td></tr>';
+    } else {
+      rcBody.innerHTML = recent.map(function(r) {
+        var ts = r.called_at ? new Date(r.called_at).toLocaleString("en-US", { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "—";
+        var methodLabel2 = { "key": "🔑 key", "x402-base": "⚡ base", "x402-solana": "◎ solana" };
+        var methodStr = methodLabel2[r.access_method] || escHtml(r.access_method || "—");
+        var caller = r.key_id
+          ? ('<span class="key-code" style="font-size:10px;">' + r.key_id.slice(0,8) + "…" + r.key_id.slice(-4) + '</span>')
+          : (r.payer ? '<span style="font-size:10px;color:var(--purple);">' + escHtml(r.payer.slice(0,8) + "…" + r.payer.slice(-4)) + '</span>' : '—');
+        var planClass = "plan-" + (r.plan || "starter");
+        var planBadge = r.plan ? '<span class="plan-badge ' + planClass + '">' + escHtml(r.plan) + '</span>' : '—';
+        return '<tr>'
+          + '<td style="font-size:11px;white-space:nowrap;">' + ts + '</td>'
+          + '<td><code style="font-size:11px;color:var(--green);">' + escHtml(r.endpoint || "—") + '</code></td>'
+          + '<td style="font-size:11px;">' + methodStr + '</td>'
+          + '<td>' + caller + '</td>'
+          + '<td>' + planBadge + '</td>'
+          + '<td style="font-size:11px;color:var(--text-3);">' + (r.email_domain ? '@' + escHtml(r.email_domain) : '—') + '</td>'
+          + '</tr>';
+      }).join("");
+    }
+
+  } catch (e) {}
 }
 
 /* ── Check adminKey.js supports ?action=stats ── */

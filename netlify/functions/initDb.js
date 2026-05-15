@@ -143,6 +143,25 @@ exports.handler = async (event) => {
     await sql`ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS renews_at TIMESTAMPTZ`;
     await sql`CREATE INDEX IF NOT EXISTS ak_renews_idx ON api_keys (renews_at) WHERE renews_at IS NOT NULL`;
 
+    // ── request_log: per-call agent/API usage log ─────────────────────────────
+    await sql`
+      CREATE TABLE IF NOT EXISTS request_log (
+        id            BIGSERIAL PRIMARY KEY,
+        endpoint      TEXT        NOT NULL,
+        access_method TEXT        NOT NULL,
+        key_id        TEXT,
+        plan          TEXT,
+        email_domain  TEXT,
+        payer         TEXT,
+        tx_hash       TEXT,
+        ip            TEXT,
+        called_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `;
+    await sql`CREATE INDEX IF NOT EXISTS rl_called_at_idx  ON request_log (called_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS rl_endpoint_idx   ON request_log (endpoint, called_at DESC)`;
+    await sql`CREATE INDEX IF NOT EXISTS rl_key_id_idx     ON request_log (key_id) WHERE key_id IS NOT NULL`;
+
     return {
       statusCode: 200,
       headers: CORS,

@@ -254,12 +254,53 @@ const CORS_API = {
   "Access-Control-Allow-Headers":  "Content-Type, X-Api-Key",
 };
 
+/* ── Request logger — fire-and-forget per-call usage tracking ────────────────
+   Called by every paywalled endpoint after resolveAccess() grants access.
+   Never throws; never awaited — the response is already on its way.
+
+   access:  the object returned by resolveAccess()
+   endpoint: string key matching PRICES (devWallet, lpPredictor, etc.)
+   ip:       client IP string
+   ─────────────────────────────────────────────────────────────────────────── */
+function logRequest(endpoint, access, ip) {
+  try {
+    var sql = getDb();
+    var method = "key";
+    var keyId  = null;
+    var plan   = null;
+    var domain = null;
+    var payer  = null;
+    var txHash = null;
+
+    if (access.access === "payment") {
+      method = access.method === "base" ? "x402-base" : "x402-solana";
+      payer  = access.payer  || null;
+      txHash = access.txHash || null;
+    } else {
+      // "key" — extract details
+      keyId  = access.keyId  || null;
+      plan   = access.plan   || null;
+      // Store only domain for privacy (email → "@domain.com")
+      if (access.email && access.email.includes("@")) {
+        domain = access.email.split("@")[1] || null;
+      }
+    }
+
+    sql(
+      `INSERT INTO request_log (endpoint, access_method, key_id, plan, email_domain, payer, tx_hash, ip)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [endpoint, method, keyId, plan, domain, payer, txHash, (ip || "unknown").slice(0, 45)]
+    ).catch(function() {});
+  } catch (_) {}
+}
+
 module.exports = {
   getDb,
   redisGet, redisSet, redisDel,
   CORS, CORS_429, CORS_API,
   isRateLimited, isRateLimitedRedis,
   extractKey, validateApiKey,
+  logRequest,
   PLAN_DAILY,
   NEG_CACHE_PREFIX, NEG_REVOKE_TTL,
 };
