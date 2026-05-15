@@ -184,7 +184,6 @@ async function getStore() {
     // using NETLIFY_SITE_ID (always available) + S2M_BLOBS_TOKEN (PAT).
     const _siteId = process.env.SITE_ID || process.env.NETLIFY_SITE_ID;
     const _token  = process.env.S2M_BLOBS_TOKEN;
-    console.log("Blobs init: context=", !!process.env.NETLIFY_BLOBS_CONTEXT, "siteID=", _siteId || "MISSING", "token=", _token ? "SET" : "MISSING");
     const storeArg = process.env.NETLIFY_BLOBS_CONTEXT
       ? "simulator"
       : { name: "simulator", siteID: _siteId, token: _token };
