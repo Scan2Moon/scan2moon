@@ -1,0 +1,27 @@
+# Smithery registry config for scan2moon-mcp
+# Tells Smithery how to install and launch this MCP server.
+# Submitted at: https://smithery.ai/new
+
+startCommand:
+  type: stdio
+  configSchema:
+    type: object
+    properties:
+      apiKey:
+        type: string
+        title: Scan2Moon API Key
+        description: >
+          Free Starter key gives 1,000 calls/day — no credit card needed.
+          Get yours at https://scan2moon.com/api-portal.html
+          Alternatively set SCAN2MOON_PRIVATE_KEY (Base EVM key) for
+          x402 auto-pay per call with no daily limit.
+        default: ""
+    required: []
+  commandFunction: |-
+    (config) => ({
+      command: "npx",
+      args: ["-y", "scan2moon-mcp"],
+      env: {
+        ...(config.apiKey ? { SCAN2MOON_API_KEY: config.apiKey } : {})
+      }
+    })
