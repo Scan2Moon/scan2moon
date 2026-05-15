@@ -1,0 +1,20 @@
+{
+  "name": "@scan2moon/eliza-plugin",
+  "version": "1.0.0",
+  "description": "ElizaOS plugin — Solana on-chain intelligence via Scan2Moon API (wallet rug history, LP pull predictor, bundle attack detector, smart money leaderboard)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc --build",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["elizaos", "eliza", "plugin", "solana", "crypto", "defi", "scan2moon", "rug-check", "smart-money"],
+  "license": "MIT",
+  "peerDependencies": {
+    "@elizaos/core": ">=0.1.0"
+  },
+  "devDependencies": {
+    "@elizaos/core": "^1.0.0",
+    "typescript": "^5.4.0"
+  }
+}

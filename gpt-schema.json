@@ -1,0 +1,281 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Scan2Moon — Solana Intelligence API",
+    "version": "2.0.0",
+    "description": "Proprietary Solana on-chain intelligence. Analyze wallets, predict rug pulls, detect bundle attacks, track smart money, and discover new token launches.\n\nGet a free API key (1,000 calls/day) at https://scan2moon.com/api-portal.html"
+  },
+  "servers": [
+    { "url": "https://scan2moon.com/.netlify/functions" }
+  ],
+  "security": [
+    { "ApiKey": [] }
+  ],
+  "paths": {
+    "/devWallet": {
+      "get": {
+        "operationId": "analyzeDeployerWallet",
+        "summary": "Analyze deployer wallet history",
+        "description": "Returns every token a Solana wallet has ever launched, each classified as ACTIVE, DEAD, DUMPED, or RUG. Includes aggregate rug rate and history penalty score. Use this to vet a developer before buying their token.",
+        "security": [{ "ApiKey": [] }],
+        "parameters": [
+          {
+            "name": "wallet",
+            "in": "query",
+            "required": true,
+            "description": "Solana wallet address (base58, 32–44 chars)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Wallet deployment history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "wallet":         { "type": "string" },
+                    "totalDeployed":  { "type": "integer" },
+                    "rugCount":       { "type": "integer" },
+                    "rugRate":        { "type": "number", "description": "Rug percentage 0–100" },
+                    "activeCount":    { "type": "integer" },
+                    "historyPenalty": { "type": "integer" },
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "mint":           { "type": "string" },
+                          "status":         { "type": "string", "enum": ["ACTIVE","DEAD","DUMPED","RUG"] },
+                          "symbol":         { "type": "string" },
+                          "name":           { "type": "string" },
+                          "liquidity":      { "type": "number" },
+                          "priceChange24h": { "type": "number" },
+                          "mc":             { "type": "number" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required — set X-Api-Key header or use x402 auto-pay" }
+        }
+      }
+    },
+    "/lpPredictor": {
+      "post": {
+        "operationId": "predictLpPull",
+        "summary": "Predict LP pull / rug probability",
+        "description": "Estimates the probability that a token's liquidity pool will be pulled. Returns a safety score 0–100 (higher = safer), risk tier (LOW/MEDIUM/HIGH/EXTREME), and a named signal breakdown showing exactly what is risky.",
+        "security": [{ "ApiKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mint"],
+                "properties": {
+                  "mint":    { "type": "string", "description": "Token mint address" },
+                  "creator": { "type": "string", "description": "Deployer wallet (optional — enables dev history signal)" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "LP risk assessment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "score":           { "type": "integer", "description": "Safety score 0–100, higher is safer" },
+                    "risk":            { "type": "string", "enum": ["LOW","MEDIUM","HIGH","EXTREME","NO_DATA"] },
+                    "label":           { "type": "string" },
+                    "lpBurnPct":       { "type": "number", "nullable": true },
+                    "mintAuthority":   { "type": "string" },
+                    "freezeAuthority": { "type": "string" },
+                    "poolAgeDays":     { "type": "number", "nullable": true },
+                    "liquidityUsd":    { "type": "number" },
+                    "signals": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label":  { "type": "string" },
+                          "value":  { "type": "string" },
+                          "impact": { "type": "string", "enum": ["positive","negative","neutral"] },
+                          "delta":  { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required" }
+        }
+      }
+    },
+    "/bundle": {
+      "post": {
+        "operationId": "detectBundleAttack",
+        "summary": "Detect coordinated bundle attack",
+        "description": "Detects wallets that coordinated a bundle snipe at token launch. Unique signal: traces common SOL funders across early buyers via Helius raw RPC — a smoking-gun for coordinated attacks.",
+        "security": [{ "ApiKey": [] }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["mint"],
+                "properties": {
+                  "mint":         { "type": "string", "description": "Token mint address" },
+                  "hasGraduated": { "type": "boolean", "default": false }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Bundle detection result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bundleScore":          { "type": "integer", "description": "Safety score 0–100, higher is cleaner" },
+                    "verdict":              { "type": "string", "enum": ["CLEAN","SUSPICIOUS","BUNDLED","EXTREME"] },
+                    "label":                { "type": "string" },
+                    "earlyPct":             { "type": "number" },
+                    "earlyCount":           { "type": "integer" },
+                    "commonFunderDetected": { "type": "boolean" },
+                    "commonFunderCount":    { "type": "integer" },
+                    "funderAddress":        { "type": "string", "nullable": true }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required" }
+        }
+      }
+    },
+    "/smartMoneyLeaderboard": {
+      "get": {
+        "operationId": "getSmartMoneyLeaderboard",
+        "summary": "Get top Solana traders",
+        "description": "Returns ranked Solana wallets by on-chain performance. Built from every Whale DNA scan on Scan2Moon — Scan2Moon's proprietary growing wallet intelligence database.",
+        "security": [{ "ApiKey": [] }],
+        "parameters": [
+          {
+            "name": "archetype",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["all","smart_money","whale","sniper","degen","bot"], "default": "all" }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "schema": { "type": "string", "enum": ["copy_score","win_rate","total_value"], "default": "copy_score" }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 50, "default": 10 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Leaderboard entries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "rank":          { "type": "integer" },
+                          "wallet":        { "type": "string" },
+                          "walletShort":   { "type": "string" },
+                          "archetype":     { "type": "string" },
+                          "archetypeName": { "type": "string" },
+                          "copyScore":     { "type": "integer" },
+                          "winRate":       { "type": "number" },
+                          "totalValue":    { "type": "number" }
+                        }
+                      }
+                    },
+                    "distribution": { "type": "object" }
+                  }
+                }
+              }
+            }
+          },
+          "402": { "description": "Payment required" }
+        }
+      }
+    },
+    "/newPairs": {
+      "get": {
+        "operationId": "getNewTokenPairs",
+        "summary": "Get newly launched Solana tokens",
+        "description": "Live feed of newly launched Solana tokens from Scan2Moon's own on-chain detection pipeline, updated every 2 minutes. Includes risk level, liquidity, market cap, and age.",
+        "security": [{ "ApiKey": [] }],
+        "responses": {
+          "200": {
+            "description": "New token pairs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok":    { "type": "boolean" },
+                    "count": { "type": "integer" },
+                    "tokens": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "mint":      { "type": "string" },
+                          "symbol":    { "type": "string" },
+                          "name":      { "type": "string" },
+                          "price":     { "type": "number" },
+                          "mc":        { "type": "number" },
+                          "liquidity": { "type": "number" },
+                          "age":       { "type": "string" },
+                          "riskLevel": { "type": "string", "enum": ["LOW","MED","HIGH"] },
+                          "riskScore": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "ApiKey": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key",
+        "description": "Free Starter key: 1,000 calls/day. Get at https://scan2moon.com/api-portal.html"
+      }
+    }
+  }
+}
