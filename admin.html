@@ -394,20 +394,19 @@ function login() {
   var s = (document.getElementById("secretInput").value || "").trim();
   if (!s) return;
   _secret = s;
-  /* Quick probe */
+  /* Quick probe — gate on HTTP status, not error text */
   fetch(API + "?action=stats", { headers: { "X-Admin-Secret": _secret } })
-    .then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.error && d.error.toLowerCase().includes("secret")) {
+    .then(function(r) {
+      if (!r.ok) {
         document.getElementById("loginErr").style.display = "block";
         _secret = "";
-      } else {
-        sessionStorage.setItem("adm", _secret);
-        document.getElementById("loginScreen").style.display = "none";
-        document.getElementById("app").style.display = "block";
-        loadKeys(1);
-        loadStats();
+        return;
       }
+      sessionStorage.setItem("adm", _secret);
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      loadKeys(1);
+      loadStats();
     })
     .catch(function() { document.getElementById("loginErr").style.display = "block"; _secret = ""; });
 }
@@ -424,10 +423,20 @@ document.getElementById("secretInput").addEventListener("keydown", function(e) {
   if (e.key === "Enter") login();
 });
 
-/* Auto-login from session */
+/* Auto-login from session — re-validates against server on every page load */
 (function() {
   var saved = sessionStorage.getItem("adm");
-  if (saved) { document.getElementById("secretInput").value = saved; login(); }
+  if (!saved) return;
+  fetch(API + "?action=stats", { headers: { "X-Admin-Secret": saved } })
+    .then(function(r) {
+      if (!r.ok) { sessionStorage.removeItem("adm"); return; }
+      _secret = saved;
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("app").style.display = "block";
+      loadKeys(1);
+      loadStats();
+    })
+    .catch(function() { sessionStorage.removeItem("adm"); });
 })();
 
 /* ── Navigation ── */
