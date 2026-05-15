@@ -187,7 +187,34 @@ export function renderNav() {
           </div>
         </div>
 
+        <!-- HAMBURGER (mobile only) -->
+        <button class="nav-hamburger" id="nav-hamburger" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+
       </div><!-- end nav-inner -->
+
+      <!-- MOBILE MENU DRAWER -->
+      <div class="nav-mobile-drawer" id="nav-mobile-drawer">
+        <a href="index.html" class="nmm-link ${currentPage === 'index.html' || currentPage === '' ? 'nmm-active' : ''}">◆ HOME</a>
+        <div class="nmm-section">MARKETS</div>
+        <a href="gainers.html"    class="nmm-link ${currentPage === 'gainers.html'    ? 'nmm-active' : ''}">▸ Top Gainers</a>
+        <a href="new-pairs.html"  class="nmm-link ${currentPage === 'new-pairs.html'  ? 'nmm-active' : ''}">▸ New Pairs</a>
+        <a href="smart-money.html" class="nmm-link ${currentPage === 'smart-money.html' ? 'nmm-active' : ''}">▸ Smart Money</a>
+        <a href="bubbles.html"    class="nmm-link ${currentPage === 'bubbles.html'    ? 'nmm-active' : ''}">▸ Bubble Map</a>
+        <div class="nmm-section">ANALYSIS</div>
+        <a href="risk-scanner.html" class="nmm-link ${currentPage === 'risk-scanner.html' ? 'nmm-active' : ''}">▸ Risk Scanner</a>
+        <a href="whale-dna.html"  class="nmm-link ${currentPage === 'whale-dna.html'  ? 'nmm-active' : ''}">▸ Whale DNA</a>
+        <div class="nmm-section">PLATFORM</div>
+        <a href="dashboard.html"  class="nmm-link ${currentPage === 'dashboard.html'  ? 'nmm-active' : ''}">▸ Dashboard</a>
+        <a href="watchlist.html"  class="nmm-link ${currentPage === 'watchlist.html'  ? 'nmm-active' : ''}">▸ Watchlist</a>
+        <a href="safe-ape.html"   class="nmm-link ${currentPage === 'safe-ape.html'   ? 'nmm-active' : ''}">▸ Safe Ape <span class="nmm-badge">LIVE</span></a>
+        <a href="leaderboard.html" class="nmm-link ${currentPage === 'leaderboard.html' ? 'nmm-active' : ''}">▸ Leaderboard</a>
+        <a href="api-portal.html" class="nmm-link ${currentPage === 'api-portal.html' ? 'nmm-active' : ''}">▸ API &amp; Payments</a>
+        <a href="guide.html"      class="nmm-link ${currentPage === 'guide.html'      ? 'nmm-active' : ''}">▸ Guides</a>
+        <a href="about.html"      class="nmm-link ${currentPage === 'about.html'      ? 'nmm-active' : ''}">▸ About</a>
+      </div>
+
     </nav>
   `;
 
@@ -218,6 +245,23 @@ export function renderNav() {
   document.addEventListener("click", () => {
     document.querySelectorAll(".nav-dropdown").forEach(dd => dd.classList.remove("open"));
   });
+
+  /* Hamburger toggle */
+  const hamburger = document.getElementById("nav-hamburger");
+  const drawer    = document.getElementById("nav-mobile-drawer");
+  if (hamburger && drawer) {
+    hamburger.addEventListener("click", e => {
+      e.stopPropagation();
+      const open = drawer.classList.toggle("open");
+      hamburger.classList.toggle("active", open);
+    });
+    document.addEventListener("click", e => {
+      if (!e.target.closest(".s2m-nav")) {
+        drawer.classList.remove("open");
+        hamburger.classList.remove("active");
+      }
+    });
+  }
 
   /* Apply any saved language immediately */
   applyTranslations();

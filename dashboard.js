@@ -853,8 +853,11 @@ async function connectWallet() {
     }
 
     const provider = _getWalletProvider(chosen);
-    const resp = await provider.connect();
-    wallet = resp.publicKey.toString();
+    const resp   = await provider.connect();
+    /* Solflare mobile: connect() may return undefined; publicKey lives on the provider */
+    const pubkey = resp?.publicKey ?? provider.publicKey;
+    if (!pubkey) throw new Error("No public key received from wallet");
+    wallet = typeof pubkey === "string" ? pubkey : pubkey.toString();
     walletProvider = provider;
     localStorage.setItem("sa_wallet", wallet);
     localStorage.setItem("sa_wallet_provider", chosen);
