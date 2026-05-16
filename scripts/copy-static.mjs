@@ -71,7 +71,7 @@ for (const f of CLASSIC_SCRIPTS) {
 
 /* ── 4. Extra static files ───────────────────────────────── */
 // openapi.json is served from the root for the API portal page
-const EXTRAS = ['openapi.json', 'gpt-schema.json'];
+const EXTRAS = ['openapi.json', 'gpt-schema.json', 'robots.txt'];
 
 for (const f of EXTRAS) {
   const src = join(root, f);
