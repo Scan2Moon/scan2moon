@@ -1,4 +1,4 @@
-/* ===== SCAN2MOON SHARED NAVIGATION – V3.1 (Professional Terminal) ===== */
+﻿/* ===== SCAN2MOON SHARED NAVIGATION – V3.1 (Professional Terminal) ===== */
 import { t, getCurrentLang, setLang, applyTranslations } from "./i18n.js";
 
 export function renderNav() {
@@ -182,7 +182,7 @@ export function renderNav() {
         <div class="nav-right">
           <div class="nav-status-dot"></div>
           <div class="nav-version-block">
-            <span class="nav-version-label">V2.0</span>
+            <span class="nav-version-label">V2.2</span>
             <span class="nav-version-chain">SOLANA</span>
           </div>
         </div>

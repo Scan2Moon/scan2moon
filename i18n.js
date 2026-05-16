@@ -1,4 +1,4 @@
-/* ================================================================
+﻿/* ================================================================
    Scan2Moon — i18n.js
    Internationalisation engine: English (EN) + Nederlands (NL)
 
@@ -357,7 +357,7 @@ const DICT = {
   ab_tag_active:          { en: "In Development",       nl: "In Ontwikkeling" },
   ab_tag_future:          { en: "Future",               nl: "Toekomst" },
   ab_timeline_v10_title:  { en: "V1.0 — Foundation Launch",  nl: "V1.0 — Fundament Launch" },
-  ab_timeline_v20_title:  { en: "V2.0 — Full Platform",      nl: "V2.0 — Volledig Platform" },
+  ab_timeline_v20_title:  { en: "V2.2 — Full Platform",      nl: "V2.2 — Volledig Platform" },
   ab_timeline_v21_title:  { en: "V2.1 — Refinement & Community", nl: "V2.1 — Verfijning & Community" },
   ab_timeline_v25_title:  { en: "V2.5 — Learn2Moon Academy", nl: "V2.5 — Learn2Moon Academy" },
   ab_timeline_mobile_title:{ en: "Mobile App — Scan2Moon on iOS & Android", nl: "Mobiele App — Scan2Moon op iOS & Android" },

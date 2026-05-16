@@ -1,4 +1,4 @@
-// marketCap.js – Scan2Moon V2.0 – Professional Live Market Cap
+﻿// marketCap.js – Scan2Moon V2.2 – Professional Live Market Cap
 
 let mcInterval = null;
 let mcChartInstance = null;

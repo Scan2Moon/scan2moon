@@ -101,6 +101,17 @@ export async function renderBundlePanel(mint) {
       headers: { "Content-Type": "application/json", "X-Api-Key": window.__s2mKey || "" },
       body:    JSON.stringify({ mint, hasGraduated: !!window.scanHasGraduated }),
     });
+    if (res.status === 402) {
+      el.innerHTML = `
+        <div class="bd-paywall">
+          <div class="bd-paywall-icon">🔒</div>
+          <div class="bd-paywall-title">Premium Feature</div>
+          <div class="bd-paywall-text">Bundle Attack Detection requires a Scan2Moon API key.</div>
+          <a class="bd-paywall-btn" href="/api-portal.html">Get Free API Key →</a>
+        </div>`;
+      window.bundleData = null;
+      return;
+    }
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.error || `HTTP ${res.status}`);

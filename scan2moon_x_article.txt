@@ -1,4 +1,4 @@
-Introducing Scan2Moon V2.0 🚀
+﻿Introducing Scan2Moon V2.2 🚀
 The On-Chain Solana Risk Scanner Built for Every Trader
 — Scan smarter. Trade safer. —
 
@@ -8,7 +8,7 @@ The Solana ecosystem moves fast. New tokens launch every minute. Rugs happen eve
 
 We built Scan2Moon to change that.
 
-Scan2Moon V2.0 is a free, on-chain Solana intelligence tool that gives every trader — from total beginner to seasoned degen — the data they need to make smarter, safer decisions before they risk a single SOL.
+Scan2Moon V2.2 is a free, on-chain Solana intelligence tool that gives every trader — from total beginner to seasoned degen — the data they need to make smarter, safer decisions before they risk a single SOL.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
