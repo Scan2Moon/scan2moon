@@ -91,6 +91,17 @@ export async function renderLpPredictorPanel(mint) {
       headers: { "Content-Type": "application/json", "X-Api-Key": window.__s2mKey || "" },
       body: JSON.stringify({ mint: mint, creator: creator }),
     });
+    if (res.status === 402) {
+      el.innerHTML =
+        '<div class="lp-paywall">'
+        + '<div class="lp-paywall-icon">🔒</div>'
+        + '<div class="lp-paywall-title">Premium Feature</div>'
+        + '<div class="lp-paywall-text">LP Pull Prediction requires a Scan2Moon API key.</div>'
+        + '<a class="lp-paywall-btn" href="/api-portal.html">Get Free API Key →</a>'
+        + '</div>';
+      window.lpData = null;
+      return;
+    }
     if (!res.ok) throw new Error("HTTP " + res.status);
     data = await res.json();
   } catch (e) {

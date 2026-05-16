@@ -1,7 +1,7 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
 /* ============================================================
-   Scan2Moon – portfolio.js  (V2.0)
+   Scan2Moon – portfolio.js  (V2.2)
    Portfolio Scanner: fetch all tokens in a wallet,
    enrich with Birdeye, calculate 24h value change & risk scores.
    ============================================================ */

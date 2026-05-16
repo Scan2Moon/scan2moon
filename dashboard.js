@@ -1,7 +1,7 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
 /* ============================================================
-   Scan2Moon – dashboard.js  (V2.0)
+   Scan2Moon – dashboard.js  (V2.2)
    Real-data dashboard — all stats from simulator profile + live leaderboard rank.
    ============================================================ */
 

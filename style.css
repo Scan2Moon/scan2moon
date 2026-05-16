@@ -1,4 +1,4 @@
-* {
+﻿* {
   box-sizing: border-box;
   font-family: "Segoe UI", sans-serif;
 }
@@ -1110,7 +1110,7 @@ a {
   border: 1px solid #666;
 }
 /* ===================================================
-   SCAN2MOON V2.0 – SHARED NAVIGATION STYLES
+   SCAN2MOON V2.2 – SHARED NAVIGATION STYLES
    =================================================== */
 
 /* ═══════════════════════════════════════════════════════
@@ -2363,7 +2363,7 @@ a {
    (replace the previous simulate block if you added it)
    =================================================== */
 
-/* SIMULATE button — compact, sits between nav-links and V2.0 badge */
+/* SIMULATE button — compact, sits between nav-links and V2.2 badge */
 .nav-simulate-btn {
   display: inline-flex;
   align-items: center;
@@ -2504,7 +2504,7 @@ body[data-skin="neon_degen"] .hero-header, html[data-skin="neon_degen"] .hero-he
    NEON DEGEN — Nav badge, status dot, My Wallet modal fixes
    ============================================================ */
 
-/* V2.0 / SOLANA chain badge in nav */
+/* V2.2 / SOLANA chain badge in nav */
 body[data-skin="neon_degen"] .nav-version-label, html[data-skin="neon_degen"] .nav-version-label {
   color: rgba(200, 80, 255, 0.6) !important;
   border-color: rgba(200, 80, 255, 0.25) !important;

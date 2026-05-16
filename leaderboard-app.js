@@ -1,7 +1,7 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
 /* ============================================================
-   Scan2Moon – leaderboard-app.js  (V2.0 FRONTEND)
+   Scan2Moon – leaderboard-app.js  (V2.2 FRONTEND)
    Scan2Moon Leaderboard — Browser ES Module
    This is the FRONTEND script for leaderboard.html.
    The server-side Netlify function stays in leaderboard.js

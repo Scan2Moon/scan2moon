@@ -1,7 +1,7 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
 /* ============================================================
-   Scan2Moon – whale-dna.js  (V2.0)
+   Scan2Moon – whale-dna.js  (V2.2)
    Whale DNA: Wallet behavior profiling + Copy-Trade Risk Score
    ============================================================ */
 

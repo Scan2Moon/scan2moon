@@ -1,4 +1,4 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
 /* ============================================================
    Scan2Moon – community.js  (V3.0 — Professional Terminal)
@@ -52,7 +52,7 @@ function renderCommunityPanel() {
           <span class="comm-status-chain">BIRDEYE DATA</span>
         </div>
         <div class="comm-status-right">
-          <span class="comm-status-version">Scan2Moon V2.0</span>
+          <span class="comm-status-version">Scan2Moon V2.2</span>
         </div>
       </div>
 

@@ -1,8 +1,8 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 // Expose site key as a global so sub-modules can use it without import.meta.env
 window.__s2mKey = (typeof import.meta !== "undefined" && import.meta.env?.VITE_SITE_KEY) || "";
 
-// UPDATED FILE: script.js – V2.0
+// UPDATED FILE: script.js – V2.2
 import { renderMainAnalysis } from "./mainAnalysis.js";
 import { renderSignals } from "./scanSignals.js";
 import { renderMarketCap, stopMarketCap } from "./marketCap.js";

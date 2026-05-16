@@ -1,7 +1,7 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
 /* ============================
-   Scan2Moon – Final Score Panel V2.0
+   Scan2Moon – Final Score Panel V2.2
    ============================ */
 import { t } from "./i18n.js";
 import { esc } from "./utils.js";

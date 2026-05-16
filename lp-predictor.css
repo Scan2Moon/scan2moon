@@ -54,6 +54,36 @@
 
 .lp-error-icon { font-size: 17px; flex-shrink: 0; }
 
+/* ── Paywall state ── */
+.lp-paywall {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 18px;
+  text-align: center;
+  background: rgba(44, 255, 201, 0.04);
+  border-radius: 12px;
+  border: 1px solid rgba(44, 255, 201, 0.15);
+  margin: 4px 0;
+}
+.lp-paywall-icon { font-size: 28px; }
+.lp-paywall-title { color: #2cffc9; font-size: 14px; font-weight: 700; letter-spacing: 0.5px; }
+.lp-paywall-text { color: rgba(200,220,210,0.6); font-size: 12px; }
+.lp-paywall-btn {
+  margin-top: 6px;
+  padding: 7px 18px;
+  background: rgba(44,255,201,0.12);
+  border: 1px solid rgba(44,255,201,0.35);
+  border-radius: 8px;
+  color: #2cffc9;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.lp-paywall-btn:hover { background: rgba(44,255,201,0.22); }
+
 /* ── Card wrapper ── */
 .lp-card {
   display: flex;

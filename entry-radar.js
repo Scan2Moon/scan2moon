@@ -1,6 +1,6 @@
-const _DEBUG = false;
+﻿const _DEBUG = false;
 
-// entry-radar.js – Scan2Moon V2.0 Entry Radar
+// entry-radar.js – Scan2Moon V2.2 Entry Radar
 import { renderNav } from "./nav.js";
 import "./community.js";
 import { computeRiskScore, pickSmartPair } from "./scanSignals.js";
