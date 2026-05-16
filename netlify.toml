@@ -96,6 +96,33 @@
   status = 404
   force = true
 
+# ── Block direct HTTP access to cron-only functions ──────────────────────────
+# These run on schedule via Netlify; direct HTTP calls always return 403.
+# Returning 404 at the CDN edge avoids the function invocation cost entirely.
+[[redirects]]
+  from = "/.netlify/functions/detectOnchain"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.netlify/functions/detectNewPairs"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.netlify/functions/warmCache"
+  to = "/404.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.netlify/functions/detectSmartMoney"
+  to = "/404.html"
+  status = 404
+  force = true
+
 # ── Admin panel: hide from search engines, never cache ──────────────────────
 [[headers]]
   for = "/admin.html"
